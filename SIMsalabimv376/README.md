@@ -32,11 +32,15 @@ For the use of perovskite solar cells, the following paper offers a detailed des
 2) Compile SIMsalabim (note: on Linux this is case-sensitve):
 - open a terminal window and go to the SIMsalabim/Units folder
 - within Units, compile the units in the following order:
-fpc TypesAndConstants.pp
-fpc NumericalUtils.pp
-fpc InputOutputUtils.pp
+<pre><code>
+    fpc TypesAndConstants.pp
+    fpc NumericalUtils.pp
+    fpc InputOutputUtils.pp
+ </code></pre>
 - now go back to the SIMsalabim parent folder and compile SIMsalabim:
-fpc SIMsalabim
+ <pre><code>
+ fpc SIMsalabim
+  </code></pre>
 
 You may see this warning message:
 /usr/bin/ld.bfd: warning: link.res contains output sections; did you forget -T?
@@ -44,11 +48,21 @@ Just ignore this.
 
 3) Running SIMsalabim:
 - all parameters are specified in device_parameters.txt
-- on Linux run SIMsalabim by entering in the terminal: ./SIMsalabim
-on windows: SIMsalabim.exe
+- on Linux run SIMsalabim by entering in the terminal: 
+<pre><code>
+./SIMsalabim
+ </code></pre>
+
+on windows:
+<pre><code>
+SIMsalabim.exe
+ </code></pre>
+
 - all parameters listed in device_parameters.txt can also be changed via the command line. This will override the respective parameter value in device_parameters.txt. Simply add the parameter name and value to the command line after a dash (-).
 Example: change of thickness (L) and JV output file (JV_file):
+<pre><code>
 ./SIMsalabim -L 345E-9 -JV_file anotherJV.dat
+</code></pre>
 - multiple output files will be generated (see device_parameters) and log file.
 
 4) Other remarks
