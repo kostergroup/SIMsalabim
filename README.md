@@ -1,6 +1,6 @@
 # SIMsalabim
 
-SIMsalabim version 3.76: A 1D drift-diffusion simulator for semiconductor devices (LEDs, solar cells, diodes, organics, perovskites). 
+SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, solar cells, diodes, organics, perovskites). 
 
 SIMsalabim can be used to simulate current-voltage (JV) characteristics of semiconductor devices. It includes the effects of generation, recombination and trapping of electrons and holes, the effect of ions and dopants, and self-consistently solves the electric field that results from all charged species.
 
