@@ -2,6 +2,16 @@
 
 SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, solar cells, diodes, organics, perovskites). 
 
+## Table of Contents
+1. [Introduction](#introduction)
+2. [Copyright and license](#copyright-and-license)
+3. [Instructional videos](#instructional-videos)
+4. [How to cite](#how-to-cite)
+5. [How to compile](#how-to-compile)
+6. [Scientific publications based on SIMsalabim](#scientific-publications-based-on-simsalabim)
+
+## Introduction
+
 SIMsalabim can be used to simulate current-voltage (JV) characteristics of semiconductor devices. It includes the effects of generation, recombination and trapping of electrons and holes, the effect of ions and dopants, and self-consistently solves the electric field that results from all charged species.
 
 ## Copyright and license
@@ -13,6 +23,13 @@ Several authors (all from the University of Groningen) have contributed to the c
 - M. (Marten) Koopmans
 - F.O.B. (Friso) Wobben
 - Prof. Dr. L.J.A. (Jan Anton) Koster
+
+## Instructional videos
+
+In order to help new users to get the most out of SIMsalabim, we have recorded a few instructional videos:
+
+1 [Installation and basic use](https://youtu.be/0mtpGJMnbFE "Installation and basic use")
+
 
 ## How to cite
 
@@ -69,7 +86,9 @@ Example: change of thickness (L) and JV output file (JV_file):
 - in general, input files and the log file have extension .txt, whereas output files that can be used for plotting (J-V curves, for example) have extension .dat.
 - all changes are shown and commented on in the file Docs/Change_log.txt. Here we document not just the changes, but also explain and motivate some of the choices in naming, physical models, etc. 
 
-## Scientific publications based on SIMsalabim (not complete)
+## Scientific publications based on SIMsalabim
+
+List of publications (not complete):
 
 
 - D. Neher, J. Kniepert , A. Elimelech, and L.J.A. Koster, A new Figure of Merit for Organic Solar Cells with Transport-limited Photocurrents, Sci. Rep. 6, 24861 (2016).
