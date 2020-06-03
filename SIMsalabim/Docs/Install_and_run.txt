@@ -1,0 +1,27 @@
+
+
+1) SIMsalabim uses fpc (free pascal compiler), download and install from
+https://www.freepascal.org/download.var
+1b) You'll probably want to use (install?) some form of integrated development environment (IDE). One popular IDE is called Lazarus, however, I prefer Geany as it is nice and simple.
+
+2) Compile SIMsalabim (note: on Linux this is case-sensitve):
+a) open a terminal window and go to the SIMsalabim/Units folder
+b) within Units, compile the units in the following order:
+fpc TypesAndConstants.pp
+fpc NumericalUtils.pp
+fpc InputOutputUtils.pp
+c) now go back to the SIMsalabim parent folder and compile SIMsalabim:
+fpc SIMsalabim
+
+You may see this warning message:
+/usr/bin/ld.bfd: warning: link.res contains output sections; did you forget -T?
+Just ignore this.
+
+3) Running SIMsalabim:
+a) all parameters are specified in device_parameters.txt
+b) on Linux run SIMsalabim by entering in the terminal: ./SIMsalabim
+on windows: SIMsalabim.exe
+c) all parameters listed in device_parameters.txt can be changed via the command line. This will override the respective parameter value in device_parameters.txt. Simply add the parameter name and value to the command line after a dash (-).
+Example: change of thickness (L) and JV output file (JV_file):
+./SIMsalabim -L 345E-9 -JV_file anotherJV.dat
+d) multiple output files will be generated (see device_parameters) and log file.
