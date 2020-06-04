@@ -21,7 +21,7 @@ Several authors (all from the University of Groningen) have contributed to the c
 - Dr T.S. (Tejas) Sherkar
 - V.M. (Vincent) Le Corre
 - M. (Marten) Koopmans
-- F.O.B. (Friso) Wobben
+- F. (Friso) Wobben
 - Prof. Dr. L.J.A. (Jan Anton) Koster
 
 ## Instructional videos
