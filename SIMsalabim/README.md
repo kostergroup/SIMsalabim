@@ -21,7 +21,7 @@ Several authors (all from the University of Groningen) have contributed to the c
 - Dr T.S. (Tejas) Sherkar
 - V.M. (Vincent) Le Corre
 - M. (Marten) Koopmans
-- F.O.B. (Friso) Wobben
+- F. (Friso) Wobben
 - Prof. Dr. L.J.A. (Jan Anton) Koster
 
 ## Instructional videos
@@ -39,6 +39,14 @@ The original paper showing how this code can be used for organic solar cells is:
 
 For the use of perovskite solar cells, the following paper offers a detailed description of the modelling assumptions:
 - T.S. Sherkar, C. Momblona, L. Gil-Escrig, J. Ávila, M. Sessolo, H. Bolink, and L.J.A. Koster, Recombination in Perovskite Solar Cells: Significance of Grain Boundaries, Interface Traps and Defect Ions, ACS Energy Lett. **2**, 1214 (2017).
+
+## Pre-compiled binaries
+
+SIMsalabim comes as a pre-compiled binary for WIN or Linux (64 bits), see folder 'Binaries'. This avoids having to download and install the FPC compiler and compiling the code which is described below. There is no guarantee that these will work, but it is worth a try. Simply copy the binary to the main SIMsalabim folder. The Linux one might require a change of permissions to run, something like:
+<pre><code>
+    chmod +x SIMsalabim
+ </code></pre>
+
 
 ## How to compile
 
@@ -90,6 +98,15 @@ Example: change of thickness (L) and JV output file (JV_file):
 
 List of publications (not complete):
 
+- V.M. Le Corre, T.S. Sherkar, M. Koopmans, and L.J.A. Koster, Identification of the Dominant Recombination Process for Perovskite Solar Cells Based on Machine Learning, Cell Rep. Phys. Sci. 2, 100346 (2021).
+
+- Y. Firdaus, V.M. Le Corre, S. Karuthedath, W. Liu, A. Markina, W. Huang, S. Chattopadhyay, M.M. Nahid, M.I. Nugraha, A. Seitkhan, A. Basu, Y. Lin, I. McCulloch, H. Ade, J. Labram, F. Laquai, D. Andrienko, L.J.A. Koster, and T.D. Anthopoulos, Long-range exciton diffusion in molecular non-fullerene acceptors, Nature Comm. 11, 5220 (2020).
+
+- D. Hu, Q. Yang, H. Chen, F. Wobben, V.M. Le Corre, R. Singh, L.J.A. Koster, Z. Kan, Z. Xiao, and S. Lu, 15.34% Efficiency All-Small-Molecule Organic Solar Cells with Improved Fill Factor Enabled by a Fullerene Additive, Energy Environ. Sci. 13, 2134 (2020).
+
+- L. Hou, J. Lv, F. Wobben, V.M. Le Corre, H. Tang, R. Singh, M. Kim, F. Wang, H. Sun, W. Chen, Z. Xiao, M. Kumar, T. Xu, W. Zhang, I. McCulloch, T. Duan, H. Xie, L.J.A. Koster, S. Lu, and Z. Kan, Effects of Fluorination on Fused Ring Electron Acceptor for Active Layer Morphology, Exciton Dissociation, and Charge Recombination in Organic Solar Cells, ACS Appl. Mater. Interfaces 12, 56231 (2020).
+
+- E.A. Duijnstee, V.M. Le Corre, M.B. Johnston, L.J.A. Koster, J. Lim, and H.J. Snaith, Understanding dark current-voltage characteristics in metal-halide perovskite single crystals, Phys. Rev. Appl. 15, 014006 (2021).
 
 - D. Neher, J. Kniepert , A. Elimelech, and L.J.A. Koster, A new Figure of Merit for Organic Solar Cells with Transport-limited Photocurrents, Sci. Rep. 6, 24861 (2016).
 
@@ -107,7 +124,7 @@ List of publications (not complete):
 
 - V.M. Le Corre,  M. Stolterfoht, L. Perdigón Toro, M. Feuerstein, C. Wolff, L. Gil-Escrig, H.J. Bolink, D. Neher, and L.J.A. Koster, Charge transport layers limiting the efficiency of perovskite solar cells: how to optimize conductivity, doping and thickness, ACS Appl. Energy Mater. 2, 6280 (2019). 
 
-- E. A. Duijnstee, J.M. Ball, V.M. Le Corre, L.J.A. Koster (corresponding), H.J. Snaith, and J. Lim, Towards Understanding Space-charge Limited Current Measurements on Metal Halide Perovskites, ACS Energy Lett. 5, 376 (2020).
+- E. A. Duijnstee, J.M. Ball, V.M. Le Corre, L.J.A. Koster, H.J. Snaith, and J. Lim, Towards Understanding Space-charge Limited Current Measurements on Metal Halide Perovskites, ACS Energy Lett. 5, 376 (2020).
 
 - D. Bartesaghi and L. J. A. Koster, The effect of large compositional inhomogeneities on the performance of organic solar cells: A numerical study, Adv. Funct. Mater. 25, 2013 (2015).
 
