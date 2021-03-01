@@ -574,4 +574,88 @@ d) option '-PIDlog' obsolete, so I have removed this functionality.
 
 
 
+Version 3.78 (22 June, 2020), LJAK
+1) I have made it possible to directly read-in the voltages (to be simulated) from an experimental JV curve. In version 3.66, I introduced the possibility of reading experimental JV curves and this also did override the Vmin, Vmax, and Vstep, but only worked for a constant Vstep. So, if the experimental data does not have a fixed voltage step, SIMsalabim would simply not accept it and exit. 
+To do this:
+a) I have combined Init_voltages_and_tasks with Read_Experimental_JV. Init_voltages_and_tasks now calls Read_Experimental_JV if needed and determines the number of voltage points (NJV). This overrides any NJV based on Vmin, Vmax, Vstep (if Vdistribution = 1) or the value that is directly put if Vdistribution=2.
+b) Note: if a pre-bias is used in conjuction with an experimental JV curve, SIMsalabim will still execute the pre-biasing (its voltage is stored in JVSim[0].Vint).
 
+2) Corrected Friso Wobben's initials in the readme.md file and the codes.
+
+
+
+
+Version 3.79 (9-14 July, 2020), LJAK, MK
+We have introduced the possibility of having different effective densities-of-states for the main absorber (Nc) and the left (right) transport layers, Nc_LTL(RTL). 
+
+Physical background:
+A changing effective DOS can be accounted for by introducing another term in the generalised potentials, Gamma_n and Gamma_p for electrons, resp. holes, see Purbo et al., J. Appl. Phys. 66, 5078 (1989), equations 14 and 15. In previous versions of SIMsalabim, only the effect of different energy levels was implemented (chi in eq. 14 and 15 in Purbo et al.), which led to the introduction of the generalised potentials Vgn/p (see version 3.28).
+ 
+These Gamma's are only defined by their derivative so one can take an arbitrary reference (See: A.H. Marshak, et al., Transport equations for highly doped devices and heterostructures. Solid State Electronics, 30(11), 1089–1093 (1987)). It is natural to take the Nc of the main layer as the reference for Gamma. So we get:
+Gamma_n = Vt * LN(NcLoc[i]/Nc)
+Gamma_p = Vt * LN(NcLoc[i]/Nc)
+We do not (as yet) allow for different DOS of the conduction and valence band as that would introduce even more parameters. However, this would be a trivial extension as it only affects Gamma_n,p and the intrinsic carrier density (ni).
+
+To do so, we have:
+1) introduced parameters Nc_LTL, Nc_RTL to define the effective DOS in the TLs.
+2) introduced Nc as a vector: NcLoc, the local Nc.
+3) ni is now a vector (no longer a simple float) as it (can) depends on position.
+4) ni and NcLoc are initialised in proc DefineLayers (also cleaned up this procedure).
+5) In UpdateGenPot the effect of the changing effective DOS (NcLoc) is taken into account by adding a suitable term to Vgn/p. 
+6) In proc Write_Vars_To_File, where we work out the quasi-Fermi levels and the conduction and valence bands, we have to correct for the Gamma's.
+7) In proc Init_Pot_Dens the densities are initialised but it's different from previous versions. To get the correct n at x=0 and p at x=L, we calculate the injection barrier. Then, we use the law of mass action to get the minority carrier density.
+8) Quite a few instances of Nc in the code have been changed to NcLoc: SRH, trapping, finite surface recombination in cont_n,p. Only in Init_Elec/Hole_Mob_Table do we use the bulk value of Nc as the mobility table is only valid for the main absorber layer, not the TLs.
+
+Another minor change: Image force lowering is really only correct if either 1) there are no TLs, 2) if the TLs have the same conduction or valence band as the main layer. This is because the injection barriers (phi_left, phi_right, internal to SIMsalabim) are calculated based on the values of CB and VB (so not CB_LTL, VB_RTL). This is easily fixed, of course, by making CB and VB arrays in the program. However, for now, we simply display a warning message and halt the program. This reasoning also applies to finite surface recombination: also there we rely on phi_left, phi_right, so this is (for now) not possible with TLs that have a band offset.
+
+
+
+Version 3.80 (21 Aug 2020), LJAK
+Removed a bug in Calc_hole_mob! If we're using a mobility table (case 2 in this procedure), we need to calculate the concentration between two grid points. This is done in line 1314: conc:=0.5*(p[i] + p[i+1]). Previously, n[i] and n[i+1] were used instead!
+
+
+Version 3.81 (2 Sep 2020), LJAK
+Removed a bug from proc Tridiag in the NumericalUtils unit! This proc was modified in version 3.61 to make it open-source. However, the last for loop was not correct (see line 243 in the unit). It should go downto i0, not 1.
+
+
+Version 3.82 (10 Sep 2020), LJAK
+-I have introduced two parameters (nu_int_LTL and nu_int_RLT) to better describe the flow of charges across the interfaces between the TLs (if any) and the main absorber layer. These nu_int's are interface transfer velocities, and thus have the unit of m/s. Internally, they are converted to a mobility at the TL/main absorber interface in a way to ensures that the resulting JV curve does not depend on the grid spacing:
+The mobility at the interface (mu_int) is obtained from nu_int by using:
+mu_int = delx * nu_int / Vt,
+where delx is the (local) grid spacing and Vt is the thermal voltage. 
+Note, these nu_int's are the same for electrons and holes, just like the mobilities of the TLs.
+
+-Introduced a new global variable: Vti = 1/Vt. We use this throughout the code, so I have removed all local equivalent declarations and have replaced things like .../Vt with ...*Vti. Multiplication is typically an order of magnitude faster than division!
+
+
+Version 3.83 (11 Sep 2020), MK
+- I removed a bug affecting the interface trapping layer. If the layer was set to a thickness lower than the grid spacing, there would be no traps added to the interface. Now the traps are applied to at least one gridpoint. The number of traps per cubic meter is according to the actual length on-grid, not the set layer thickness (this is the same behaviour as in the previous versions).
+
+Version 3.84 (4 Dec 2020), MK
+- I changed interface traps and grain boundary traps. Interface traps can now capture across the interface between transport layer and main layer.
+- Traps in general have been reworked in the code. In the device parameter file, one can still make hole and electron traps, but they now share the same energy level defined with respect to vacuum. Because of symmetry between different trap types, the distinction between hole and electron traps is removed in the code. For every trap we now save the number of traps and whether it is charged when filled with an electron yes or no. The fraction of filled traps now refers to the fraction filled by electrons. Interfaces now have their charge distributed over 2 grid points. This removes the need for parameters defining the thickness of the trapping layers.
+- A check was added to make sure that the trap level is between the conduction and valence band everywhere in the device. Shallow traps can still become unstable depending on the DOS offset in between the bulk and transport layers.
+- The conduction band and valence band are now vectors that can be used to get their respective levels.
+- Bulk doping previously added doping in transport layers as well if they were undoped, this is now fixed.
+- Helper functions are introduced to calculate the filled fraction of traps for both bulk and interface traps.
+- The Poisson solver has been updated to account for the new interface traps. The expressions for both bulk and interface traps have been linearized in delV to aid convergence. Previously this was not done so this could positively affect convergence.
+- The Recombi and Calc_recombi_current functions were updated to account for the new type of traps.
+- The continuity equations are updated to account for the new interface traps. While the equations are linearized with respect to carrier densities, they are still prone to overshoot the solution. When close to the value where the equations converge, the overshoot disappears. A likely cause for the overshoot is the dependence of the carrier densities at the interfaces on their neighbouring sites, however this is pure speculation. A way to assess this system would be to look at the spectra of the continuity matrix, but for now a heuristic is applied to make the continuity equations converge.
+- The new definition of interface traps allows for current to be conducted through traps by e.g. by the interface trap capturing electrons from one side and having them detrap at the other side. This is especially apparent when there are shallow traps and a low interface transfer rate. This current is added to the regular current term in the Var.dat file.
+- The new expression for the continuity equations make the main loop converge with more difficulty. Therefore a few changes are made to the main loop. We call contn and then call contp with the newly calculated n, which is different from the previous version where the old n was used. I also implemented a heuristic way of limiting the maximum deln and delp. When both deln and delp start oscillating (changing sign over iterations), we set the new maximum for deln and delp to half of the maximum deln and delp found. To check for convergence we use deln and delp as calculated from the continuity equations, so before they are limited. This way we do not artificially converge the system.
+- In the Var.dat file we now output ctraps (charge traps) instead of n_trap and p_trap, where ctraps is the total charge of all traps.
+- I introduced a variable in device parameters 'Exit_after_fail', which makes SIMsalabim stop after the first failure to converge. This is useful as when running autofit, it can be useful to now wait for all points to not converge but give up after the first fail, saving time and poor estimates of the solar cell parameters.
+
+Version 3.85 (14 Jan 2021), MK
+- Fixed the calculation of finite surface recombination. Removed the terms cathode and anode from the parameters so everything is now refering to left and right. Finite sufrace recombination is now only used when there is extraction.
+- Added a parameter to the user interface parameters: exit_after_fail. This parameter exits SIMsalabim with exit status 1 if a point does not converge. This is especially usefull when running in combination with autofit, where a certain part of the parameter range might not converge. This parameter makes sure that no bogus FF and Voc vanues are calculated and just generally speeds up autofit.
+- Added a parameter to allow ions in the TL's.
+- Fixed the comment for Etrap in the device parameter file.
+- Fixed some indentation and whitespace issues.
+
+Version 3.86 (14 Jan 2021), MK & LJAK
+- Fixed linearization traps in Poisson equation. This improves convergence of the Poisson solver.
+- Traps were allowed on the same energy as the conduction or valence bands. This is now forbidden, as it is unphysical.
+- Fixed bug in the diagonal entries of the continuity equations regarding interface traps.
+- Added binaries for Windows and (GNU) Linux
+- Fixed whitespace in SIMsalabim.pas. It was wrong because of tab and space mixing for indentation.
