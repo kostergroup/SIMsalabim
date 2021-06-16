@@ -3,7 +3,7 @@ unit NumericalUtils;
 {
 SIMsalabim: a 1D drift-diffusion simulator 
 Copyright (c) 2020 Dr T.S. Sherkar, V.M. Le Corre, M. Koopmans,
-F.O.B. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
+F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
 This program is free software: you can redistribute it and/or modify
@@ -41,6 +41,11 @@ uses TypesAndConstants,
 FUNCTION RombergIntegration(f : MathFunc; a, b, TolRomb : myReal; MaxIt : INTEGER; wait_if_faulty : BOOLEAN) : myReal;
 {Romberg integration of function f from a to b. Rom[1,1] and Rom[2,1] are trapezoidal
 approximations, Rom[1,j] and Rom[2,j] are Richardson extrapolations.}
+
+FUNCTION RombergIntegrationValues(f : MathFuncValues; vals : Row; a, b, TolRomb : myReal; MaxIt : INTEGER; wait_if_faulty : BOOLEAN) : myReal;
+{Romberg integration of function f from a to b. Rom[1,1] and Rom[2,1] are trapezoidal
+approximations, Rom[1,j] and Rom[2,j] are Richardson extrapolations.}
+{This version can take an array (vals) which is passed on to the MathFunc f}
 
 procedure SolveQuadraticEq(a, b, c : myReal; var nr : integer; var x1, x2 : myReal);
 {solves the equation a*x*x + b*x + c = 0, and returns roots x1 and x2}
@@ -96,8 +101,6 @@ FUNCTION B(x : myReal) : myReal; {The Bernoulli function, an approximation}
 FUNCTION Bessel(x : myReal) : myReal;
 {calculates the Bessel function of order 1, with some scaling}
 
-FUNCTION Average(Vec, h : Vector; istart, ifinish : INTEGER) : myReal;
-{calculates the average value of vector vec}
 
 implementation
 
@@ -166,6 +169,61 @@ BEGIN
         {no convergence, then stop routine}
 END;
 
+
+
+FUNCTION RombergIntegrationValues(f : MathFuncValues; vals : Row; a, b, TolRomb : myReal; MaxIt : INTEGER; wait_if_faulty : BOOLEAN) : myReal;
+{Romberg integration of function f from a to b. Rom[1,1] and Rom[2,1] are trapezoidal
+approximations, Rom[1,j] and Rom[2,j] are Richardson extrapolations.}
+{This version can take an array (vals) which is passed on to the MathFunc f}
+VAR i, j, k, m : INTEGER;
+    l, h, sum, diffnew, diffold : myReal;
+    Rom : ARRAY OF ARRAY OF myReal;
+BEGIN
+    RombergIntegrationValues:=0; {define return value of qRomb}
+    SetLength(Rom, 2, MaxIt);
+    {This sets the length of Rom as array[0..1, 0..MaxRombIt-1] of myReal}
+    h:=b-a;
+    Rom[0,0] := (f(a, vals) + f(b, vals))/2 * h;
+    i:=1;
+    diffnew:=1; {difference between two successive answers determines convergence}
+    diffold:=1;
+{   To guard against the possibility that two consecutive row elements agree with
+    each other but not with the value of the integral being approximated, it is
+    common to genarate approximations until not only |Rn-1,n-1 - Rn,n| (diffnew)
+    is within the tolerance, but also |Rn-2,n-2 - Rn-1,n-1| (diffold). }
+    WHILE ((diffnew > TolRomb) OR (diffold > TolRomb)) AND (i < MaxIt) DO
+    BEGIN
+        diffold:=diffnew;
+        i:=i+1;
+{       approximation from Trapezoidal method                   }
+        sum:=0;
+        m:=ROUND(POWER(2, i-2));
+        FOR k := 1 TO m DO sum:=sum + f(a + (k - 0.5 ) * h, vals);
+        Rom[1,0]:=0.5*(Rom[0,0] + h * sum);
+{       extrapolation                                           }
+        FOR j:= 2 TO i DO
+        BEGIN
+            l:=POWER(4, j-1);
+            Rom[1,j-1] := Rom[1,j-2]+(Rom[1,j-2]-Rom[0,j-2])/(l-1)
+        END;
+        h:=0.5*h;
+{       Only use relative tol. when Rom[1, i-1] <> 0 }
+        IF Rom[1, i-1] = 0
+            THEN diffnew:=ABS(Rom[1, i-1]-Rom[1, i-2])
+            ELSE diffnew:=ABS((Rom[1, i-1]-Rom[0, i-2])/Rom[1, i-1]);
+{       since only two rows are kept in storage, this step      }
+{       is to prepare for the next row.                         }
+{       update row 1 of R                                       }
+        FOR j:=0 TO i-1 DO Rom[0,j] := Rom[1,j]
+    END;
+    IF (diffnew < TolRomb) AND (diffold < TolRomb) {did we converge?}
+        THEN RombergIntegrationValues:=Rom[1, i-1]
+        ELSE Stop_Prog('Romberg integration did not converge, increase MaxRombIt or decrease TolRomb.', wait_if_faulty)
+        {no convergence, then stop routine}
+END;
+
+
+
 procedure SolveQuadraticEq(a, b, c : myReal; var nr : integer; var x1, x2 : myReal);
 {solves the equation a*x*x + b*x + c = 0, and returns roots x1 and x2}
 {note: a should not be zero.}
@@ -225,7 +283,7 @@ The total system looks like:
 (b[i0] c[i0]                   )  (x[0])      (r[i0])
 (a[i0+1] b[i-+1] c[i0+1]       )    .            .
 (        ......                )    .       =    .
-(               c[i1-1]        )    .            .
+(               		c[i1-1])    .            .
 (                    a[i1]b[i1]) (x[i1])      (r[i1])    }
 {IMPORTANT: THIS FORM OF THE ALGORITM MODIFIES THE ORIGINAL COEFICIENTS, SO 
 WE NEED TO PASS THEM AS VALUE (NOT VAR) PARAMETERS}
@@ -240,9 +298,10 @@ BEGIN
 		r[i]:=r[i] - w*r[i-1];
 	END;
 	x[i1]:=r[i1]/b[i1];
-	FOR i:=i1-1 DOWNTO 1 DO
+	FOR i:=i1-1 DOWNTO i0 DO
 		x[i]:=(r[i]-c[i]*x[i+1])/b[i]
 END;
+
 
 PROCEDURE Interpolation_rec(x_pts, y_pts : Row; n_pts : INTEGER; x : myReal; VAR y_est, dy : myReal);
     {Given two arrays, x_ptx and y_pts, of length n_pts and a value x at which to interpolate, this
@@ -415,7 +474,6 @@ BEGIN {start preprocessing the arrays to interpolate to have the number of point
     Neville_interpolation(x_selected, y_selected, interp_order + 1, x_target, y_estimate, y_error_estimate);
 END;
 
-
 PROCEDURE Fit_Parabola(x1, x2, x3, y1, y2, y3 : myReal; VAR a, b, c : myReal);
 {Fits a parabola through [(x1, y1), (x2, y2), (x3,y3)], y = ax^2 + bx + c}
 BEGIN
@@ -424,6 +482,7 @@ BEGIN
     a:=( y3 - y1 - b*(x3-x1) )/(SQR(x3) - SQR(x1) );
     c:=y1 - a*SQR(x1) - b* x1
 END;
+
 FUNCTION BilinearInterpolation(x1, x2 : myReal; VAR x1a, x2a : row; m, n : INTEGER; VAR ya : Table; extra_x2 : BOOLEAN) : myReal;
 {Uses bilinear Interpolation for interpolation in 2D.}
 { data is given as ya[j,k] = y(x1a[j], x2a[k]). We want to know ya at x1, x2}
@@ -435,7 +494,7 @@ Numer. Recipes in Pascal 1st Ed. p. 107, paragraph 3.6
 or: 
 https://en.wikipedia.org/wiki/Bilinear_interpolation}
 
-VAR j, k : integer;
+VAR j, k : INTEGER;
     y1, y2, y3, y4, t, u : myReal;
 BEGIN
     {first find the grid square in which the point (x1, x2) falls}
@@ -516,16 +575,6 @@ BEGIN
    Bessel:=1 + x*(1+a1*x*(1+a2*x*(1+a3*x*(1+a4*x*(1+a5*x*(1+a6*x*(1+a7*x*(1+a8*x*(1+a9*x*(1+a10*x))))))))))
 END;
 
-FUNCTION Average(Vec, h : Vector; istart, ifinish : INTEGER) : myReal;
-{calculates the average value of vector vec}
-VAR i   : INTEGER;
-    Avg : myReal;
-BEGIN
-    Avg:=0;
-    FOR i:=istart+1 TO ifinish DO
-        Avg := Avg + 0.5*(Vec[i]+Vec[i-1])*h[i-1];
-    Average := Avg;
-END;
 
 begin
 

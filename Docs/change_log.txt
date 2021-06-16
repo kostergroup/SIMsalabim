@@ -1,0 +1,1198 @@
+Version 4.05 11 June 2021, LJAK
+
+I have implemented an extra check on the convergence (main loop and Poisson) if there are ions. In the Poisson solver, we modify the ion densities (and electrons and holes, but that's different) based on the updated potential (see v4.01). This strongly improves the convergence if there are many ions. However, we did not check if the change in the overal ion density was sufficiently small.
+
+So: if the change in the Poisson loop is small (so it converged) we now also check if the overal change in the ion density (if there are any moving ions!) is smaller than tolPois. We simply monitor the total sum of the ions (positive and negative lumped together).  If not, then check_Poisson becomes false so the main solver will keep on iterating. Once this sum is also stable (small change), then the Poisson solver will report that it converged. Once the main loop converges, we switch off the modification of the ion densities by the Poisson solver and force the main solver to keep on converging until the system converges once more, so without the modification of the ion densities by the Poisson solver. This is slower, but much more robust.
+
+
+Version 4.04, 2 June 2021, LJAK
+
+SIMsalabim only: added a check to until_Voc: this only comes into effect if there is light (Gehp<>0).
+
+
+
+Version 4.03, 1 June 2021, LJAK
+
+
+1) In DDRoutines, function Determine_Convergence, I added a check to make sure that we don't divide by zero:
+
+IF (it>1) AND (Jint<>0) THEN relchange:=ABS((Jint-ResJ[it-1].Jint)/Jint) ELSE relchange:=0;
+
+In rare cases, the simulated Jint can be exactly zero. If so, we set the relchange to 0. Why zero? just to make sure that if Jint becomes <> 1 in the next iterations, that the error will be very large. This will for SIMsalabim/ZimT to keep on iterating until we can reliably compute the error.
+
+2) In the device parameter file: the text (after *) of the surface recombination velocities (Sn/p_L/R) was not correct. Fixed.
+
+
+Version 4.02, 1 June 2021, LJAK
+SIMsalabim only:
+If using until_Voc, or chosing Vmax such that there is only 1 point beyond Voc, the previous versions did not manage to compute a decent Voc: This is because we like to use a second order interpolation but that fails (errVoc is very large!) in this case. So, we now do the following:
+1) the actual interpolation order is capped by MaxInterpolationOrder (a constant in DDTypesAndConstants)
+2) the interpolation order cannot be smaller than the number of usable JV points -1
+3) If the error on Voc is very large (calcOC is false) then we try again with the linear algorithm.
+So: if we have plenty of points, then we use MaxInterpolationOrder (is 2, but can easily be changed) and we get a nice and small error on Voc. If we do not have many points at either side of Voc, then we simply do linear interpolation as this is much more robust.
+
+
+Version 4.01, 1 June 2021, LJAK
+
+New features:
+1) in the Var_file, we now write Vext in the last column if the simulation is not transient (SIMsalabim). This helps in plotting as it indicates which voltage belongs to the variables.
+
+2) In SIMsalabim and ZimT we now also check the version of the compiler. It needs to be at least 3.2.0 (notation: . => 0, so this is version 30200). If not, we cannot check the versions of the code and units.
+
+3) Improved the checking for convergence of the main solver: now, we also check if the iterations converge to some value. We expect that the relative change (in Jint) decreases in every loop and that this relative change decreases logarithmically. If so, then we can estimate the error. We require that this error be small enough. See the next item for more details.
+
+4) I have overhauled the way the main solver checks for convergence: it is more strict and, hopefully, more transparent to the user as well as in the code. I have introduced a function Determine_Convergence to determine if and how the main solver converged. It calculates a parameter in TState called convIndex. This indicates
+0: not converged
+1: converged without problem
+2: converged because the current is very small.
+Converged without problem means that: a) the Poisson solver converged and b) the error estimate for the current (Jint) is small enough and c) that the current is sufficiently uniform across the simulation volume. Whether or not the current is sufficiently uniform depends on whether we are simulating at open-circuit or not. If so, then we check that the absolute range is small enough. If not (normal case), then we check the ratio of the range to the actual current.
+If the absolute current (Jint) is smaller than minAbsJ (in MinCountJSmall consecutive loops!) then we also consider that the main loop has converged (convIndex 2) provided the Poisson solver converged. 
+We no longer store nor output the range of the current across the device. In order to reflect these changes in the input parameters, I have renamed MaxRangeJ (and ZimT's MaxRangeJoc) tolJ.
+
+
+5) Previously, Init_Pot_Dens_Ions (which initialises the potential, n, p, and ion densities) simply set the ion to zero: they thus had a defined value, but not one that necessarily made sense. Later on, in the main solver, the ion density obtained their correct values. However, this is sloppy, so we now set the ion density to CNI/CPI.
+
+6) In order to help the programs converge if there are a significant number of ions, we now modify the ion densities inside the Poisson solver (steady-state only!), just like we do for the electron and hole densities. Note, we do not monitor how large this change is, but preliminary testing seems to show that the change drops to small values quite quickly. It does make the code a lot more stable.
+
+
+
+Bug fixes:
+1) ZimT: if Var_file was 'none' then no such output should be generated. However, the Var_file was still prepared (call to Prepare_Var_File) and variables were still written to this file right at the end of the program (not in the main loop). Fixed.
+2) Changed InterpolationOrder from 4 to 2 (DDTypesAndConstants): this is the order of the interpolation algorithm used to estimate the Jsc and Voc (SIMsalabim only). 4th order was a bit much, or so it seems, and this could lead to weird estimates of Voc.
+3) DDTypesAndConstants defined the parameter NJV twice: in TInputParameters and TStaticVars: this was a mistake and I have removed the one in TInputParameters: Yes, NJV is a parameter from the input, but we sometimes have to calculate it from other input (like an experimental JV curve). So it's really what we call TStaticVar. As a result, Vdistribution=2 did not work.
+4) In ZimT: In the previous version(s), if the header of the tVG_file was not correct (i.e. not 't Vext Gehp'), then ZimT would say that it could not find the steady-state condition (t=0) rather than complain about the header. 
+5) In SIMsalabim: small mistake in Find_Solar_Cell_Parameters: calcFF was not initialised in the right place.
+
+Small stuff:
+1) Swapped Sn/p_L and Sn/p_R. Previously the right surface recombination velocity came first, but this is not consistent with the other parameters (first left, then right!).
+2) ZimT: I have improved, I hope, the reading for the tVG_file. Previously, proc Read_tVG would halt the program if the last line of the tVG_file contained only white space, so even an enter after the list of times, voltages and generation rates would cause the program to exit. That's a bit harsh, of course. So, this procedure now checks if a line is empty. If so, then foundtVG remains fails and ZimT exits normally, without warning. In other words, a white line in the tVG_file (after the header) will make ZimT stop. Also, if a line is not empty but ZimT cannot extract the time, voltage and generation rate (for whatever reason) it will (like before) quit, but it will now also show the offending line in the tVG_file so the user can look for the error.
+
+
+
+Version 4.00, 29 April 2021, LJAK
+I have merged ZimT and SIMsalabim so they have the same version number (starting at 4.00) and have a joint change log (this text). The old SIMsalabim and ZimT change logs are added below. 
+The DD units (DDRoutines and DDTypesAndConstants) are also an integral part of the code and, therefore, have the same version number. There is a compiler directive in the ZimT and SIMsalabim codes to check if the version of the DD units matches that of those codes. The other units do not have a version number, the idea being that these units are less critical to the correct functioning of the programs.
+
+
+
+
+**************************************OLD SIMsalabim*******************
+Version 3.88 (8 March - 28 April 2021), LJAK, MK
+Another major update: We have integrated the ZimT (0.48) and SIMsalabim (3.88) codes such that they share the same drift-diffusion routines. This should make it much easier to maintain the codes. In doing so, SIMsalabim uses the proc Main_Solver that was introduced in ZimT in version 0.40. This procedure replaces a large part of SIMsalabim main code part as it takes care of the Gummel iteration scheme (coupled, iterative solution of the Poisson equation and the continuity equations). What remains is mostly input/output.
+
+We have also changed the convergence criterion: just like in ZimT check if the total current density throughout the device is sufficiently uniform (exact solution is perfectly constant!). This should be a more robust way of checking for convergence and makes it easier to include transient simulations in SIMsalabim (with an eye to the future!). We calculate the range of local currents (RangeJ), this represents the difference between the largest and the smallest current density in the simulation volume. If the current density is not zero, we check if ABS(RangeJ/Jint) < MaxRangeJ, so: MaxRangeJ is relative. This is a much more physical way of assessing the accuracy than what we implemented previously: up till now, we simply looked at the relative change per iteration. If that's small, then we assumed we were there (but there was no guarantee!).
+
+This does not work, though, if the current is close to zero and we are simulating in the dark. The current can be so small (small bias voltage) that it becomes numerically very difficult to get a meaningful solution. So, we check to make sure the (abs) current is smaller than MinAbsJ (A/m2, input parameter). If this is indeed the case at least MinCountJSmall consecutive times, then we assume we have reached convergence and simply set the current (Jint) to zero and the range (RangeJ) to -1: the latter (RangeJ=-1) is done to make clear to the user that we didn't bother to solve for the exact current as it is really small any way.
+
+If we know that the exact solution really is zero (exactly zero!), like at open-circuit, or in the absence of both light and voltage, then we still calculate the range of the current (in A/m2), but do not look at the relative range (as we cannot divide by zero!). Instead, we interpret the input MaxRangeJ parameter as a value in A/m2 and use that to assess convergence: if the absolute range (in A/m2) is smaller than MaxRangeJ, then we stop. The range (RangeJ in output) is then absolute and has the unit A/m2.
+
+
+Also removed a number of features that are never/rarely used:
+1) field-dependent de-doping, so also removed beta_n,p
+2) the tabulated mobilities (mob_n_dep and mob_p_dep = 2). So we now have only constant or field-dependent mobilities. We cut down the number of mobility models to 0,1,2 in 3.58 (see bug removed in 3.61).
+3) accPois: removed this as we also have maxDelV parameter which does something very similar. Both limit the change per loop in the Poisson solver.
+4) The Main_Solver in DDRoutines checks if the total current is uniform. If so (within a tolerance MaxRangeJ), then it has reached convergence. So, I removed parameters TolMain and Conv_Var from the device parameters as we no longer need them. Instead, we specify MaxRangeJ.
+5) removed ImageLowering, RoughLeft and RoughtRight, and the corresponding proc SetDensitiesImageLowering. I think, not sure, this wasn't working correctly any more.
+6) Changed Exit_after_fail to FailureMode (see ZimT 0.48). In SIMsalabim, this is part of the 'user interface'. The behaviour is very similar, but there is (as we do not yet do transient simulations in SIMsalabim) no real difference between 1 (ignore) and 2 (skip). FailureMode 0: SIMsalabim quits if a (J,V) point does not converge.
+
+
+Renamed a couple of parameter:
+-MaxItMain is now called MaxItSS, just like in ZimT.
+-nu_ni and nu_pi replaced with Cn and Cp.
+-Ntb: TStaticVars, array (vector), density of traps in bulk
+-Nti: TStaticVars, array (vector), density of traps at interface(s)
+-cwe_i: TStaticVars, charge of a trap when empty (= no electron), interface, integer
+-cwe_b: TStaticVars, charge of a trap when empty (= no electron), bulk, integer
+-Nti_charge: TState, array, net charge in interface trap(s) as a function of grid point, m^-3
+-QiT: stv, array of short int (ShortIntVector), either 0 or 1. 0: trap does not show up in Poisson; 1: trap is included in Poisson eq.
+-CIM (concentration of ions) replaced with CNI and CPI (see ZimT), these are the concentration of negative, resp. positive ions. 
+-Renamed Gmax Gehp: generation rate of electron-hole pairs. 
+
+Trapping and recombination:
+- Renamed Recombi to CalcNetRecombination. I also added CalcNetRecombination_n and CalcNetRecombination_p, as recombination of electrons and holes is no longer nescecerily equal at every gridpoint because of interface recombination.
+- Added de Mari version of calculation of current. This uses an integral and seems to be numerically more stable.
+- Changed calc_elec/hole_trap_dens to init_trap_distribution, where all trapping related variables are initialized.
+- Added functions to calculate the fraction of filled traps and the liniarization of the fraction of filled traps with respect to delV.
+- Poisson equation: I've added interface traps and added linearization for both bulk traps and interface traps to make convergence smoother.
+- Removed calc_srh_prefactor.
+- Added procedures Calc_recombination_n/p that calculate all recombination processes at every grid point and calculate linearization for the continuity equation where needed.
+- Fixed the finite surface recombination terms in the continuity equations for electrons and holes.
+- Removed all recombination processes calculated in the continuity equations and moved them to the procedures calc_recombination_n/p. We now have only one location in the code where recombination processes are entered.
+- Added boolean to check whether interface traps are used in the poisson equation.
+- Added check for Cn AND Cp = 0, this now makes the code exit with a warning. (added in SIMsalabim and ZIMT).
+
+Small stuff:
+-When reading the minimum and maximum voltages, we now check to make sure that the voltage is not too large for our floating point type. We do the same for the prebias voltage (Vpre) if pre-conditioning is used.
+-Vscan: has to be -1 (down scan) or 1 for up-scan. 
+-When using a generation profile from a file, a message to let the user know is written on screen and in the log file.
+-Modified the checking of version of program and that of the parameter file: The function Correct_version_parameter_file now also checks to make sure that the names of the program in the code (ProgName of TProgram) and in the parameter file are the same. 
+-Moved Read_Parameters and Check_Parameters to DDRoutines and modified them such that they can deal with the specifics of ZimT and SIMsalabim.
+-Changed the equivalent circuit that contains Rshunt and Rseries: Now the Rshunt is in parallel with the simulation volume without the Rseries. Previously, the shunt was in parallel with both the simulation volume as well as the series resistance.
+-In Calc_and_output_solar_cell_parameters (last part), I have changed the way we check to see if output can be written to scPars_file. The previous version checked (among other things) if Voc<>0 and Jsc<>0. If we did not calculate Voc or Jsc AND if myReal=extended (but not double!), then this raised an exeption as Voc and Jsc were not defined. So, I changed it to IF calcOC AND calcSC AND calcFF AND calcMPP THEN <write output>. Problem solved.
+-Introduced parameter OutputRatio so the user can specify at which voltages the internal variables are stored in Var_file. If negative, nothing is stored. If positive, the internal variables are stored every OutputRatio voltages.
+-Put a new proc in DDRoutines that prints the welcome message, lists the authors and shows the name and verion of the program.
+-Modified Find_Solar_Cell_Parameters: Previously, if Nusable was too small (so we would have a solar cell, but we had only a few JV points), the booleans calcSC, calcMPP, calcFF, and calcOC were never set a their proper value (=FALSE). Consequently, we simply put the Jsc, FF, Voc, etc on screen in proc Calc_and_Output_Solar_Cell_Parameters even though they were never assigned a value.
+-In calculating the fill-factor, we now also check to see if it's smaller than one, yet larger than zero, simply in order to avoid rediculous values.
+-Made all program specific parts of the records in DDTypesAndConstants shared: i.e. we no longer have varient parts of the records. Having such parts looked nice, but the compiler does not raise an exception when using such parts of a record that do not belong to the code that is being compiler/executed. Thus, we might be using variables that shouldn't exist. Not very 'pascal-like'.
+-We have given the DD units a version number so the compiler can verify that the DD units are of the correct version number.
+
+
+
+
+Version 3.87 (5 March 2021), LJAK
+Minor changes to the units such that both ZimT 0.47 and SIMsalabim 3.87 can be compiled using the same units!
+
+Version 3.86 (14 Jan 2021), MK & LJAK
+- Fixed linearization traps in Poisson equation. This improves convergence of the Poisson solver.
+- Traps were allowed on the same energy as the conduction or valence bands. This is now forbidden, as it is unphysical.
+- Fixed bug in the diagonal entries of the continuity equations regarding interface traps.
+- Added binaries for Windows and (GNU) Linux
+- Fixed whitespace in SIMsalabim.pas. It was wrong because of tab and space mixing for indentation.
+
+Version 3.85 (14 Jan 2021), MK
+- Fixed the calculation of finite surface recombination. Removed the terms cathode and anode from the parameters so everything is now referring to left and right. Finite surface recombination is now only used when there is extraction.
+- Added a parameter to the user interface parameters: exit_after_fail. This parameter exits SIMsalabim with exit status 1 if a point does not converge. This is especially useful when running in combination with autofit, where a certain part of the parameter range might not converge. This parameter makes sure that no bogus FF and Voc values are calculated and just generally speeds up autofit.
+- Added a parameter to allow ions in the TL's.
+- Fixed the comment for Etrap in the device parameter file.
+- Fixed some indentation and whitespace issues.
+
+
+Version 3.84 (4 Dec 2020), MK
+- I changed interface traps and grain boundary traps. Interface traps can now capture across the interface between transport layer and main layer.
+- Traps in general have been reworked in the code. In the device parameter file, one can still make hole and electron traps, but they now share the same energy level defined with respect to vacuum. Because of symmetry between different trap types, the distinction between hole and electron traps is removed in the code. For every trap we now save the number of traps and whether it is charged when filled with an electron yes or no. The fraction of filled traps now refers to the fraction filled by electrons. Interfaces now have their charge distributed over 2 grid points. This removes the need for parameters defining the thickness of the trapping layers.
+- A check was added to make sure that the trap level is between the conduction and valence band everywhere in the device. Shallow traps can still become unstable depending on the DOS offset in between the bulk and transport layers.
+- The conduction band and valence band are now vectors that can be used to get their respective levels.
+- Bulk doping previously added doping in transport layers as well if they were undoped, this is now fixed.
+- Helper functions are introduced to calculate the filled fraction of traps for both bulk and interface traps.
+- The Poisson solver has been updated to account for the new interface traps. The expressions for both bulk and interface traps have been linearised in delV to aid convergence. Previously this was not done so this could positively affect convergence.
+- The Recombi and Calc_recombi_current functions were updated to account for the new type of traps.
+- The continuity equations are updated to account for the new interface traps. While the equations are linearised with respect to carrier densities, they are still prone to overshoot the solution. When close to the value where the equations converge, the overshoot disappears. A likely cause for the overshoot is the dependence of the carrier densities at the interfaces on their neighbouring sites, however this is pure speculation. A way to assess this system would be to look at the spectra of the continuity matrix, but for now a heuristic is applied to make the continuity equations converge.
+- The new definition of interface traps allows for current to be conducted through traps by e.g. by the interface trap capturing electrons from one side and having them detrap at the other side. This is especially apparent when there are shallow traps and a low interface transfer rate. This current is added to the regular current term in the Var.dat file.
+- The new expression for the continuity equations make the main loop converge with more difficulty. Therefore a few changes are made to the main loop. We call contn and then call contp with the newly calculated n, which is different from the previous version where the old n was used. I also implemented a heuristic way of limiting the maximum deln and delp. When both deln and delp start oscillating (changing sign over iterations), we set the new maximum for deln and delp to half of the maximum deln and delp found. To check for convergence we use deln and delp as calculated from the continuity equations, so before they are limited. This way we do not artificially converge the system.
+- In the Var.dat file we now output ctraps (charge traps) instead of n_trap and p_trap, where ctraps is the total charge of all traps.
+- I introduced a variable in device parameters 'Exit_after_fail', which makes SIMsalabim stop after the first failure to converge. This is useful as when running autofit, it can be useful to now wait for all points to not converge but give up after the first fail, saving time and poor estimates of the solar cell parameters.
+
+
+
+Version 3.83 (11 Sep 2020), MK
+- I removed a bug affecting the interface trapping layer. If the layer was set to a thickness lower than the grid spacing, there would be no traps added to the interface. Now the traps are applied to at least one gridpoint. The number of traps per cubic meter is according to the actual length on-grid, not the set layer thickness (this is the same behaviour as in the previous versions).
+
+Version 3.82 (10 Sep 2020), LJAK
+-I have introduced two parameters (nu_int_LTL and nu_int_RLT) to better describe the flow of charges across the interfaces between the TLs (if any) and the main absorber layer. These nu_int's are interface transfer velocities, and thus have the unit of m/s. Internally, they are converted to a mobility at the TL/main absorber interface in a way to ensures that the resulting JV curve does not depend on the grid spacing:
+The mobility at the interface (mu_int) is obtained from nu_int by using:
+mu_int = delx * nu_int / Vt,
+where delx is the (local) grid spacing and Vt is the thermal voltage. 
+Note, these nu_int's are the same for electrons and holes, just like the mobilities of the TLs.
+
+-Introduced a new global variable: Vti = 1/Vt. We use this throughout the code, so I have removed all local equivalent declarations and have replaced things like .../Vt with ...*Vti. Multiplication is typically an order of magnitude faster than division!
+
+
+Version 3.81 (2 Sep 2020), LJAK
+Removed a bug from proc Tridiag in the NumericalUtils unit! This proc was modified in version 3.61 to make it open-source. However, the last for loop was not correct (see line 243 in the unit). It should go downto i0, not 1.
+
+
+
+Version 3.80 (21 Aug 2020), LJAK
+Removed a bug in Calc_hole_mob! If we're using a mobility table (case 2 in this procedure), we need to calculate the concentration between two grid points. This is done in line 1314: conc:=0.5*(p[i] + p[i+1]). Previously, n[i] and n[i+1] were used instead!
+
+Version 3.79 (9-14 July, 2020), LJAK, MK
+We have introduced the possibility of having different effective densities-of-states for the main absorber (Nc) and the left (right) transport layers, Nc_LTL(RTL). 
+
+Physical background:
+A changing effective DOS can be accounted for by introducing another term in the generalised potentials, Gamma_n and Gamma_p for electrons, resp. holes, see Purbo et al., J. Appl. Phys. 66, 5078 (1989), equations 14 and 15. In previous versions of SIMsalabim, only the effect of different energy levels was implemented (chi in eq. 14 and 15 in Purbo et al.), which led to the introduction of the generalised potentials Vgn/p (see version 3.28).
+ 
+These Gamma's are only defined by their derivative so one can take an arbitrary reference (See: A.H. Marshak, et al., Transport equations for highly doped devices and heterostructures. Solid State Electronics, 30(11), 1089–1093 (1987)). It is natural to take the Nc of the main layer as the reference for Gamma. So we get:
+Gamma_n = Vt * LN(NcLoc[i]/Nc)
+Gamma_p = Vt * LN(NcLoc[i]/Nc)
+We do not (as yet) allow for different DOS of the conduction and valence band as that would introduce even more parameters. However, this would be a trivial extension as it only affects Gamma_n,p and the intrinsic carrier density (ni).
+
+To do so, we have:
+1) introduced parameters Nc_LTL, Nc_RTL to define the effective DOS in the TLs.
+2) introduced Nc as a vector: NcLoc, the local Nc.
+3) ni is now a vector (no longer a simple float) as it (can) depends on position.
+4) ni and NcLoc are initialised in proc DefineLayers (also cleaned up this procedure).
+5) In UpdateGenPot the effect of the changing effective DOS (NcLoc) is taken into account by adding a suitable term to Vgn/p. 
+6) In proc Write_Vars_To_File, where we work out the quasi-Fermi levels and the conduction and valence bands, we have to correct for the Gamma's.
+7) In proc Init_Pot_Dens the densities are initialised but it's different from previous versions. To get the correct n at x=0 and p at x=L, we calculate the injection barrier. Then, we use the law of mass action to get the minority carrier density.
+8) Quite a few instances of Nc in the code have been changed to NcLoc: SRH, trapping, finite surface recombination in cont_n,p. Only in Init_Elec/Hole_Mob_Table do we use the bulk value of Nc as the mobility table is only valid for the main absorber layer, not the TLs.
+
+Another minor change: Image force lowering is really only correct if either 1) there are no TLs, 2) if the TLs have the same conduction or valence band as the main layer. This is because the injection barriers (phi_left, phi_right, internal to SIMsalabim) are calculated based on the values of CB and VB (so not CB_LTL, VB_RTL). This is easily fixed, of course, by making CB and VB arrays in the program. However, for now, we simply display a warning message and halt the program. This reasoning also applies to finite surface recombination: also there we rely on phi_left, phi_right, so this is (for now) not possible with TLs that have a band offset.
+
+
+Version 3.78 (22 June, 2020), LJAK
+1) I have made it possible to directly read-in the voltages (to be simulated) from an experimental JV curve. In version 3.66, I introduced the possibility of reading experimental JV curves and this also did override the Vmin, Vmax, and Vstep, but only worked for a constant Vstep. So, if the experimental data does not have a fixed voltage step, SIMsalabim would simply not accept it and exit. 
+To do this:
+a) I have combined Init_voltages_and_tasks with Read_Experimental_JV. Init_voltages_and_tasks now calls Read_Experimental_JV if needed and determines the number of voltage points (NJV). This overrides any NJV based on Vmin, Vmax, Vstep (if Vdistribution = 1) or the value that is directly put if Vdistribution=2.
+b) Note: if a pre-bias is used in conjuction with an experimental JV curve, SIMsalabim will still execute the pre-biasing (its voltage is stored in JVSim[0].Vint).
+
+2) Corrected Friso Wobben's initials in the readme.md file and the codes.
+
+
+
+Version 3.77 (3 June 2020), LJAK
+
+0) I noticed a bug when using Rshunt >0: the leakage current would be added twice, first:
+Jtot:=Jtot + Va/Rshunt;
+and then:
+Jext:=Jtot + Va/Rshunt.
+This is obviously wrong. So, I corrected this.
+
+1) I have updated the readme.md file.
+
+2) To make it possible for the user to specify the name of the log file I have implemented a number of changes. The name of the log file is set in device_parameters (or via the command line, as per usual), so SIMsalabim has to read the parameters BEFORE it can open a log file (which it did untill this version). Any messages that were previously written to the log file by Read_Parameters are now stored in MsgStr (an ansistring): so, if parameters are set by the command line, their values and names will be stored in MsgStr. Next, Prepare_Log_File opens the log file (name stored in log_file) and writes the contents of MsgStr (if any) to the log file so the user can verify which values were set by the command line. This required a number of changes:
+a) I have introduced overloaded versions of Get_Float, Get_Integer, and Get_String in unit InputOutputUtils. The original versions can write to a log file, the new versions can store any messages in an ansistring.
+b) Modified Read_Parameters
+c) Modified Prepare_Log
+d) option '-PIDlog' obsolete, so I have removed this functionality.
+
+3) I have changed the order and names of the columns in JV_file: First are Vext and Vint: the externally applied voltage and the voltage across the device. If there is no Rseries (=0) these would be the same. Next are Jext and Jint: the externally measure current density and the interal current density. If Rshunt is infinite (Rshunt<0) then these would be the same. The order of the other columns remains the same. To make the distinction between the interal and external voltages and current densities, I have renamed them in the type JVList (TypesAndConstants unit). Note, what you measure in an experiment is Jext as a function of Vext.
+
+4) The screen output now lists the internal voltage (Vint) and the internal current density (Jint). I have also made this explicit in the message on screen.
+
+5) I have realised that when using a pre-bias voltage (PreCond = 1) and finite series resistance (Rseries>0) the voltage (pre bias) is not quite correct as the effect of series resistance is not taken into account: the pre-bias (Vpre) is necessarily an internal voltage (Vint). So, SIMsalabim now issues a warning (proc Check_Parameters).
+
+Version 3.76 (15 April 2020), LJAK
+I have licensed the code and corresponding units under the GNU LGPL license.
+
+Version 3.75 (2 April 2020), LJAK
+1) Introduced a new parameter: rms_threshold. When comparing experimental and simulated data (UseExpData=true), the rms error is only computed if this fraction (rms_threshold) of the total number of voltages calculated has converged. 
+2) I have added to proc. Check_Parameters that until_Voc and UseExpData cannot both be true at the same time: If the user wants to use an experimental JV curve then we assume that the voltage range is set by the experimental data. I want to avoid a situation where we use experimental data (UseExpData=true), have a pretty strict rms_threshold (e.g. 1), until_Voc is used, and the last experimental voltage point is much larger than Voc. That would be weird as not all voltages (experimental ones) have been simulated, so rms_threshold will never be 1.
+3) At the end of proc Compare_Exp_Sim_JV, I've improved the error and warning messages. So, if the rms-error cannot be computed, the program will give the user a couple of hints and reasons why this is so.
+
+
+Version 3.74, (27 March 2020), LJAK
+
+1) Removed a small bug. In line 1903, proc. Calc_and_Output_Solar_Cell_Parameters, there was a mistake which meant that the deviation (simulated versus experimental JV curve) of the FF was not correct.
+2) Removed parameter Ext from Find_Solar_Cell_Parameters as we now (not in some older versions) always use the external voltage. => Ext was obsolete. 
+3) Removed another bug/error: Previously, if not using an experimental JV curve (so UseExpData = 0), the program would still output a list of experimental Jsc, Voc, etc parameters (all zero) plus a deviation from the simulated data. This is essentially a problem of lack of a proper initialisation of variable SCParExp. By default, or so it appears, booleans are set to true. This means that SCParExp.all_booleans are true and SIMsalabim will output the values of SCParExp.Voc,Jsc,etc. To remedy this, all SCParExp booleans are set to false if UseExpData = 0 or false.
+
+Version 3.73 (24 March 2020), LJAK
+Removed a bug: In Compare_Exp_Sim_JV, the initialisation of Jmin and Jmax wasn't correct. I changed this to Jmin:=MaxSingle, Jmax:=-MaxSingle.
+
+Version 3.72 (24 March 2020), LJAK
+
+This version is based on version 3.70, not 3.71.
+
+
+I have made it possible to compare JV curves based on the logarithm of their current densities, in addition to a comparison of just the normal (linear) values. To do this, I have
+0) introduced a new procedure in InputOutputUtils: WarnUser. It is very similar to Stop_Prog, but it doesn't halt the code, it only issues a warning (string) and it can wait for the user to press enter (default is not to wait).
+1) introduced a new type: Tfitmode = (linear, logarithmic) in unit TypesAndConstants.
+2) introduced a parameter rms_mode in the 'User Interface' block. In the device parameter file, its value can be either 'lin' or 'log' (without the quotes). It is not case-sensitive as it will be made lower case any way. In the code, this is converted to the enumerated type Tfitmode. I have done this because you can then use a case-statement to select the correct way of computing the rms-error. If you had simply used a string variable, you can't use a case-statement, but you would have to use an if-then-else statement instead. Perhaps, in the future we will want to add different ways of calculating the rms-error and that is easier with a case-statement.
+3) If some 
+4) In Check_Parameters, I have introduced a check to see if the user is attempting to log-fit (rms_mode='log') a solar cell under illumination (this means that UseExpData=true, among other things). If so, a warning is issued.
+5) I have removed a commented (obsolete??) version of procedure Find_Solar_Cell_Parameters.
+6) Friso Wobben and I have re-written the linear interpolation part of Compare_Exp_Sim_JV so as to avoid a while true loop with a break statement.
+
+Verion 3.70 (29 Nov 2019), Friso Wobben (FWOB)
+1) Added normalization of the RMS error to the Compare_Exp_Sim_JV procedure. First we determine the highest (Jmax) and lowest (Jmin) current densities in the simulated and experimental data together. Then normalization of the RMS error happens with respect to the interval [Jmax,Jmin] such that the final rms is rms:=SQRT(rms/count)/(Jmax-Jmin). Instead of 'rms_err: ' now 'norm_rms_error: ' is written to the CLI output, to emphasise that this error is strictly between 0 and 1. Note, we check if the interval [Jmax,Jmin] was different from zero (i.e. larger than tolReal).
+2) Added linear interpolation of experimental data to the Compare_Exp_Sim_JV procedure to be able to compare JVs in the case of series resistance. The experimental data is interpolated because simulated data might miss data points (e.g. did not converge), which makes interpolation based on simulated data less reliable as there might be several points in a row missing.
+3) JVExp.Vext and JVExp.Jext now store the interpolated values corresponding to the voltages in JVSim.Vext. The interpolation is only done for usable points (within range [Vmin,Vmax]), so JVExp.Use is TRUE for all points that can be used. All point with JVExp.Use equal to FALSE still have their original values (which are equal to JVExp.V & JVExp.J).
+4) Added the constraints that there should be at least 5 voltages at which the experimental JV and the simulated JV can be compared.
+5) LJAK changed the units of Rshunt to Ohm m2 in the device parameter file comments (was correct in proc Read_Parameters).
+
+Version 3.69 (24 Oct 2019), LJAK
+1) removed a small bug (typo?): In Compare_Exp_Sim_JV, the rms error wasn't correct: it was: rms:=SQRT(rms)/count, but should have been rms:=SQRT(rms/count). Oops.
+2) Removed the 'fit_quality' output in the same proc as I will adapt autofit to deal with targets that are zero.
+
+Version 3.68 (23 Oct 2019), LJAK
+1) In reading the experimental JV curve, we now also store Vext and Jext and set Use=TRUE for each voltage point that we read.
+2) Added a check before comparing the experimental and simulated JV curves: if Rseries <> 0 then the voltages (Vext) in the two JV curves will be (slightly) different and we can't do a direct comparison. Maybe, in a later version, we can use interpolation to solve this.
+3) I have completely revised the way we display the solar cell parameters. I have introduced a new type (TSCPar, a record in TypesAndConstants) to store the solar cell parameters based on a JV curve. We can then store the parameters corresponding to multiple JV curves, for example the simulated and experimental ones. A new procedure, Calc_and_Output_Solar_Cell_Parameters then call a re-written version of the old Find_Solar_Cell_parameters procedure then displays the simulated and experimental Voc, Jsc, etc, and shows the deviation (absolute, i.e. not a relative error) with the experimental JV (if any!). This procedure also uses 4 new magic numbers (see list with constants at the top of the code) to control the output.
+
+Version 3.67 (22 Oct 2019), LJAK
+Fixed a small bug introduced in 366: When reading an experimental JV curve, we now force Vdistribution = 1 (the linear one). This was not covered in 3.66 so we could have a situation where Vdistribution=2. Also, if an experimental JV curve is used, the log file will say so (including the resulting voltage parameters).
+
+Version 3.66 (18 Oct 2019), LJAK
+1) introduced a new parameter (in block 'User interface') AutoTidy. If AutoTidy = 1, then SIMsalabim will tidy-up the parameter file (just like running SIMsalabim with -tidy option) but it will not exit.
+2) I have renamed variable JVData as JVSim and introduced another JV curve: JVExp. The latter can contain an experimental JV curve from file ExpJV.
+3) If UseExpData = 1 then SIMsalabim will try to read an experimental JV curve from file ExpJV. This file should contain a header ('V  J' for example) and then a list of voltages and current densities (A/m2). The voltage step should be constant and it should be only 1 sweep up or down (so not a full loop). This overrides the Vmin,max,step,scan in the parameter file AND the command line. Once the JV has been simulated the two are compared and the rms error and the fit quality (1-rms error) are shown on screen. In a later version this can be extended so a direct comparison between experimental and simulated Jsc, Voc, etc can be made.
+
+
+Version 3.65 (25 Sep 2019), LJAK
+Small change to the units: In TypesAndConstants.pp, types Row and Table used normal (double) reals as the floating point type. This was problematic if using extended reals as myReal (to enable large CIM, ionic densities, for example) and inconsistent with the notion of having reals of the same type throughout SIMsalabim. So, Row and Table are now based on myReal (also defined in TypesAndConstants.pp).
+
+
+Version 3.64 (2 & 16 Sep 2019) LJAK
+1) I have removed the old (commented) expressions for the hole-trap-dummy in PROCEDURE Solve_Poisson. Does not affect the code, just cleans it up.
+2) I have changed the way the rate of direct (BR) recombination is specified:
+a) removed Slower_only. We haven't used this in many many years.
+b) cleaned up procedure Calc_Langevin_factor.
+c) removed Braun_pre. Procedure Calc_Dissociation uses, from now on, the Lang array to get the direct recombination rate in a grid point (still called Braun_rec as this needs to be a global variable). In effect, this means that direct recombination inside and outside the Braun model are the same (which makes the most sense any way).
+d) replaced Lang_rec with UseLangevin
+e) introduced kdirect to specify the direct, band-to-band, bimolecular recombination rate in case not UseLangevin.
+3) When checking if the solar cell parameters need to be calculated, I now also check if Gfrac <> 0.
+4) I've changed the naming of the paramters related to the transport layers (previously known as insulators). Syntax: [name variable]_LTL/RTL for left, resp., right transport layer. 
+5) I have introduced proper energy levels relative to vacuum: So, Egap is out of the device_parameter_file, but it is still in the code. The main semiconductor's conduction band (CB) and valence band (VB) edges (eV, positive) are specified. The contacts are specified through their work functions (W_L, W_R for work function of left, resp., right electrode, again in eV). phi_left and phi_right are (for now) still used in the code.
+6) I have removed the parameters delLL, delRL, etc. and replaced them with the conduction and valence band levels of the left and right TLs (CB_LTL, CB_RTL, VB_LTL, VB_RTL).
+7) Removed RombergIntegration2 from the code. This wasn't even used...
+8) I have moved the block at the end of the main bit where the variables are written to file to a seperate procedure (Write_Vars_To_File). In this procedure, we also work out the local vacuum level, conduction and valence band, and the quasi-Fermi levels: we can now make a proper band diagram.
+
+
+
+Version 3.63 (14 June 2019) VLC
+In version Version 3.32 (16 Mar 2017), TSS changed the expression of the dummy for calculated the trap densities and actually the old implementation was the good one! So I changed it back to what it was.
+
+
+Version 3.62 VLC
+Added Valence,Conduction band and the quasi-fermi levels to Var_file output.
+phi_n and phi_p  have been removed
+
+Version 3.61 LJAK, MK
+1) Replaced all routines and algorithms from the book Numerical Recipes with open-source versions or our own code. For the tridiagonal matrix solver, I have implemented Thomas's algorithm; a version that modifies the original input vectors. This does not present a problem as we pass the vectors as value parameters, not var parameters. The latter would, of course, cause problems. I have slightly stream-lined the Romberg integration algorithm. This algorithm can be found in Numerical Analysis by Burden & Faires. MK wrote a recursive version of the Neville interpolation routine (Interpolation_rec).
+2) Removed the Warn_mob_dep parameter from the device parameters. Also removed the option to use the direct Poisson solver. Both have hardly ever been used as far as I know. 
+3) I have changed all the doubles to myReal (defined in unit TypesAndConstant.pp) to make it easier to change from double to extended. The size of the reals (in bytes) is written in the log file.
+4) I have improved the solver of the ion densities (Calc_Ion_Distribution). This is based on ZimT 0.28. Essentially, we use a better expression for the drift-diffusion equation for the current density, a form that includes the Bernoulli function. This is also the type of expression that is used in SIMsalabim for the electrons and holes. We do this by requiring that the current density of a moving ionic species be zero. That yields the ratio between the ion density at a grid point and the adjacent grid points (based on the electric field). After calculating the resulting profile, we normalise the distribution to get the right overall number of ions. For static species, we simply take the ion density to be constant. 
+5) Restructured the type JVList:
+-all reals -> myReal
+-Added 2 new booleans UpdateIons, Store. These will be used to indicate whether ions are present and moving at some voltage (UpdateIons), and whether the JV point will be stored in the JV file and the JV characteristic used for finding Jsc, Voc, FF in FindSolarCellParameters (Store).
+-It is now much more like a task-list: upon initialisation, this list of voltages will function as a to-do list. If there is a pre-bias, this will be point 0 in the array, if there is no pre-biasing then the counter starts at 1. In doing so, I have also modified function Applied_Voltage by removing the check for pre-biasing. The resulting list of voltages-to-be-simulated is written to the log file so the user can check if everything is working correctly (movement of ions, pre-biasing, etc.).
+-Note: every voltage calculated will be shown on screen, but only points that converged and that need to be stored (JVData.Store) are stored in the JV_file.
+6) Moved the initialisation of the x-positions (x) to procedure Make_Grid.
+7) Read_parameters now checks for redundancy of pre-bias: if there is supposed to be a pre-bias (PreCond = 1) and the first voltage (either Vmin or Vmax, depending on Vscan) is equal to the pre-bias voltage (Vpre) then the program will stop. It also checks whether CIM <> 0 (concentration of ions): if there are no ions, it makes no sense to specify a pre-bias.
+8) Removed another bug: at the end of the program, last statement, we now close the log file.
+9) And removed another bug: the statement IF FullOutput THEN CLOSE(uitv); {if not FullOutput, uitv wasn't open, so it can't be closed} closed the uitv before actually writing info to that file later on.
+10) The average dissociation rate of CT states is no longer written to screen.
+11) Removed FullOutput.
+12) Changed the way the current-voltage characteristics are used in the procedure that finds that solar cell parameters.
+13) When writing to the VAR file and the JV file, I've limited the number of decimals by using :nd (nd=25, one of the magic numbers, corresponds to the length of a double). Otherwise, if myReal=extended, Origin cannot read the files!
+14) Removed a bug from procedure Init_Hole_Mob_Table: it checked for mob_n_dep = 2, not mob_p_dep!
+15) MK wrote the procedure interpolation, this procedure accepts two arrays, x & y, that are to be interpolated. The procedure uses Neville interpolation to make an interpolation of polynomial order n, using n+1 point x & y arrays. The interpolation procedure looks for the consecutive points that together have the lowest offset from the target x-coordinate and sends arrays containing only those points to the Neville interpolation algorithm. The interpolation procedure returns an estimate of y and an error estimate on the y-estimate. The error estimate is the difference between the y-estimate using a polynomial of order n-1 and the estimate using a polynomial of order n.
+16) moved the 'magic numbers' to the top of the code: these are a couple of constants (mostly numberical ones) that are used somewhere (as indicated).
+17) I have introduced a new procedure (Check_Parameters) that performs a number of checks on the input parameters. ni and Vt need to be calculated BEFORE starting this procedue (that's why Check_Parameters checks if they're not zero).
+18) Removed a strang bug (typo, really). No idea when this was introduced in the code. It was a typo in Calc_dissociation, case ThermLengDist = 2 (Gaussian distribution, the one we used the most). There was an a missing after UpperLimBraun: 2 : dp[i]:=RombergIntegration(DissProb_Gauss, LowerLimBraun*a, UpperLimBraun, TolRomb, MaxRombIt, FALSE). Result: zero dissociation probability. 
+
+Version 3.60 (14 May 2019), LJAK
+I have decided to break up the code into smaller bits by introducing a number of units (in a folder Units):
+1) InputOutputUtils, which contains all the routines for getting strings from a file, etc.
+2) TypesAndConstants, which provides all the constants, expect for program version and parameter_file
+3) NumericalUtils, which contains all the numerical stuff. 
+
+Smaller changes:
+1) Removed the myNonLinFit unit from the list of units to use. We didn't need this at all.
+2) In Calc_Recombi_current: First make all the variables zero. This is simply good practice.
+
+Version 3.59 (3 April 2019), LJAK
+Found a MAJOR bug: in the procedure Calc_Ion_Distribution the total number of ions was only correct if grad = 0 (i.e. a uniform grid). The reason was that to compute the total number of ions, the local ion density was simply summed up, without taking the grid spacing into account. So, I have copied (and adapted) the corresponding procedure from ZimT 0.27 which is correct. 
+
+I have also changed the welcome message. The number of grid points is no longer shown as it is set in the device parameter file.
+
+
+
+Version 3.58 (15 March 2019), MK & LJAK
+MK:
+- Ions: removed update ions needed from code for readability. Removed fix_ions from device_parameters.txt and changed scan_rate to ion_red_rate. Setting ion_red_rate to zero now fixes the ions after initial distribution.
+- Mobility models: removed all mobility models but 0, 1, and 5. The tabulated mobility model now also works for holes and is nr 2.
+- Traps: changed unit of interface traps and grain boundary traps to m^-2. The traps per volume are now calculated by SIMsalabim based on the actual thickness of the trapping layers on grid, eliminating the dependency of the number of traps on the grid size and grad. Also changed parameter names to better reflect their function. Trap distribution was calculated in main loop and Poisson loop previously, changed this to calculating only once on initialisation.
+- Solar cell parameters: changed name of performance file to ScPars_file and changed the error message if the solar cell parameters could not be found to better reflect the error senario.
+- Check version (written by LJAK): added version check to SIMsalabim. If the device parameter file has a different version number, an error will be thrown.
+- Unused code: removed some code that was commented in SIMsalabim.pas (such as the old FUNCTION B, the Bernoulli function).
+- Recombination currents: added surface recombination current to the JV.dat file. Now the currents recombination currents can be added to get the net current from the device. I also changed the input parameters for the Calc_Recombi_current function to only take the parameters it changes.
+- Insulators: changed the last point of the isulator to have insulator doping levels instead of intrinsic layer doping levels.
+
+LJAK:
+-I have added a check on the version number in the device parameter file. This is not very robust but I think it's good enough: we do this by checking if there is a line that contains both the string 'version' and the string that contains the version number of the program (version). Note, this is not very strict. Example: if the version in the parameter_file is 'version: 13.57' and SIMsalabim is version '3.57', then this function will return true even though it is not correct. However, I don't think that is a problem as it is much more like to run SIMsalabim with a parameter_file that is just slightly older or newer ('3.57' versus '3.52' for example). 
+-I made Vscan an integer (was a float).
+-I have added a procedure (Tidy_up_parameter_file) to tidy-up the parameter file. This can be done by starting SIMsalabim with the -tidy option. This calls the procedure and SIMsalabim exits once the new parameter file has been written to file.
+
+Version 3.57 (6 March 2019), LJAK
+Removed yet another bug from Find_Solar_Cell_Parameters. Sometimes (not sure why), it cannot find Jsc (even though there is a valid point at V=0) but Jsc is not zero. Up till this version, FF would then be calculated (as Jsc<>0) but based on Jsc=0. Weird. Any way, there's a new parameter (calc_Jsc, boolean) to check if Jsc was calculated successfully. Only if calc_Jsc (and a whole load of other conditions) is FF computed.
+
+Version 3.56 (4 March 2019), LJAK
+I removed yet another bug from Find_Solar_Cell_Parameters: previously, if simulating only very close to Voc, the FF-part of the procedure could cause a range check error. The procedure starts from i=0 and then looks if the next point has a larger power (= -J*V). If so, that point would be i_start. Next, we would fit a parabola from i_start-1 to i_start+1. However, if you simulate far away from Vmpp, i_start stays 0 and the point at i_start-1 is not part of the array. A range check error is the result. The code now checks if i_start >= 1, which implies that an optimum was found.
+Also, in previous versions, the device parameters were always read from device_parameters.txt. In other words, there was a constant called parameter_file but it wasn't used. I also fixed this. 
+
+Version 3.55 (28 Feb 2019), LJAK
+I removed a bug from Find_Solar_Cell_Parameters. Previously, the part for finding Voc could cause a range check error (only seen, of course, if compiled with -Cr option) by accessing the JVChar array with index NJV. The first voltage point (excluding any pre-bias) corresponds to index i=0, the last one to index i=NJV-1. Now, the code tries to see if Voc is actually bracketed. If so, then we try to find Voc. It now also works for Vscan = -1.
+
+Version 3.54 (25 Feb 2019), LJAK
+I have made a few changes to the layout of the code and I have revised the checking of quit_Voc. Previously, if using a pre-bias we could not use until_Voc. I have also revised procedure Applied_voltage. A change to the procedure Find_Solar_Cell_Parameters: I now pass the number of JV points (NJV) to the procedure. This is done as this number is not fixed if using until_Voc = 1. Previously, using the full JV_Char array, Jsc was not always found because a large part of the array we unused and all the voltage therefore zero.
+
+
+Version 3.53 (20 Feb 2019), MK
+I have changed the line in Find_Solar_Cell_Parameters where the maximum power is determined. It now compares the power with the highest one found, instead of the previous one in the loop. This eliminates wrong FF values found at low voltage steps.
+
+Version 3.52 (18 Feb 2019), LJAK
+I have modified the textual descriptions of the trap densities. Also, I have added a check on grad and the number of grain boundaries. For now, you cannot use grad<>0 with grain boundaries.
+
+Version 3.51 (12 Feb 2019), LJAK
+I have introduced a new numerical parameter: resetNegDens. If 1, then any negative densities (n[i] or p[i]) will be reset to 1. If not 1, the program will stop if any of the densities are negative.
+
+I have also introduced maxDelV. This is used in the Poisson solver to limit the absolute value of delV[i] in a loop. If abs(delV[i]) is larger than maxDelV*Vt then delV[i] is set to maxDelV*Vt with the appropriate sign.
+
+I have also made a few textual and layout changes to the code.
+
+
+Version 3.50 (30 Jan 2019), LJAK
+See ZimT v. 0.26. I have modified the B function. Very rarely, if the argument is very large and positive (larger than C5), this function returns 0 and this can lead to division by zero in the continuity equation. So, for this case only, we use the full expression for this function (x/(exp(x)-1)) and not the Taylor series.
+
+Version 3.49 (3 Dec 2018), MK
+The thickness of the grainboundaries in calculation was twice as big as in the device parameter file, resulting in twice as many traps. This is now fixed.
+
+
+Version 3.48 (12 Nov 2018), VLC
+I have included a procedure (Calc_Recombi_current) to calculate the recombination currents from Bimolecular, SRH in the bulk and SRH at the left and right interfaces, as well as Jph such as J=Jph+Jbimo+JSRH_bulk+JSRH_LI+JSRH_RI
+These currents are now outputted in the JV_file
+
+
+Version 3.47 (5 Nov 2018), VLC
+I included a thickness parameters for the grain boundaries such as now the thickness should not depend on on the grid spacing.
+I have removed the sign of the trap for all the trap type and just replaced it with one parameter as it was leading to strange results when the sign of the traps was different between the bulk and interface for example.
+I have also included the Gfrac parameter (line written by marten) as it facilitate the fit of light intensity vs Voc with autofit. 
+
+Version 3.46 (20 Sep 2018), LJAK
+I have changed the initialisation of the potential and carrier densities. In previous versions this was not correct if there were insulators with LUMO or HOMO offsets. Basically, I copied the code from ZimT 0.27: I moved the init part from the main program to a separate procedure (Init_Pot_Dens). In contast to ZimT, this procedure also inits the array 'empty' (needed for calculating Langevin & SRH Recombination). I have also introduced separate HOMO and LUMO offsets for the left and right insulator, just like in ZimT. Note: the barriers at the contacts (phi_left and phi_right) are still relative to the HOMO and LUMO of the middle layer.
+I have also changed the output: Vgn and Vgp are now also stored in the Var_file.
+
+
+Version 3.45 (28 May 2018), VLC
+I have removed a small bug on the read_parameters function there was a small space for some of the string of the parameters name.
+I also made a small change on the way the grain boundaries are defined.
+I fixed (I think) the problem of the precondition. Now it should be set properly.
+In addition I added a few line written by Marten to stop the simulation after Voc.
+
+Version 3.44 (4 April 2018), VLC
+I have cleaned the device_parameters file to make it more consistent. All the mention of n(p)-layer has been replaced by the appropriate name left(right). 
+I updated the way the doping is defined in the insulators, now a positive(negative) doping is considered as p(n)-doping. In the same spirit, I changed the setting of the traps. 
+For all cases (1) bulk (2) surface (3) grain boundaries the trap density can be specified as positive(negative) for hole(electron) traps.
+I also included directly in the device_parameters file the number of grain boundaries and the density of traps at the boundaries.
+Now Cn, Cp,Trtype, Etrap and Ttr are common to all the traps no matter where they are.
+Fixed a small bug for getting the mob_ion_spec parameter.
+
+
+
+Version 3.43 (3 April 2018), LJAK
+I removed a but in Init_Generation_Profile. Previously, if (Gmax=0) and (InsAsorb=0) the program crashed by division by zero. Now, if Gmax=0 the profile is not used (even if one is specified) and the insulators are no longer treated separately. 
+
+Version 3.42 (18 Dec 2017), LJAK
+I removed a bug in Init_Generation_Profile that was introduced in 3.35. I have copied the procedure from 3.34, while restoring the functionality introduced in 3.37 (Gen_profile is a string, 'none' or the name of a file). In 3.35-3.41 the generation profile was not correct if the profile was read from a file and the insulators didn't absorb. Now, the profile is first read and put on the grid the program uses. Then, the insulators are made transparent if not InsAbsorb. Lastly, the generation profile is rescaled such that Gmax equals the average of the profile over the length of the absorber. The latter equals L if InsAbsorb or there are no insulators, and L-LIL-LIR otherwise. Function Average_limited_range is now obsolete, so I removed it.
+
+Version 3.41 (1 Nov 2017), VLC
+I fixed the problem from 3.39 and 3.40 as the program was still crashing when Vmax<Voc. I have added a boolean that is set to FALSE if Vmax<Voc and TRUE otherwise so now the Perf_file is only created if Voc can be calculated and the program should not crash anymore.
+I have also added a sentence that suggest to increase the range of V when the Perf_file is not calculated.
+
+Version 3.40 (18 Oct 2017), LJAK
+Fixed a small bug: in 3.39, the program would try to calculate the FF even if Voc = 0. The latter will happen if Vmax < Voc. As a result the program crashes. I moved a few statements, including the one for calculating FF, inside an if-then statement that checks if Jsc and Voc are non-zero. Also, I have added the units of Jsc, Vmpp, Voc, and MPP to the screen output.
+
+Version 3.39 (16 Oct 2017), LJAK
+I have changed the way the solar cells parameters are displayed: I've introduced a variable (digits) to limit the number of digits in the screen output of Voc, Jsc, etc. Digits is based on the error estimate of the respective parameters. This error estimate is somewhat crude and does not take any numerical inaccuracies into account. The error estimate is purely based on the interpolation of the current-voltage characteristic. The performance file now also includes the error estimates.
+
+Version 3.38 (28 Sep 2017), LJAK
+I have changed the Stop_Prog procedure: 1) it only waits for a return by the user if Pause_at_end = 1. If not, the program simply stops. 2) Halt is called with option 3. The latter is the exit code. Normal code: 0, which means no error. 1: general error code (for example division by zero). This exit code can be read by another program such as gdb (GNU debugger), or autoFit. This signals that something went wrong (otherwise SIMsalabim wouldn't stop), for example it couldn't find an input file. 
+
+Also, I have introduced another 'user interface' variable: FullOutput. If this is 1 (true), the normal, previous behaviour is recoverd. If not, then the output is reduced and only the log file will be created and written to. 
+
+Version 3.37 (27 Sep 2017), LJAK
+I have changed the way a generation profile is specified and made it more flexible so we can more easily do big simulations. The variable Gen_profile is now a string that either contains 'none' (not case-sensitive) to specify no profile (i.e. uniform), or the name of a file with the profile that is to be used. 
+
+Version 3.36 (16 Sept 2017), VLC
+I have removed a bug from 3.34 the Perf_file is now written only when the FF can be calculated.
+
+
+
+Version 3.35 (13 Sept 2017), VLC
+Now Gmax is set as the average value of the generation rate. A new function Average_limited_range has been created to calculate the average of a vector between two index (i1 and i2 index of the insulators) it also normalized the vector before calculating the average.
+The function init_generation_profile has been updated such as now when the insulators don't absorb the generation profile is rescaled between i1 and i2 and then the input Gmax is set as the average of the profile between i1 and i2.
+
+
+
+Version 3.34 (11 Sept 2017), VLC
+Now the simulation also output and device performance file (Perf_file) which include Jsc, Voc, Vmpp, MPP and FF when the can be calculated. The name of the device performance file can be changed in the device_parameters.txt file (Perf_file).
+
+
+Version 3.33 (20 March 2017), LJAK
+I have removed a bug: In 3.32 the electron (hole) mobility in the HTL (ETL) layer was set to 1e-7 times that of the hole (electron) mobility in said layer (last line of Calc_elec_mob and Calc_hole_mob). This was done to simulate the blocking behaviour of these transport layers. However, blocking is accomplished via the energy offests, not via the mobilities. A low minority carrier mobility means that (in steady-state) the transport layers fill up with minority carriers as they are too slow to be extracted. That is the opposite of what we wanted to achieve.
+
+Version 3.32 (16 Mar 2017), TSS
+I have included the sign of the filled trap. One can set it to 0 or 1 for neutral or charged filled trap respectively.
+Also, the correct formulation of ptd (dummy used in Poisson loop) is =(p[i]/Nc)*EXP(Eptrap/Vt) and not (Nc/p[i])*EXP(-Eptrap/Vt). It has now been corrected.
+
+
+
+Version 3.31 (24 Feb 2017), VLC
+I included the possibilty of setting Lang_pre as Gamma when calculating the recombination such as rec = Lang_pre(np -ni^2).
+Lang_rec parameter control whether we want to use Langevin formula or not. 
+
+
+
+Version 3.30 (6 Feb 2017), TSS
+I have removed the bug from 3.29: In this version, when Nt = 0 the SRH recombination was zero despite there being interface traps (specified by St_L, St_R). 
+Now, the boolean 'Traps' is updated after reading in all of the trap parameters (in v3.29 the update was after reading reading Nt, hence the bug). The IF statement in the Calc_SRH_Prefactor has been accordingly modified to include the boolean condition.
+
+Version 3.29 (6 Oct 2016), LJAK
+I have extended the effects of spurious resistances to include the effect of (external) series resistance. The series resistance is set by parameter Rseries (Ohms/m2). The program now stores 2 JV curves: the intrinsic ('normal') one (JV_char) and the one that is affected by series/shunt resitances (JV_char_ext). The latter is the one you would measure externally. Both JV curves are stored in JV_file, but only the normal JV is shown on screen.
+When the main loop is done, first the current density is computed and the normal JV curve (current voltage point) is updated. Then, the external  voltage and current are calculated and stored. When all voltages have been simulated, the FF, Jsc, Voc, etc is calculated for the normal JV curve and also for the external one if Rseries>0 or Rshunt>0.
+
+Version 3.28 (8 July 2016), TSS (Tejas S. Sherkar)
+I included the p and n insulating layers to simulate p-i-n structures. Ofcourse the thicknesses of these layers (LIL, LIR) can be set to zero to simulate m-i-m devices. Dielectric constant can be set independently for p, i, n layers. Included generalised potential for use of offsets between p-i and i-n layers. Generation in p and n layers can be swtiched off.
+Important: So, now the device thickness (L) should be set manually to your absorber + n-layer + p-layer thickness. 
+Also included defect layers (thicknesses can be changed) at p-i interface (hole traps) and i-n interface (electron traps). These defect layers are part of the i (absorber) layer.
+I included ions (+, - and both species) in i layer. Infinitely fast and slow scan possible by setting fix_ions.
+Inluded preconditioning voltage (Vpre). This is the voltage at which ion densities are solved and then a voltage sweep is possible from any voltage point. Set equal to zero for infinitely slow scan (fix_ions=0).
+Included intermediate scan rate (kind of). Can be set by putting fix_ions=0 and scan_rate from 0 to NJV. Resulting JV file then contains JV points for voltages just after the ion distribution happens.
+Included voltage scan direction (SC-OC, OC-SC).
+Couple ion densities to Poisson solver (just like for n and p).
+
+
+Version 3.27 (8 April 2016), LJAK
+I have removed a bug from 3.26: In this version, I had introduced image-force-lowering (IFL). In every loop, the densities at the contacts are adjusted to account for IFL (if needed) and the potentials at the contacts V0 and VL are changed (which means that the injection barrier changes). The latter, of course, changes the applied electric field in the active layer. This means that the potential changes for all grid points, even if the densities wouldn't change. Therefore, I had mistakenly added a for-loop to change the potential in all grid points (line 1835). This was not done correctly: it was a simple linear interpolation of the potential, just like we use when initialising the simulation. I have simply removed this loop. The Poisson solver ensures that the correct electric field is applied inside the active layer. 
+
+
+3.26 (31 March 2016), LJAK
+I have incorporated image-force-lowering of injection barriers. This only works for infinite surface recombination. Also, it only considers lowering of the barrier for electrons at the left electrode and holes at the right electrode. The model that I implemented is the one described by Scott&Malliarias (Chem Phys Lett 199, 115 (1999)). They introduce a formula for the carrier density at the contact due to image-force-lowering. I use this formula to calculate n[0] and p[NP+1]. Next, the law of mass action is used to get the minority carrier density at the contact and the Boltzmann equation is usde to calculate the effective barrier height (phi_left/right_eff). This is then used to change the boundary condition in the potential V.
+I have also introduce two parameters (RoughLeft/Right) to take the effect of surface roughness at the electrodes into account. Surface roughness enhances the local electric fields, which makes injection (even) stronger. This is described by George Palasantzas et al, PRB 60, 9157 (1999). Setting RoughLeft/Right to zero means that this effect is ignored.
+Minor changes: I have changed the matrix elements at the contacts for infinite surface recombination (otherwise it wouldn't work well with image-force-lowering). In the main loop, SOR/SUR is now done for all grid points (including 0 and NP+1). 
+
+
+3.25 (17 March 2016), LJAK
+I removed a bug from the continuity solvers: When finite surface recombination velocities are used the previous versions were wrong. This is because a factor L was missing (the grid spacing h[i] is scaled to L) and the sign was wrong. The sign is a bit tricky. We always write: Jn=qS(n-neq), but that implies that Jn > 0 for finite S. However, we change the sign in Calc_elec_curr because we like to have Jsc<0. 
+
+
+
+
+3.24 (04 Feb 2016)
+Edit by V LE CORRE (VLC)
+Version updated to be control by the cmd windows.
+Functions added using function from SimBAM: Prepare_Log_File, Get_String, Get_Integer, Get_Float, Read_Name(updated) and Read_Parameters(updated).
+
+
+3.23 (8 Jan 2016)
+I have incorporated the changes suggested by Niels van der Kaap regarding finite surface recombination. Niels suggested that the continuity equations for finite surface recombination can be solved directly. To do this, one uses another tridiagonal matrix solver (tridiag_2, was already in the code) to solve on all grid points, so including i=0 and i=NP+1 (i.e. the contacts). The surface recombination velocities can now also be set to 0. Both majority and minority surface recombination velocities can be set for electrons and/or holes.
+
+3.22 (28 Oct 2014)
+I have added the possiblity of including leakage current. In the 'contacts' section of the parameters, the shunt resistance (Ohms/m2) is defined. If a positive value is used, the leakage current density (Va/Rshunt) will be added to the total current density (Jot). To exclude leakage, use a negative value for Rshunt (is equivalent to infinite Rshunt).
+
+3.21 (10 Sep 2014)
+I have made the simulations with finite surface recombination more rebust. To do so, the minority densities at the contacts are no longer updated during every main loop, but only after the main loop appears to have converged. Then, the minority densities are updated and the main loop continues. Only if the change in the minority densities is smaller than tolMain do we consider the main loop to have fully converged.
+
+
+3.20 (28 Feb 2013)
+Removed a bug: in  3.18 and 3.19 the doping densities were accidentally removed from the trap-free Poisson equation. Now they're back. Also, I've introduced field-ionisation of the dopants. n_0 and p_0 now are the zero-field ionised dopants densities. Doping is ionised in a Poole-Frenkel like expression using field activation parameters beta_n and beta_p. 
+
+3.19 (21 Feb 2013)
+I have implemented SOR and SUR in the Poisson solver and the main loop (where it changes the densities). This can potentially be used to make the program converge quicker, but it is perhaps more useful in slowing it down: If the density dependence of the mobilities is very strong, the pervious versions had difficulty converging. Herman solved this by introducing an averaging procedure over the mobilities obtained in different loops. I chose SOR/SUR as it's simple, well known and can even make it run faster. Note that SUR was already implemented in the direct Poisson solver. Two parameters control SOR/SUR: accPois (Poisson solver) and accDens (density in main loop). Note that setting these close to zero will make the changes in V,n,p per loop very small and the program might conclude that the solution converged as it monitors the change in a loop, not the actual error.
+
+3.18 (18 Feb 2013)
+Added Pasveer model, Marcus mobility and improved Pasveer model for holes.
+
+3.17 (13 Nov 2012)
+Previously, the generation profile (if used, that is) was used directly to determine the bound pair generation rate, so intensity dependent simulations were hard to do: Gmax was not used. Now, the generation profile yields the shape, but not the height/magnitude of the generation rate. Gmax is used as the maximum of the generation rate (in space), so the overall magnitude is controlled by Gmax. The VAR file also lists the local generation rate.
+
+
+
+3.16 (27 Aug 2012)
+Changed the way the Voc is estimated. The previous estimate did not always bracket the Voc. Now, we start at the lowest V in the JV curve, and move to the right, checking every time whether the sign of the resulting current J changes. If so, we're just past Voc. Then we use linear interpolation to find Voc. The error estimate of Voc is equal to half the voltage step between the points that bracket Voc. Simple and stable.
+
+3.15 (8 May 2012)
+I've improved the Bessel function. Instead of that horrible power function stuff, I use a proper polynomial. Of course, this is based on the exact same Taylor expansion, but written is a much more (3x faster!) efficient form. The resulting code is about 3x faster if field-dependent generation is being used.
+
+
+3.14 (8 May 2012)
+I have introduced a second photogeneration process: If photogeneration is field dependent, the user can specify how many (fraction, P0) of quenched excitons directly yield free carriers. The other quenched excitons are assumed to yield CT states first, which can be dissociated according to the Onsager-Braun model. So, G[i]:=(P0 + (1-P0)*dp[i]) * Gm[i] and the bimolecular recombination rate is unchanged. Note, that the AV_diss only refers to the CT process!
+
+3.13 (28 March 2012)
+I have introduced doping. The device_parameters.txt file specifies (n_0, p_0) the density of ionised dopants. Note that if traps are also present a fraction of the traps will be filled by doping. This, however, is not included in this version. So, if N(P)t<>0 and n(p)_0<>0 the program halts. 
+
+3.12 (15 March 2012)
+I've implemented finite surface recombination velocities (Sn,p) for minority carriers at the contacts. Of course Sn,p = 0 doesn't work. Negative values are interpreted as infinite surface recombination, which means that the minority carriers simply have their equilibrium values. Note, this is effectively what SIMsalabim did up till 3.12. 
+For finite, positive Sn,p we try to get n(p) at the anode (cathode) from J = q Sn(p) (n(p) - n(p)eq). This is done by using a bisection algorithm. At the start of each voltage loop, nmin=neq and nmax=Nc. These serve as lower and upper bounds respectively. Then we gauge whether n is too big or small (procedure Density_from_surface_rec). If it's too big, we make nmax equal to the current n. If it's too small we make nmin equal to the current n. Then we take the geometric mean (i.e. the mean of the logarithms of n). 
+Note that using Sn,p>0 only makes sense if electrons are minority carriers at the right electrode (=anode!). So, the programs checks if the right electrode really is the anode.
+Similarly for holes.
+
+3.11 (14 March 2012)
+I've exchanged the procedures that calculate the current density based on De Mari's paper with procedures based on Selberherr eq. 6.1-39 and 6.1-41. The latter, of course, modified for generalised Einstein relations and corrected for the sign. 
+Also, I've implemented a faster approximation for the Bernoulli function based on different Taylor series. This makes the program about 2-3 times faster.
+
+3.10 (24 June 2011)
+Removed a bug: In 3.09 the net recombination in the var_file was zero (bug). Now the net recombination rate is calculated immediately prior to writing all the variables to the var_file.
+
+3.09 (31 May 2011)
+Changed the definition of the contacts: Instead of electron/hole Ohmic or neutral, it is now possible to set a barrier at both the left and the right contact. The left[right] one (phi_left[right], eV) corresponds to the injection barrier for electrons[holes], the barrier for the other carrier is equal to Egap-phi_left[right]. Note that, as before, barrier lowering etc. is not accounted for. Therefore, the barriers should be chosen small enough to render those effects negligible.
+
+3.08 (24 May 2011:))
+Removed a bug: the Pasveer formula wasn't implemented correctly as I had inadvertently left out the 1.8e-9 prefactor. Also implemented an improved parameterisation of Pasveer's data (see Current Applied Physics 10 (2010) 1182\961187).
+
+3.07 (1 April 2011)
+Added a new procedure: Solve_Poisson_Direct. This solves V directly from n and p and can only be used in the absence of traps. There are two reasons for implementing this procedure:
+1) Using a generalised form of the Einstein relation (Dn,p_dep <> 0) affects the way the iterative Poisson solver should be implemented as there are many Vt terms in these equations. However, I chose not to change this procedure as it doesn't seem to make much of a difference. As the iterative procedure only slightly alters n and p the effect of eta_n,p not being 1 is not that important.
+2) It can (but this is not always the case!) make the simulation faster.
+Caveat: if we replace the old values of V with the newly (directly solved) one, the program sometimes fails to converge and starts to oscilate. Therefore, I've implemented a parameter (mixV), so the new value is: V:=mixV*Vold + (1-mixV)*V. Obviously 0<=mixV<1.
+I have not (yet) implemented trapping in the direct Poisson solver, so the program halts if trapping is used in conjunction with the direct solver.
+ 
+
+3.06 (17 March 2011)
+Added two new columns to the JV output file: recLan and recSRH. These show the average rate of Langevin and SRH recombination resp. In both cases, photogeneration of carriers is excluded from the rate calculation. Also, implemented a function 'average' that calculates an average value of the input vector. To calculate recLan and recSRH an empty vector (containing only zeros) is passed to function recombi.
+
+3.05 (23 Feb. 2011)
+Modified the way the currents are calculated and the continuity equations so the Einstein relation is no longer assumed. The values of Dn,p (diffusivities) are calculated each loop, either by assuming the Einstein relation (Dn,p_dep=0) or by using an aditional scaling factor (eta_n,p) if Dn,p=1. I plan to use the full Roichmann-Tessler expression in a later version.
+
+
+3.04 (Feb. 2011)
+Added a new mobility model (Koster's Marcus hopping mobility).
+
+3.03
+Not documented.
+
+3.02 (March 2010):
+fixed a bug in Init_Generation_Profile: when using a generation profile, there was chance of a range check error occuring: 
+
+3.01 (Sep. 2009):
+Included Pasveer's formula (PRL 94, 206601) for the electron mobility.
+
+
+3.00 (Sep. 2009, TUE)
+Modified the program so it can read in a table for the electron mobility. The mobility, as a function of F and n, is interpolated (bilinear interpolation). 
+
+2.02: left <> right
+JCList, Find_Solar_Cell_Parameters, convergence.
+
+
+Version 2.01 (Jan 2006)
+The procudure heading of Solve_Poisson was modified. In the previous (2.00) version, the electron and
+hole densities (n,p) were declared as value parameters, meaning that any changes to n and p did
+not affect the values of n and p outside the scope of the Solve_Poisson procedure. This is in 
+conflict with the Gummel scheme (and with the previous Slotboom versions), since this scheme requires
+that the densities are changed whenever the Poisson equation is solved. Therefore, n and p are
+now declared as var parameters.
+
+Version 2.00 (Nov.+ Dec 2005)
+First of all the name of the program has been changed to SIMsalabim. Furthermore, the welcoming 
+message was modified, now stating the author's name at start-up.
+Perhaps the most important change in this version is the introduction of natural variables (V,n,p)
+to replace the Slotboom variables (V, slotn, slotp). A straightforward change in the code, except
+for the Poisson solver. In the original Gummel scheme, the Poisson equation is solved in conjunction
+with the quasi-fermi levels, which remain unchanged. As a consequence, the actual value for the 
+electron and hole densities changes when the Poisson equation is solved, since the potential is 
+modified. This lies at the heart of the Gummel scheme, therefore, at the end of the loop in
+the Poisson solving procedure, the densities are explicitely modified according to the new potential.
+Note that this excludes (without loss of stability) the possibility of a direct (i.e., non-iterative) 
+way of solving the Poisson equation. The benefits of natural variables are two-fold: the voltage
+range is greatly increased (17 times larger!) and the program has become more transparent since
+the natural variables are more intuitive.
+A new convergence criterion has been introduced: the convergence of the overall current density Jtot. 
+Since this is the main parameter of interest, this seems a logical variable to monitor when fitting
+JV-characteristics. It should be noted that when one is interested in the densities, potential, etc. 
+the device, it is much better to check the convergence of the Slotboom variables. A new parameter
+was added to the device_parameters file, Conv_Var, in order to select the parameter (Jtot or the
+Slotboom vars) should be monitored. Conv_var = 1 selects the Jtot, in all other cases, i.e., 
+Conv_Var<>1, the Slotboom variables are monitored. To get a good JV-characteristic, a tolerance
+of 1e-2 to 1e-3 should be enough when Conv_Var=1. The way the program checks for convergence was also 
+changed: a new Boolean variable Conv_Main is used to monitor the convergence. Note that when 
+Jtot=0 the Slotboom variables are used to check for convergence to aviod division by zero.
+In the procedure make_grid, the range of the third for-loop was changed from 0-NP+1 to 0-NP, since 
+k[NP+1] does not exist. Consequently, the value of x[NP+1] is now realy equal to L.
+Another addition to this version is the incorporation of Shockley-Read-Hall (SRH) recombination, i.e.,
+recombition of free holes with trapped electrons. Two new parameters in the device_parameters file
+were introduced (Cn and Cp), namely the capture coefficient for electrons and holes. When either one
+of the parameters are equal to zero, SRH recombination is not taken into account. The procedure
+Calc_SRH_Prefactor calculates the SRH prefactor (srhp), i.e., R_SRH = srhp * (np - n_int^2) is the
+rate of SRH recombination. This prefactor is stored in a new array srhp, much in the same way as
+Langevin recombination is treated. In the case of an exponential distribution of electron traps, 
+an integration over the trapping levels is needed in order to calculate the srhp. 
+As a last change, the continuity equations have been rewritten in a slightly simpler form. 
+
+version 1.23 (July 2005)
+A bug was removed from the function Interpolation, we have to use ns+1 instead of ns in 
+the IF statement (IF 2*(ns+1) < n-m). What is more, the last (=maximum) x-coordinate in the
+generation_profile.txt file no longer has to be equal to L. Instead, it is rescaled to L, so the
+x-coordinates in the generation_profile are now given in relative units.
+
+Version 1.22 (April 2005)
+I have replaced the norm used in the program (function Norm) by the infinity norm, i.e., 
+norm(x) = Max |xi|, making the program just a little bit faster. Furthermore, I have renamed Vconv
+to Vacc (accumulation voltage) and incorporated a program halt if Vmin=Vmax when Vdistribution=2, 
+previous versions entered an infinite loop for Va in this case.
+
+Version 1.21 (Jan. 2005)
+The the function Norm the variable ans is changed from DOUBLE to EXTENDED, allowing for 
+larger slotboom variables. Note: Norm calculates the norm of the slotboom vectors. The 
+voltage range could thus be extended to +- 34V at 295 K.
+
+Version 1.20 (Dec. 2004)
+The possibility of reading in a generation rate profile from the file 'generation_profile.txt'
+has been added. This file should not contain any comments, just the position x[m] and the 
+generation rate [m^-3 s^-1], separated by a space or tab. The last x value should corres-
+pond to the device thickness L, specified in the device_parameters.txt. However, the 
+'grid' of the generation profile does not have to match the grid in the program, nor the
+number of points used (NP). Linear interpolation is used to obtain the generation rate in
+each grid point in the program. 
+The variable Gen_profile (integer) denotes whether this profile should be used (1) or not (0).
+The generation in each grid point is subsequently stored in the array Gm. In the case of
+a constant generation of bound e/h pairs, Gm will be equal to Gmax (previously called Gm).
+Otherwise, the data will be read and Gm will be filled by the generation profile obtained
+from the file.
+Note that as long as Gen_profile = 0 in the device_parameters file, it is not necessary
+that the generation_profile file exists.
+
+version 1.18A (July 2005)
+A bug was removed from the function Interpolation, we have to use ns+1 instead of ns in 
+the IF statement (IF 2*(ns+1) < n-m).
+
+version 1.18 (Oct. 2004)
+A bug has been removed from version 1.17: in the procedure calc_hole_mob in case 2 the 
+dum2 variable was calculated with T0n instead of T0p. Furhtermore, the mun and mup variables are
+also printed in the var_file. Two new variables have been introduced: Pause_at_end and 
+Warn_mob_dep to improve the user friendliness. Pause_at_end determines whether the program 
+should pause at the end, while Warn_mob_dep determines whether a warning should be given
+if mob_n_dep <> mob_p_dep. 
+
+Version 1.17 (Sep 2004)
+-The version number and number of points are printed right at the beginning of the program
+-A new mobility dependence has been added: both field- and concentration dependent. Further-
+more, the concentration dependent mobility (nr. 2) has been changed to Vissenberg + mu_0,
+in accordance with Cristina's work. The field- and concentration dep. mob. (nr. 3) has an
+exponential field activation prefactor.
+-The field activation factor, which was called alfa_n,p in previous versions, has been 
+renamed and is now called gamma_n,p, to avoid confusion with the effective overlap parameter
+in the Vissenberg model.
+
+Version 1.16 (Sep 2004)
+I have made a better guess for the new potential at the beginning of the main loop: previously,
+the guess was a linear function from contact to contact. Now, it is the old potential plus
+a linear function yielding half the voltage step (Va-Vaold) at the contacts. In this way, the
+new potential has the form of the old potential, and is not a straight line. Convergence is 
+faster for non-uniform potential, e.g., near the built-in voltage.
+
+Version 1.15 (sep 2004)
+Exponential trap distributions have been added. 
+See: Kao & Hwang (3.4.2) (p. 160)
+Four new parameters have been added in device_parameters.txt:
+Ntrtype, Ptrtype: electron/hole trap type, indicating whether the traps are exponential or
+single level.
+Tntr, Tptr: characteristic trap temperature for exponential distribution.
+The trap density expression (exp.) is written as a first order Taylor expansion in \delta V
+to yield the necessary correction term (main diagonal). Terms (1-Ntrtype), (Ntrtype), etc.
+select the appropriate terms in the Poisson matrix.
+
+In version 1.10 (May & Aug 2004)
+
+Electron and hole traps (single level) have been included. To do this, a new form of 
+Poisson's eq is derived to again linearize this eq. In the Poisson solving procedure,
+a check is performed whether traps are present or not, to avoid doing a lot of unneces-
+sary calculations.
+
+for single level: Lampert and Mark (2.17) 
+
+n_trap: density of filled electron traps
+p_trap: density of filled hole traps
+Nt: trap density 
+Pt: hole trap density
+Entrap: energy of electron trap w.r.t. conduction band
+Eptrap: energy of hole trap w.r.t. valence band
+
+Output for final voltage changed: phi_n,p as well as n, p are written in the output file, 
+slotn,p are canceled
+
+In version 1.00
+-Va verdeeld over x=0 en x=L
+-symmetrisch exponentieel grid bij de contacten, vorm bepaald door grad
+-input vanuit een file
+-Braun met verschillende distributies
+-veld-afhankelijke mobiliteit (of: plaats-afhankelijk)
+-betere gok van nieuwe slotboomvariabelen na het ophogen van de spanning
+-de slotboomvariabelen zijn via een 'similarity scaling' geschaald, zie
+ IEEE trans. elec. dev. aug. 73 p. 669
+-Gummel iteratie: Poisson oplossen met gok voor n en p
+ en dan met de nieuwe Vi+1, nieuwe ni+1 en oude pi de recombinatie
+ uitrekenen en de electronen cont. eq. oplossen voor ni+1. Dan pi+1 oplossen
+ uit cont. eq. met nieuwe waarden van V, n en p
+
+
+
+
+**************************************OLD ZimT*******************
+
+Vesion 0.48 (8 March 2021 - 28 April 2021), LJAK, MK
+
+1) changed LIL and LIR to L_LTL and L_RTL to make them consistent with SIMsalabim and with the name of these layers as transport layers (TLs) instead of 'insulators'.
+2) removed warn_mob_dep
+3) copied the entire blok of trap parameters from SIMsalabim.
+4) Just like in SIMsalabim, we split the reading and checking of input parameters. The checking is now solely done in proc Check_Parameters.
+5) Removed Slowest_only and changed the way we specify whether the Langevin expression is used to that of SIMsalabim. 
+6) Renamed MaxJoc as MaxRangeJoc and moved it up in the parameter list (right after MaxRangeJ). Now, we can also deal with steady-state cases where there is no voltage and no light (so current should ideally be zero!). Again, we take the absolute range (so in A/m2).
+7) When reading the voltages, we now check to make sure that the voltage is not too large for our floating point type.
+8) Modified the order of the input parameters to make it consistent with SIMsalabim.
+9) Removed Braun_rec from the input list.
+10) Added TLsTrap to the input parameters to make it consistent with SIMsalabim.
+11) Removed the possibility to deviate from the Einstein relation as this was not complete any way.
+12) Moved Read_Parameters and Check_Parameters to DDRoutines and modified them such that they can deal with the specifics of ZimT and SIMsalabim.
+13) Replaced Rin and Adev with Rseries (Ohm m2) to make it consistent with SIMsalabim.
+14) Screen output now lists the external voltage and current (Vext, resp., Jext).
+15) Included Rshunt (see SIMsalalbim 3.88).
+16) Changed ResCurr into Residual_Current_Voltage. This is needed for improved readability of the code. This routine calculates the difference between the simulated current or voltage and the targeted ones, i.e. the residual. It takes a guess for Vint and then solves the equations. This yields the simulated current or voltage at that Vint. If we're trying to solve for Voc (SimType 2 or 3), then we want the current to be zero. So the target current is 0 and the residual is the simulated Jext. If SimType = 4, then we know the target (requested) Vext (which we will store locally), but we do not know the Vint that will yield this Vext: Series resistance will make Vext <> Vint. So, we take the input (guess) for Vint and solve the equations to get Vext. The residual, in this case, is then equal to the difference between the new Vext and the one we're aiming for (target). Once this has been done, the original Vext (VextTarget) is restored.
+17) Renamed Gmax Gehp: generation rate of electron-hole pairs. I've also changed this in the tVG file (and renamed V Vext!).
+18) Put a new proc in DDRoutines that prints the welcome message, lists the authors and shows the name and verion of the program.
+19) Move the first opening and reading of the tVG_file into a separate procedure (Open_and_Read_tVG_file): detailed stuff like this really has no place in the main program.
+20) Made all program specific parts of the records in DDTypesAndConstants shared: i.e. we no longer have varient parts of the records. Having such parts looked nice, but the compiler does not raise an exception when using such parts of a record that do not belong to the code that is being compiler/executed. Thus, we might be using variables that shouldn't exist. Not very 'pascal-like'.
+21) I have given the DD units a version number so the compiler can verify that the DD units are of the correct version number.
+
+
+Version 0.47 (5 March 2021), LJAK
+Minor changes to the units such that both ZimT 0.47 and SIMsalabim 3.87 can be compiled using the same units!
+
+
+Version 0.46 (3-5 March 2021), LJAK
+INTRODUCTION AND MOTIVATION
+Another major change to the code: In order to make it easier to update both SIMsalabim and ZimT, or even to merge the codes, I have moved all routines, types and constants to DD units: units where all the drift-diffusion stuff resides. Unit DDRoutines contains the functions and procedures while DDTypesAndConstants contains the types & constants. I have also updated the other units (non-DD, so InputOutputUtils, TypesAndConstants, and NumericalUtils) which contain more or less general stuff. Code that is really specific to ZimT (although it's difficult to know where to draw the line!) is still in ZimT (Read_Parameters, Read_tVG, ResCurr and Bracket_device_voltage).
+
+DATA
+To make it more obvious which parameters are used in the functions in DDRoutines, I have defined two new types: TStaticVars and TInputParameters. The corresponding variables stv (static variables!) and par (paramters) are mostly passed as CONSTREF to make sure they cannot be changed inside the DDroutines. The static variables are variables that are calculated at the start of the simulation and then remain constant, so they are based on the input parameters. par contains parameters from the input (L, SpMaj, etc) and variables that are directly obtained from the input like booleans (e.g. IonsInTLs). Anything that requires more processing (like Egap) is stored in stv. 
+
+I have also fixed an old issue: The way we treated integration (Romberg) meant that we relied on global variables (e.g. a and epsi:=stv.eps[i]; {Global variable to be used in DissProb_Delta}) to pass these on to the function we integrate over. The type we used for Romberg integration (MathFunc = FUNCTION(x : myReal) : myReal) could not be used to pass these values to the integration algorithm. Now we can use a second math function type: MathFuncValues = FUNCTION(x : myReal; vals : Row) : myReal and use this in conjuction with RombergIntegrationValues(f : MathFuncValues; vals : Row; a, b, TolRomb : myReal; MaxIt : INTEGER; wait_if_faulty : BOOLEAN) : myReal. So, any parameters that we want to pass on to f can be stored in vals.
+
+
+BUGS:
+1) Removed a bug (not so important, I think) from Calc_SRH_Pre: Previously, if using SRH with a single trap level, we would calculate the loc Nc from NcLoc[i] without initialising i (so it's likely zero).
+2) In the Main_Solver, we didn't check if Jdev=0 when calculating the relative range of the total current=> division by zero. Now, if Jdev=0, we simply assume that the range is larger than the tolerance (MaxRangeJ).
+3) Small bug, but a mistake nevertheless. In Main_Solver, we have to pass the V, n, p, nion, and pion of the previous time to the continuity equations and the procedure to calculate the displacement current. As we are solving the new state (new), this should be curr. However, in 0.45 this was state prev.
+
+
+SMALL STUFF
+1) removed all mobility models except for 0 and 1 (constant, resp. field dependent).
+2) Removed Fit_Parabola and BilinearInterpolation from ZimT as these functions are provided by NumericalUtils
+3) Removed variable dummy (myReal) from Read_Parameters. In the past, we used this to read integer values: first read the value with Get_Float and then convert the float (myReal) to an integer. However, we also have access to the procedure Get_Integer so we can do this in one step.
+4) As a prelude of things to come, I have copied proc Tidy_up_parameter_file to the DDRoutines so ZimT can also access this routine. To do so, simply run ZimT with -tidy.
+
+TESTS DONE (AND PASSED!)
+-RC circuit with de-charging and blocking contacts.
+-voltage sweep of a solar cell
+-change in generation rate over time at fixed bias
+-change in generation rate at open-circuit (like TPV for example)
+Note: these tests only assess the basic functionality specific to ZimT (the SimTypes).
+
+Version 0.45 (10 Dec 2020 - 19 Feb 2021), LJAK
+I have made it possible to skip (rather than simply ignore) (t,V,G) points that did not converge. What happens upon failure (points that don't converge) is set by parameter FailureMode: 0: ZimT stops, 1: ignore (previously IgnoreFailure), 2: skip.
+
+To do this, I have introduced three possible states of the simulation (TState): prev, curr, and new:
+-new: not yet accepted state (=point in time), yet to be solved or discarded
+-curr: latest accepted solution. So this state/time did converge and we accept this solution.
+-prev: the last one before curr.
+Type TState contains all the variables that describe a state.
+At the end of function ResCurr we no longer reset (if specified) the internal variables as this is taken care off by either accepting or discarding the new state (new).
+
+Note: if the first point (steady-state) fails to converge, and if FailureMode=2 (so we want to skip points), then we can't skip this point, but we simply ignore it. So, if steady-state does not converge, then we assume FailureMode=1 (ignore) for this point only.
+
+
+BUG:
+1) Previously, if not using a generation profile, variable maxG would not be initialised, so it was 0. When updating the generation profile (UpdateGenerationProfile) this would cause a division by zero. So, I have changed the procedure Init_Generation_Profile: if no profile is used, then we simply set the profile to 1 and maxG also to 1. Also, if we do use a profile, Init-Gerenation_Profile no longer sets the maximum generation rate to Gmax (as that is unknown at this stage), but simply to 1. Thus, we only init the shape of the profile. UpateGenerationProfile then sets it to the correct value.
+2) In RescaleIonDensity: when normalising the total ion density, we always used (L-L_LTL-L_RTL) for the length (i.e. the portion of the device where ions can reside) even if the ions can move into the TLs. I fixed this.
+
+
+Small stuff:
+1) removed function power from the code as this is also in the math unit (which is used any way).
+2) removed procedure Bracket_open_circuit as it wasn't used!
+3) Changed the way the generation profile is specified: no longer 1/0 for yes/no, but either 'none' for no profile, or a filename (just like SIMsalabim 385, for example).
+4) I have renamed InsAbsorb TLsAbsorb as this is more consistent: we should no longer call the TLs 'insulators'.
+5) (See SIMsalabim 3.42)The generation profile is rescaled such that Gmax equals the average of the profile over the length of the absorber. The latter equals L if InsAbsorb or there are no insulators, and L-LIL-LIR otherwise.
+6) I have changed the way AutoStop works: if AutoStop and the system hasn't changed MinCountStatic (hard coded) consecutive times, then we stop. Note: if FailureMode = 2 (skip) then points that don't converged (are skipped) don't count towards MinCountStatic. This implies that if the system doesn't really change (static input) and the points don't converge and failumreMode=2, then ZimT will keep on simulating. This makes sense as it would be strange to stop the simulation based on solutions that don't converge.
+
+Tests done (and passed!)
+-voltage sweep of a solar cell
+-change in generation rate at open-circuit (like TPV for example)
+-change in generation rate over time at fixed bias
+-RC circuit with de-charging and blocking contacts.
+
+
+Version 0.44 BETA( 16 Sep 2020), LJAK
+I have extended the use of IgnoreNegDens to the (transient) ions solvers. The ion densities are sometimes (in some grid points) negative after running the tridiagonal matrix solver. This is likely the result of finite numerical accuracy (i.e. number of digits, so longer reals make it a bit better) combined with large differences in the ion densities throughout the simulation volume. Previously, SIMsalabim would stop if one of the points contains an ion densities <=0 (i.e. not positive). Now, if IgnoreNegDens then nion[i]:=-nion[i] (which does not change anything if nion=0 which is not very likely).
+
+
+
+
+Version 0.43BETA (14 Sep 2020), LJAK
+See SIMsalabim version 3.82:
+-I have introduced two parameters (nu_int_LTL and nu_int_RLT) to better describe the flow of charges across the interfaces between the TLs (if any) and the main absorber layer. These nu_int's are interface transfer velocities, and thus have the unit of m/s. Internally, they are converted to a mobility at the TL/main absorber interface in a way to ensures that the resulting JV curve does not depend on the grid spacing:
+The mobility at the interface (mu_int) is obtained from nu_int by using:
+mu_int = delx * nu_int / Vt,
+where delx is the (local) grid spacing and Vt is the thermal voltage. 
+Note, these nu_int's are the same for electrons and holes, just like the mobilities of the TLs.
+
+
+
+Version 0.42 (11 Sep 2020), LJAK
+
+Removed a bug: in 0.40 and 0.41 were not correct and crashed when using ions with TLs and IonsInTLs=0: In other words, restricting ions (if any) to the main absorber layer was not implemented correctly. I have modified this and have split this into two cases that are slightly different:
+1) in steady-state this problem does not occur. We require Jion = 0 for all grid points and we rescale/normalise the ionic densities to their input values. No problem.
+2) If ions can move to the contacts (so either no TLs, or IonsInTLs=1), then the ionic densities at the contacts (points 0 and NP+1) are finite. We require that the ionic current between the first two (resp. last two) grid points be zero: Jion[0]=0, Jion[NP]=0.
+3) If ions cannot move in the TLs (so IonsInTLs=0), we have the following:
+i1: last point in left TL, i2: first point in right TL. As ions cannot move into the TLs, the density of ions in the TLs have to be zero everywhere, so nion[i1]=0. Note, this is different from the previous case. Now to ensure that the ionic current across the interface remains zero, I simply take the ionic mobility (mobn/pion) zero in point i1 (or i2-1) and remove the corresponding terms from the drift-diffusion equations. 
+
+I have incorporated different effective densities of states (Nc for bulk and for TLs), just like I did in SIMsalabim 3.79. Another thing I took from SIMsalabim: I replaced offsets (phi_left, right, etc) with proper energy levels (see SIMsalabim v3.64) and work functions.
+
+Minor stuff:
+1) corrected limits of for loop in checking if ionic densities are still positive (procs SolveNegIons/SolvePosIons). Previously the loop included all grid points, which is wrong if IonsInTLs=0.
+2) Another bug. In proc RescaleIonDensity, the ionic density was only rescaled over the main absorber layer, even if IonsInTLs=1, this was wrong. In other words, if there are TLs and ions can go into the TLs, the rescaling of ionic densities was incorrect.
+3) I've made it possible to cancel writing to the Var_file: simply specify none as the name of the Var_file. No output will be created. This is motivated by the fact that these Var_files can get very very large.
+4) Removed accTrPois from device_parameters as it wasn't used.
+5) I have made the convergence criterion (Main_Solver) the same for steady-state and transient. Previously steady-state was different as we checked for the change in current or densities (just like we do in SIMsalabim). For the transient cases, we check the uniformity of the current density. Sometimes, the transient from steady-state to transient (so the second point in the tVG_file) was a bit rough and I think this was due to the different ways of checking for convergence. Now we always check for the uniformity of the current density, so steady-state is also based on the MaxRangeJ parameter. I have removed all parameters corresponding to the old way of checking for convergence in steady-state.
+6) Put Evac, Ec and Ev in Var_file to make it easier to draw a band diagram. 
+
+
+Version 0.41 (2 Sep 2020), LJAK
+Removed a bug from proc Tridiag in the NumericalUtils unit! This proc was modified in version 3.61 to make it open-source. However, the last for loop was not correct (see line 220 in the unit). It should go downto i0, not 1.
+
+Version 0.40 (July 2020), LJAK
+
+A complete overhaul of the continuity equations. We are back to the proper equations Selberherr (6.4-32&33). This takes us back to the first version of SIMIS (predates ZimT!). However, the implementation in SIMIS was not correct: In Selberherr 6.4-32&33, we need both the new n,p as well as n&p in the previous time step. This was not correct in SIMIS. Note, Selberherr says (right after showing 6.4-33) that there is no need to use the new recombination rate (R) in the continuity equations. However, that is exactly what ZimT does as of this version: it uses the latest n&p arrays to calculate the recombination rate. This is a little bit more stable but, more importantly, it also enables us to use this system of equations to do steady-state (n&p at the 'previous' time make no sense in steady-state). The new main procedure for solving V, n, p, nion, pion, is called Main_Solver. It can handle steady-state as well as the transient case.
+
+I have also implemented an 'AutoStop' feature (see user interface block). If the current, voltage and Gmax are hardly changing any more, then ZimT will stop (if AutoStop = 1) even if the tj_file still contains new points in time. If we do this, then ZimT puts a warning on screen and in the log file.
+
+Additionally:
+-introduced new proc to update the generation profile: it takes the original profile (orgGm) that is based on whatever is in the file with the generation profile and updates the values such that the maximum element is equal to Gmax (from tVG file).
+-SOR/SUR (over, resp., under relaxation) is now also used for the ion densities.
+-Introduced a new global variable: Vti = 1/Vt. We use this throughout the code, so I have removed all local equivalent declarations.
+-Introduced a new parameter IonsInTLs. If 1, the ions can also move in the TLs, if <>1 they cannot and are thus limited to the main layer.
+-Removed Tridiag and Tridiag_2 from the main code as function Tridiag also exists in the unit NumericalUtils. In the latter verion, one can specify which range of indices to solve for (i0, i1), so it can replace both the original Tridiag (i0=1, i1=NP) and Tridiag_2 (i0=0, i1=NP+1).
+-Removed proc. Poisson_Cont_Transient_GS and replaced it with Solve_Transient.
+-I have removed the steady-state solver as it is no longer needed. Also, t=0 is not done twice as we only have 1 solver. So this is analogous to version 0.04 in the sense that we do t=0 only once.
+-Removed Calc_Net_Charge as this is really not needed.
+-Removed ion_pre_bias_calc: pre-biasing (if any) should be specified via the tVG file.
+-Removed SimOC as this is redundant in the main program. It is now a local variable in Read_tVG. To define the type of simulation that should be preformed, we use SimType, so we don't need SimOC.
+-Adapted Correct_version_parameter_file from SIMsalabim.
+-SimType = 2 (steady-state, open-circuit) is not so relevant any more, but I've kept it in.
+-maxDelV introduced to limit the change per loop in the Poisson solver.
+-The n and p arrays from the previous time (nPrevTime and pPrevTime) are now passed on to Contn,p. For the steady-state case this is completely irrelevant as that ensures that dti=0. For the transient case, however, you need the n (p) at the previous time step. Note, these are different from oldn, oldp as those are used to monitor the progress of the iterative loops needed for solving the continuity equations. We also use these for SOR/SUR.
+-Similarly, I replaced all oldV with VPrevTime.
+-Introduced nionPrevTime and pionPrevTime to keep track of the ionic distributions in the previous time step. 
+-Introduced procedures SolveNegIons and SolvePosIons that solve the ionic distributions in the transient case. 
+
+
+Tests done (and passed!)
+-RC circuit with charging and blocking contacts.
+-Voc in steady-state under illumination
+-voltage sweep of a solar cell
+-change in generation rate over time at fixed bias
+-change in generation rate at open-circuit (like TPV for example)
+
+
+Version 0.30 (21 Oct 2019), LJAK
+I have changed the convergence criterion of the transient solver in case we're solving an equilibrium state. At equilibrium (Gmax = 0, Vdev = 0, tijd = 0) the current density Jdev has to be zero (cf open-circuit voltage!). Hence, the relative range of the current density is ill-defined and typically large (meaning that the solver doesn't converge) while the current density itself is nice and low for all x. So, I have added another possible way to conclude convergence: IF (tijd=0) AND (Vdev=0) AND (Gmax=0) THEN conv:=(RangeJ*ABS(Jdev)) <= MaxJoc; It makes sure that IF we're solving an equilibrium case (Jdev == 0), then we can stop if the absolute range of the current density is small enough (<=MaxJoc).
+
+
+Version 0.29 (15 Oct 2019), LJAK
+
+1) Removed type tJtype as ZimT didn't even use this.
+2) As in SIMsalabim 3.60, I now declare all types in a separate unit, just like the input/output utils. This makes it much easier to switch between double and extended reals. This also makes the number of grid points (NP) a parameter that the user can set in the device parameter file.
+3) See simsalabim 3.61, item 13. When writing to the VAR file and the JV file, I've limited the number of decimals by using :nd (nd=25, one of the magic numbers, corresponds to the length of a double). Otherwise, if myReal=extended, Origin cannot read the files!
+
+
+Version 0.28 (29 April 2019), LJAK
+I have improved the steady-state ion solver by using the B-function to compute the ion density in steady-state. This ensures that the ion current really is zero. This is nice as it improves the compatibility of the steady-state and the transient solver. 
+
+Version 0.27 (21 Aug 2018), LJAK
+
+I have changed the way the steady-state (SS) simulation is done. Now, one can also include a resistor in series with the device (we call this Rin), to simulate a situation where one, for example, measures the current by measuring the voltage across such a resistor with an oscilloscope. This implies that the applied voltage (Va) and the voltage on the device (Vdev) are different. To do this, I have change the SimTypes:
+
+SimType	meaning
+1		Va=Vdev, steady-state (SS) or transient. Default.
+1		SS, but at open-circuit
+3		transient at open-circuit
+4		Va<>Vdev, SS or transient 
+
+So, in effect, only SimType 4 is different as it can also be steady-state. SimType 4 will be used in SS as long as Rin > 0. I have removed Cgeo, JM, NRC as they are no longer needed. 
+
+Verion 0.26 (9 May 2018), LJAK
+I have modified the B function. Very rarely, if the argument is very large and positive (larger than C5), this function returns 0 and this can lead to division by zero in the continuity equation. So, for this case only, we use the full expression for this function (x/(exp(x)-1)) and not the Taylor series.
+
+Version 0.25 (4 May 2018), LJAK
+I have added moving ions to the transient solver. So I had to introduce new vectors oldnion and oldpion. I have also made it possible to have ions at i=0 and i=NP+1 by modifying Calc_Ion_Distribution and relabelling this Calc_Ion_Distribution_Steady_State. I have added the mobilities (mobnion and mobpion) of the ions. For stationary ions, take these 0. However, if there are ions (ions_present=true) then mobnion and mobpion cannot both be zero as at least 1 species should move. This made mob_ion_spec obsolete. The ionic mobilities are assumed to be constant and we get the diffusivity from the Einstein relation. This avoids the need for introducing ionic mobility and diffusivity vectors.
+
+To calculate the ionic currents, I have implemented a procedure Calc_ionic_currents. Of course, these ionic currents now show up in all the places where we need to calculate the total current density. Also, I have made it possible to have more of one species than of the other. This would then correspond to doping. As the ionic distributions are updated over all interior and boundary points (see Poisson_Cont_Transient_GS), we cannot (yet) simulate ions and insulators simultaneously. Of course, this would not be difficult to fix.
+
+The transient solver uses the same equations for electrons/holes and for the ions, the only difference being in the fact that there is no generation or recombination of ions and that the ions cannot exit the device. To ensure that the number of ions remains constant, rescaleIonDensity is called every loop.
+
+
+NOTE: in line the steady-state Poisson solver, I have put the following:
+main[i]:=-(h[i-1]*eps[i]+h[i]*eps[i-1]) - (n[i]+p[i]+n_trap[i]-p_trap[i]{+nion[i]-pion[i]})*fac*(h[i]+h[i-1])*h[i]*h[i-1]/Vt
+			
+and then, I have commented the section where the ions densities are multiplied by exp(+-delV/Vt).
+
+
+Version 0.24 (17 October 2017), VLC
+I included ions in the steady-state solver only. The mobile ions can be negative, positive or both as made in SIMsalabim339. Note that the ion are fixed during the transient simulation. Two parameters have been added to the device_parameters file CIM (set the ion densities) and mob_ion_spec that set the type of the mobile ion species.
+I also added the traps in the expression of the matrix main in the solve_poisson function in the same way than in SIMsalabim. 
+
+
+Version 0.23 (21 June 2017), VLC
+I included the possibilty of setting Lang_pre as Gamma when calculating the recombination such as rec = Lang_pre(np -ni^2).
+Lang_rec parameter control whether we want to use Langevin formula or not. As done in Simsalabin 3.31.
+
+ZimT 0.22 (14 Mar 2017), VLC
+I have including the doping of the n & p layer as done in Simsalabim 331. I have changed the name of the doping density in the solver as it is in SIMsalabim. n_0 and p_0 are now the vector nid and pid.
+I have also included the function Calc_doping (just after the function define_layer) but only once (not like in SIMsalabim) as here the field is not taken into account.
+The define)layer function is also updated so that it update the doping densities inside the insulator.
+ 
+
+
+ZimT 0.21 (27 Jan 2017), LJAK
+I have fixed a bug in Solve_Steady_State. This really means that all previous simulations could be wrong! The bug: we failed to update Jdev, so in trying to establish convergence, ABS( (Jdev-oldJdev)/Jdev ) < TolMain was always true, so the procedure would stop after a single iteration. Then, outside the repeat loop, we would finally calcuate Jdev. 
+There was another bug that give a range check error. In function Calc_Net_Charge, we tried to access arrays at negative index (h[i-1] with i=0). An easy fix.
+When simulating at open-circuit (transient, SimType 3), the current, of course, should tend to zero. This can (and often does) lead to very high relative range (RangeJ). This forces to program to keep on iterating, even though nothing changes and we are in fact very close to the correc solution. So, if have introduced another parameter, MaxJoc, which is the maximum absolute range in current density at open-circuit. So, if ABS(MaxRangeJ*Jdev) <= MaxJoc, we're done. This also involved changing the variable conv in Poisson_Cont_Transient_GS to a VAR parameter that is passed on to the main program. 
+
+
+ZimT 0.20 (12 October 2016) VLC
+I removed a bug with the accDens when it is taken from the command line.
+
+
+ZimT 0.19 (13 July 2016) VLC
+Update to include different electron and hole mobilities and dielectric constant on the insulator (n and p layers). Update the geometrical capacitance.
+The electron current at the cathode, the hole current and the displacement current at the anode are now also written on the tj_file. 
+
+
+ZimT 0.18 (21 March 2016), LJAK
+I have added a statement to write all the internal variables to file right after the steady-state solver is done so we also store the result for t=0.
+Also, I have changed the way traps are included. In SIMsalabim, the Poisson equations contain linearized versions of the trap densities. Thus the trap densities are not simply put into the Poisson equation, but a more elaborate (and stable) equation is solved. I copied this into ZimT. However, as from this version things are a bit different: The Poisson solver now calculates the trap densities first and then puts these (even if zero) into the Poisson equation directly. This is probably a bit less stable and fast, but it makes it much easier to limit the traps to certain layers of the device structure: now everything is defined in the procedures Calc_Elec/Hole_Trap_Dens.
+
+
+ZimT 0.17 (17 March 2016), LJAK
+I removed a bug from the steady-state continuity solvers: When finite surface recombination velocities are used the previous versions were wrong. This is because a factor L was missing (the grid spacing h[i] is scaled to L) and the sign was wrong. The sign is a bit tricky. We always write: Jn=qS(n-neq), but that implies that Jn > 0 for finite S. However, we change the sign in Calc_elec_curr because we like to have Jsc<0. 
+
+
+ZimT 0.16 (17 Feb 2016)
+I (LJAK) tidied up the last few lines of the code.
+
+ZimT 0.15 (02 Feb 2016)
+Edit by V LE CORRE (VLC)
+Version updated to be control by the cmd windows.
+Functions added using function from SimBAM: Prepare_Log_File, Get_String, Get_Integer, Get_Float, Read_Name(updated) and Read_Parameters(updated).
+Number of points that did not converge added to the log file. 
+I have also made a matlab program to create a batch file with run multiple simulation (edit_batch_file_ZimT.m).
+
+ZimT 0.14 (28 Jan 2016)
+If have removed that trap densities from the insulators, i.e. it is assumed that there are only traps (if any) in the active layer, not in the insulators.
+Also, to check whether the device is charged or not, the tj_file contains a new column: Qnet. This is the net density of charge carriers (free, trapped carriers, doping) in the whole of the device (active layer, insulators). Qnet>0 means that there is a net positive charge. The unit of Qnet is carriers / m3. 
+Most importantly, I figured out that it is the steady-state solver that doesn't conserve charge. That is because (see SimSALABIM) the electron density is updated first and this updated n is fed into the solver for p. Swapping the order of these statements also swaps the sign (magnitude does not change) of Qnet. So, now I update both n and p based on the old values (oldn,p) and then use SUR to get the new values of n and p. This means that accTrDens is now accDens: it is used for steady-state and transient. Fortunately, the electric field is now symmetric in a symmetric (blocked) device. This was not the case in previous versions.
+I have also undone what I did in making version 0.05: Now that the steady-state solver conserves charge, we no longer need to use the transient solver at t=0 any more!
+
+
+ZimT 0.13 (21 Jan 2016)
+I have fixed a bug: The steady-state solver did not take doping densities into account in the case of no traps. 
+Also, the program now puts the range of the current density on screen. If it's larger than MaxRangeJ, the font colour changes to red to warn the user. The tj_file now also contains a column rec. This is the recombination rate (m^-3 s^-1) in the absorbing part of the layer (so it excludes the insulators if they don't absorb).
+
+ZimT 0.12 (14 Jan 2016)
+I have changed the procedure Recombi: from now on, it computes the total recombination rate (R) and not the net recombination rate (R-G). I have always found this very confusing. Also, I removed the call to Recombi from the procedure Solve_Steady_State: it wasn't required.
+
+
+ZimT 0.11 (12 Jan 2016)
+I have introduced the possibility of having different homo/lumo offsets between the active layer and the insulators. DelLL and DelLH specifiy the left insulator and DelRL, DelRH specify the right one.
+
+
+ZimT 0.10 (22 May 2015)
+A number of smaller changes: I have removed the (redundant?) variable RangeJ from fuction ResCurr. Also, the program now checks whether the specified tVG_file actually exists before trying to read it.
+
+
+ZimT 0.09 (5 March 2014)
+Changed the circuit elements that I introduced in 0.08: I removed the capacitor that's in parallel with the active layer as its introduction was a mistake. The capacitve effects were already included (e.g. 007) through the incorporation of displacement current in the device. What is left is the resistance of the source (Rin). 
+
+ZimT 0.08 (4 Feb 2014)
+I have introduced a possible difference between the applied voltage (Va) and the measured current density (JM) and the voltage and current in the device (Vdev and Jdev, respectively). Such differences can come about due to the internal resistance of the source measuring unit (Rin) and the geometrical capacitance of the device (Cgeo). If the RC time (Rin * Cgeo) is on the order of the timestep, then it is necessary to take these factors into account. This is controled by the parameter NRC in the device_parameters file. If the specified timestep <= NRC x RC-time, then the program solves for Vdev instead of taking Va from the file. If the simulation is ran at open-circuit (and the timesteps are small) then the program also takes the RC time into account. The output file (tj_file) now lists Va, Vdev, JM, and Jdev. 
+
+
+ZimT 0.07 (11 Oct 2013)
+Two more changes: It is now possible to set the absorption in the insulators to zero (InsAbsorb yes/no). If InsAbsorb <> 1 (so false), then the absorption in the insulators (if any) is set to zero, regardless the absorption profile. Also, the program now outputs the time, voltage, generation rate and current density to screen every OutputRatio timesteps. Simultaneously, all variables are written to the var_file, together with the time. This makes plotting the internal potential, etc versus position at different times easy. At the end, the final outcomes are also added to the var_file.
+
+
+ZimT 0.06 (10 Oct 2013)
+I have introduced a procedure (Bracket_open_circuit) that can find voltages Vmin and Vmax that bracket Voc; both in steady-state and in the transient case. This procedure is based on the geometrical approach in Numerical Recipes (section 9.1 on bracketing and bisection). It uses a guess for the Voc (based on precies Va, for example) and sets the interval (Vmin, Vmax) to 10*TolOC. Then, it sees if this interval brackets Voc. If not, it increases the interval by a factor (factor=1.6) by moving either Vmin or Vmax until the interval brackets Voc. The maximum number of iterations is limited to 50. As these numerical parameters are very detailed, I did not put them in the device_parameter file, but in the procedure itself.
+
+ZimT 0.05 (2 Oct 2013)
+I made a small but important change to the way the transient solver starts (after the steady-state one is done). Now, before it does transient stuff, it FIRST uses the transient solver again to simulate steady-state. We do this because the transition from the steady-state solver to the transient one is a bit rough. So, we use the steady-state solution again and pass it through the transient solver a couple of times and then proceed to reading the rest of the tVG_file to do the actual transient simulations. This smooths out the transition from the steady-state solver to the transient one.
+
+ZimT 0.04 (1 Oct 2013)
+I have tried to implement an option to simulate at open-circuit. This is specified in the tVG_file by setting V equal to 'oc'. The minimum and maximum Voc's need to be specified in the device_parameters, including TolOC. TolOC is the tolerance on the simulated open-circuit voltage. Note, that this is computationally pretty costly and not very stable, it seems.
+
+ZimT 0.03 (30 Sep 2013)
+I have added the possibility to insert insulating layers next to the electrodes. In fact, the only thing we do is to introduce offsets (delH, delL) in the homo's and lumo's. The offsets are introduced in the generalised potentials, see M. Gruber et al., Organic Electronics 11, 1999 (2010). The thicknesses are specified (zero thickness implies no insulator) by LIL and LIR. Note, that these layers have the mobilities of the rest of the medium and all other properties are the same. This includes and generation of free carriers. If this is unwanted, then use a suitable generation profile. Note, that eps_r_ins does not yet do anything.
+
+The insulators now can have a different dielectric constant (eps_r_ins). This means that the Poisson solvers had to be adapted, but also the Langevin and Braun rates are different. In the Braun model, the local epsilon (eps[i]) is passed via a global variable epsi (cf. Braun_rec). To get the displacement current, the epsilon at the inferfaces between active layer and insulators, we simply take the dielectric constant to be equal to eps[i].
+
+Also, I have introduced separate accelation parameters for Poisson and the densities (transient solver) as it appears that we can use a higher value for the Poisson equation. The steady-solver now can ignore negative densities (if IgnoreNegDens = 1) and reset them to a small value. In case the steady-state solver and if IgnoreFailure, we ignore this. Also, I removed TolNotConv as it was no longer being used. The mobilities, and other transport parameters are now updated in every transient loop.
+
+Trapping is now also included in the transient solver (side-by-side with SIMIS 1.10): The transient solver calculates the trapping densities each loop. Note, that it is assumed that the trapped and the free carriers are in thermal equilibrium. So, the effect of (de)trapping slower than the timescale of the simulation is not considered.
+
+
+ZimT 0.02 (18 Sep 2013)
+Removed Gmax from device_parameters as it is read from the tVG_file any way. Also, I made a new function DelWhite (in myUtils) that removes all white space (so characters 9..13 and 32) from a string. This function is used to trim the heading ('t V G' line) in the tVG_file. Now, we can use tabs instead of spaces to separate the columns. This is good, because it is Origin's default option for exporting ascii files. Also, comments may be added after 't V G', so for example 't V G hello there' still works.
+
+ZimT 0.01 (15 Aug 2013)
+Based on SIMIS 109.
+ZimT (ZIMulates Transients to spic up your fits!) is based on the transient solver developed in SIMIS 1.09. It uses a file (tVG_file) to determine which voltage and generation rate to simulate at a specified time. This file first specifies the (steady-state) starting conditions (time = 0). Next, it tries to read other (t,V,G) points and calculates (and stores) the resulting current density. Comments may be added so as to make it clear what is being calculated. 
+
+
+***********************************************
+SIMIS 1.09 (28 March 2013)
+Minor update. In function Calc_SS_lifetime, the program now checks if np-ni^2 is non-negative. Of course, it ought to be non-negative, but it can be just smaller than zero (numerical inaccuracy), which caused to program to crash. 
+
+SIMIS 1.08 (20 March 2013)
+I've implemented an algorithm that can find the open-circuit voltage so it's easier to run simualations at Voc. This is activated by using SimOC = 1. The algorithm solves for steady-state at a guess for Voc and then uses bisection to find the Voc within tolerance TolOC (in Volts). The program then uses this Voc as VDC and overrides the values of VDC specified in device_parameters.txt. Also, I've removed the direct Poisson solver and made finite surface recombination impossible.
+
+
+SIMIS 1.07 (19 March 2013)
+I've looked at error estimates for the calculated values. The program now lists the errors of AbsZ, ReZ, ImZ, phase, G and C in the output file. It also shows a hint if the errors in the Cole-Cole plot (so on ReZ and ImZ) are dominated by either too few points in time (increase StepsPerCycle) and/or sloppy calculations (decrease MaxRangeAC). 
+
+
+SIMIS 1.06 (15 March 2013)
+Again a minor update: when steady-state has been reached the program also calculates the recombination lifetime, which is the average of: 1/kr = ( Lang * sqrt(np - ni^2) )^-1. 
+
+SIMIS 1.05 (14 Feb 2013)
+A minor update: the result_file now also contains the conductance G and capacitance C. There are calculated from the impedance Z (or admittance Y): G=Re(Y)=Re(1/Z) and C=Im(Y)/(2 pi f). 
+
+SIMIS 1.04 (11 Feb 2013)
+Major changes:
+1) In 1.03 the change in field (dV/dt) was not calculated correctly which translated into nonsensical values of the displacement current. This has been fixed.
+2) The number of AC loops is fixed at 2 now. In the first loop, the MaxRangeJ is simply equal to the parameter (from dev par file) MaxRangeAC. Then, the AC current component is computed and the MaxRangeJ adjusted such that the error (range) in the total J is small enough to get enough accuracy for the AC component. 
+3) If a time point does not converge, we skip it and also skip the next point. Only if 2 points (times) in a row have converged do we use it. If enough points converge, we calculate the impedance.
+
+Some minor changes:
+Convergence of transient loop is judged based on the range of J.
+1) The way the new potential is applied has been changed: Previously, the external field (i.e. V/L) was applied directly. Now, I only change the potential at the electrodes and let the field evolve through the Poisson equation. 
+2) In function MapPhase: changed it such that the phase is always between -90 and +180 degrees.
+3) The way the time derivatives are discretized implies that the current density and the rec/gen rates correspond to the "interleaved time mesh", i.e., J is always computed on t + 0.5 delta_t, and not at times t. So, in storing the time and J points (to get the impedance), I shift the times by -0.5/DeltInv. This makes sure that the phase tends to +90 deg for high frequencies. Also, the recombination rate in the continuity equations (now) is an average of the current (t) and the new (t + 1/DeltInv) value (although this doesn't affect the overall result). 
+4) Removed NumberOfCycles parameter.
+5) The time-J-voltage-range data for the highest frequency are stored in tj_file.
+
+SIMIS 1.03 (10 Jan 2013)
+Sometimes the program crashes, so I've implemented 2 changes: In the transient solver, the program checks if Jtot<>0 before calculating the range of J. If Jtot=0 then it can't calculate the (relative) range and we assume convergence is false. 
+
+We also check if the densities are still positive. They're sometimes negative, for example close to the cathode (and if recombination is strong) the very large electron density will make the hole density very small, virtually zero.	Due to finite numerical accuracy, the hole density can then get negative (but still |p| is small). So, we reset them to a small (pmin) positive value. Physically, this is no problem (and we can choose to ignore resetting negative densities by using IgnoreNegDens=1) as p is close to zero. 
+
+I have also made the net recombination rate that is used in the (transient) electron and hole continuity equations equal by calculating them before solving these equations. Saves a little bit of time and it looks tidy.
+
+
+SIMIS 1.02 (9 Jan 2013)
+Complete overhaul of the program: The transient part is now solved correctly (I hope), which means that Eq. 6.4-32&33 are solved together (in 1 procedure) with the Poisson equation. So, the 3 basic equations are not decoupled and are solved implicitely. To do this, Gauss-Seidel iteration is used (albeit with an acceleration factor to make is SUR/SOR). Convergence means that the range of J(x) is smaller than a preset fraction of Jtot. If a small fraction of time-voltage-current points fail to meet this standard, then that's OK and it doesn't influence the result. So, a parameter is used to tolerate some 'bad' points: TolNotConv. 
+
+The overall number of iterations is now goverend by StepsPerCycle and NumberOfCyles. After NumberOfCycles/2 cycles have been completed, the time-voltage-current data are stored and a sine function is fitted to them in order to get Z. After many tests, I decided to used direct expressions for the currents (Jn, Jp and JD) instead of the integral forms (De Mari-like). 
+
+SIMIS 1.00 (23 Nov 2012)
+SIMulates Impedance Spectroscopy.
+This version is based on SIMsalabim 3.17. It still has to be tested more thoroughly. First, the program simulates steady-state, using the normal Poisson and continuity equations (Selberherr 6.1-73 & 74). Then, it switches to the transient case by adding a (small) AC component to the potential. This changes two things: A direct Poisson solver is now used as we don't want to couple Poisson and the continuity equations any more (so no updating of densities within the Poisson loop!) and we have to include transient effects in the continuity equations (Selberherr 6.4-32&33). Fortunately, the transient and steady-state cont. equations are very similar and the only difference is a few terms proportional to the inverse time step. Therefore, I've combined the steady-state and transient continuity equations into one procedure. By setting the inverse time step to zero (so we take an infinitely large time step => steady-state!) we get the steady-state equations. Easy.
+After calculating a few cycles the program will save the remaining cycles and use a fitting tool to obtain the magnitude and phase of the resulting current. These are then stored in the result_file. 
+
+SIMIS 1.01 (26 Nov 2012)
+NOTE: this version is flawed and output is wrong!
+The program now sweeps from fmax (max. frequency) downto fmin with fsteps steps per order of magnitude. The output (Z', Z'', etc) is stored in the result_file. Output can be either normal text file or geared towards ZPlot (ZPlotOutput=1) to facilitate equivalent circuit fitting. 
+
+***********************
+SIMIS based on SIMsalabim 3.17. See SIMsalabim's change log for further history....
+3.17 (13 Nov 2012)
+Previously, the generation profile (if used, that is) was used directly to determine the bound pair generation rate, so intensity dependent simulations were hard to do: Gmax was not used. Now, the generation profile yields the shape, but not the height/magnitude of the generation rate. Gmax is used as the maximum of the generation rate (in space), so the overall magnitude is controlled by Gmax. The VAR file also lists the local generation rate.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

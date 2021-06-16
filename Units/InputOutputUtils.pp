@@ -4,7 +4,7 @@ unit InputOutputUtils;
 {
 SIMsalabim: a 1D drift-diffusion simulator 
 Copyright (c) 2020 Dr T.S. Sherkar, V.M. Le Corre, M. Koopmans,
-F.O.B. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
+F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
 This program is free software: you can redistribute it and/or modify
@@ -70,6 +70,12 @@ the value 100e-9 to r. After reading the number the line will be read until eoln
 PROCEDURE Read_Name(VAR inv : TEXT; var_name : STRING; VAR file_name : STRING);
 {tries to get a file name for variable var_name from inv file
 It discards any spaces, white lines, and *}
+OVERLOAD;
+
+PROCEDURE Read_Name(VAR inv : TEXT; var_name : STRING; VAR file_name : SHORTSTRING);
+{tries to get a file name for variable var_name from inv file
+It discards any spaces, white lines, and *}
+OVERLOAD;
 
 PROCEDURE Read_Integer(VAR inxut : TEXT; VAR k : INTEGER);
 {reads an integer from file inxut using proc. Read_Number}
@@ -105,6 +111,12 @@ found, its name and value will be written in file log.}
 OVERLOAD;
 
 PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : STRING);
+{Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
+Next, it tries to get this value from the command line. If a command line value is
+found, its name and value will be stored in the msgstr.}
+OVERLOAD;
+
+PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : SHORTSTRING);
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
@@ -303,6 +315,37 @@ BEGIN
 
 END;
 
+PROCEDURE Read_Name(VAR inv : TEXT; var_name : STRING; VAR file_name : SHORTSTRING);
+{tries to get a file name for variable var_name from inv file
+It discards any spaces, white lines, and *}
+VAR line : STRING;
+	i : INTEGER;
+BEGIN
+    REPEAT
+		READLN(inv, line); {read line from input file}
+		{FindPart: Search for a substring in a string, using wildcards}
+		i:=FindPart(var_name, line); {try to find var_name in line}
+		{i = 0 if var_name is not in line}
+		{otherwise i indicates position of 1st character of var_name in line}
+	UNTIL EOF(inv) OR (i>0);
+	{if i=0 var_name not found, terminate program:}
+	IF i=0 THEN Stop_Prog('Could not find variable ' + var_name + ' in input file.');
+
+	{now get the part we're interested in:}
+	i:=Length(line) - FindPart('=', line); {first get position of '=' sign, counting from the right}
+	line:=RightStr(line, i); {remove anything in front of (and including) '=' sign}
+	line:=TrimLeft(line); {TrimLeft: Trim whitespace from the beginning of a string}
+	i:=FindPart('*', line); {find asterix if there is one}
+	IF i > 0 THEN line:=LeftStr(line, i-1); {if there is an asterix, remove it}
+	line:=TrimRight(line); {remove any whitespace at the end}
+
+	{we should be done now, check result:}
+	IF Length(line) > 0
+		THEN file_name:=line
+		ELSE Stop_Prog('Could not find correct file name for ' + var_name);
+
+END;
+
 PROCEDURE Read_Integer(VAR inxut : TEXT; VAR k : INTEGER);
 {reads an integer from file inxut using proc. Read_Number}
 VAR dummy : myReal; {dummy is used for reading integer values, these are read as
@@ -405,6 +448,25 @@ BEGIN
 END;
 
 PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : STRING);
+{Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
+Next, it tries to get this value from the command line. If a command line value is
+found, its name and value will be stored in the msgstr.}
+VAR gotit : BOOLEAN;
+	dum : STRING;
+BEGIN
+	Read_Name(inv, name_variable, r); {FIRST get value from parameter_file}
+	{note: if we do not read r from dev.par. file, then the program crashes as it has lost its way in the file}
+	getStringfromCL('-'+name_variable, gotit, dum); {try to get it from command line}
+	{note: getStringfromCL is not case-sensitive by default}
+	IF gotit
+		THEN BEGIN
+			r:=dum; {if we got it, then assign dum to r}
+			msgstr:=msgstr + name_variable + ' = '+ r + LineEnding
+			{and store its name and value in the msgstr}
+		END;
+END;
+
+PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : SHORTSTRING);
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}

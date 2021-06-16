@@ -4,7 +4,7 @@ unit TypesAndConstants;
 {
 SIMsalabim: a 1D drift-diffusion simulator 
 Copyright (c) 2020 Dr T.S. Sherkar, V.M. Le Corre, M. Koopmans,
-F.O.B. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
+F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
 This program is free software: you can redistribute it and/or modify
@@ -34,30 +34,15 @@ Nijenborgh 4, 9747 AG Groningen, the Netherlands
 interface
 
 const
-    q = 1.6022e-19;  	{C} {elementary charge}
-    k = 1.3807e-23;     {J/K} {Boltzmann's constant}
-    eps_0 = 8.8542e-12; {F/m} {dielectric constant of vacuum}
-    Bc = 2.8;           {min. number of bonds for percolation to occur}
-    Max_NP = 10000;     {max number of grid points except contacts}
-    maxExpData = 10000; {max number of experimental JV points}
-	minExpData = 4;     {min number of experimental JV points}
-	tolReal = 1e-6;     {tolerance: when are 2 floats equal?}
-	
-type myReal = DOUBLE; 
+    Max_NP = 1000;     {max number of grid points except contacts}
+
+type myReal = EXTENDED; 
 	 vector = ARRAY[0..Max_NP + 1] OF myReal;
-     MathFunc = FUNCTION(x : myReal) : myReal;
-     Row = ARRAY OF myReal; {used in find_solar_cell_parameters and Interpolation, and for n_vals, p_vals, Fn_vals, and Fp_vals}
+     ShortIntVector = ARRAY[0..Max_NP + 1] OF ShortInt;
+     Row = ARRAY OF myReal; 
      Table = ARRAY OF ARRAY OF myReal; {used to store mob_tab, table with elec. mob. as a function of F and n}
-     JVList = ARRAY OF RECORD {for storing the JV curve}
-                        Vint, Vext : myReal;
-                        Jint, Jext : myReal;
-                        UpdateIons, Store, Use : BOOLEAN
-                      END;
-	 TSCPar = RECORD {for storing solar cell parameters}
-				Jsc, Vmpp, MPP, FF, Voc, ErrJsc, ErrVmpp, ErrMPP, ErrFF, ErrVoc : myReal;
-				calcSC, calcMPP, calcFF, calcOC : BOOLEAN
-			  END;
-     Tfitmode = (linear, logarithmic);
+     MathFunc = FUNCTION(x : myReal) : myReal;
+     MathFuncValues = FUNCTION(x : myReal; vals : Row) : myReal;
 
 implementation
 

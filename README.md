@@ -20,7 +20,7 @@ SIMsalabim can be used to simulate current-voltage (JV) characteristics of semic
 SIMsalabim is licensed under the GNU Lesser General Public Licence version. The details of this licence can be found in the files COPYING.txt and COPYING.LESSER.txt. 
 Several authors (all from the University of Groningen) have contributed to the code: 
 - Dr T.S. (Tejas) Sherkar
-- V.M. (Vincent) Le Corre
+- Dr V.M. (Vincent) Le Corre
 - M. (Marten) Koopmans
 - F. (Friso) Wobben
 - Prof. Dr. L.J.A. (Jan Anton) Koster
@@ -51,26 +51,21 @@ SIMsalabim comes as a pre-compiled binary for WIN or Linux (64 bits), see folder
 
 ## How to compile
 
-1) SIMsalabim uses fpc (free pascal compiler)
+1) SIMsalabim and ZimT use fpc (free pascal compiler)
+- it requires version 3.2.0 or newer. 
 - download and install fpc from https://www.freepascal.org/
 - You'll probably want to use (install?) some form of integrated development environment (IDE). Popular IDEs include Lazarus and Geany.
 
-2) Compile SIMsalabim (note: on Linux this is case-sensitve):
-- open a terminal window and go to the SIMsalabim/Units folder
-- within Units, compile the units in the following order:
-<pre><code>
-    fpc TypesAndConstants.pp
-    fpc NumericalUtils.pp
-    fpc InputOutputUtils.pp
- </code></pre>
-- now go back to the SIMsalabim parent folder and compile SIMsalabim:
+2) Compile SIMsalabim [ZimT] (note: on Linux this is case-sensitve):
+- open a terminal window and go to the SIMsalabim [ZimT] folder and compile SIMsalabim [ZimT]:
  <pre><code>
- fpc SIMsalabim
+ fpc SIMsalabim [zimt]
   </code></pre>
 
 You may see this warning message:
 /usr/bin/ld.bfd: warning: link.res contains output sections; did you forget -T?
 Just ignore this.
+
 
 3) Running SIMsalabim:
 - all parameters are specified in device_parameters.txt

@@ -1,0 +1,12 @@
+we are going to simulate a TRDC experiment
+
+t 	Vext 	Gehp 	comments
+0   0   1e26
+0   0.1 1e26
+0   0.2 1e26
+0   0.3 1e26
+
+
+
+      
+
