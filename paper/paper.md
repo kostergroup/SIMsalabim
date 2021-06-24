@@ -41,3 +41,5 @@ SIMsalabim is currently used by multiple research groups in the solar cell commu
 - Effects of Fluorination on Fused Ring Electron Acceptor for Active Layer Morphology, Exciton Dissociation, and Charge Recombination in Organic Solar Cells [@Frisotwo2020]
 - Photostability of Fullerene and Non-Fullerene Polymer Solar Cells: The Role of the Acceptor [@Nutifafa2019]
 - Charge Transport Layers Limiting the Efficiency of Perovskite Solar Cells: How To Optimize Conductivity, Doping, and Thickness [@VincentTLs2019]
+
+# References
