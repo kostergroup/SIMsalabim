@@ -1,20 +1,20 @@
 ---
 title: 'SIMsalabim: A time resolved drift-diffusion simulation software'
 tags:
-	- semiconductor
-	- solar cell
-	- drift-diffusion
-	- diode
+    - semiconductor
+    - solar cell
+    - drift-diffusion
+    - diode
 authors:
-	- name: Marten Koopmans
-	  affiliation: 1
-	- name: Vincent M. Le Corre
-	  affiliation: 1
-	- name: L. Jan Anton Koster^[corresponding author]
-	  affiliation: 1
+    - name: Marten Koopmans
+      affiliation: 1
+    - name: Vincent M. Le Corre
+      affiliation: 1
+    - name: L. Jan Anton Koster^[corresponding author]
+      affiliation: 1
 affiliations:
-	- name: Zernike Institute for Advanced Materials, University of Groningen, Nijenborgh 4, 9747 AG Groningen, The Netherlands
-	  index: 1
+    - name: Zernike Institute for Advanced Materials, University of Groningen, Nijenborgh 4, 9747 AG Groningen, The Netherlands
+      index: 1
 date: 24 June 2021
 bibliography: paper.bib
 ---
