@@ -35,7 +35,7 @@ SIMsalabim is currently used by multiple research groups in the solar cell commu
 # Recent projects involving SIMsalabim (incomplete)
 - Identification of the dominant recombination process for perovskite solar cells based on machine learning [@LeCorre2021Feb]
 - Understanding Dark Current-Voltage Characteristics in Metal-Halide Perovskite Single Crystals [@Elisabeth2021]
-- Long-range exciton diffusion in molecular non-fullerene acceptors [@ExcitonDiffusion2020]
+- Revealing Charge Carrier Mobility and Defect Densities in Metal Halide Perovskites via Space-Charge-Limited Current Measurements [@SpaceCharge2021]
 - Toward Understanding Space-Charge Limited Current Measurements on Metal Halide Perovskites [@Elisabeth2020]
 - 15.34% efficiency all-small-molecule organic solar cells with an improved fill factor enabled by a fullerene additive [@Friso2020]
 - Effects of Fluorination on Fused Ring Electron Acceptor for Active Layer Morphology, Exciton Dissociation, and Charge Recombination in Organic Solar Cells [@Frisotwo2020]
