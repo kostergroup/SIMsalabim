@@ -60,7 +60,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SIMsalabim;  
-    version = '4.05';   {version, 1.00 = 10-03-2004}
+    version = '4.07';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -90,6 +90,8 @@ VAR
 	JVSim, JVExp : TJVList; {stores the current-voltage characteristics}
     
 	MsgStr : ANSISTRING = ''; {Ansistrings have no length limit, init string to ''}
+	
+	StatusStr : ANSISTRING; 
 
 FUNCTION Applied_voltage(Vcount : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : myReal;
 {computes the applied voltage based on Vcount (=i)}
@@ -634,7 +636,7 @@ BEGIN {main program}
 		new.Vint:=JVSim[VCount].Vint; 
 		
 		{now use Main_Solver to iterative solve the Poisson eq and continuity equations:}
-		Main_Solver(curr, new, MainIt, Conv_Main, stv, par);
+		Main_Solver(curr, new, MainIt, Conv_Main, StatusStr, stv, par);
 
 		{First copy the result into JVSim:}		
 		IF JVSim[VCount].Store THEN {we store this even if Conv_Main is false}
@@ -661,7 +663,11 @@ BEGIN {main program}
 		ELSE BEGIN {o dear, now what?}
 			{tell user of failed convergence:}
 			WRITELN('No convergence for Vint=',new.Vint:4:3);
-			
+			{put error messages in log file:}
+			WRITELN(log);
+			WRITELN(log, 'Messages from main solver at voltage= ',new.Vint:4:3,':');
+			WRITELN(log, StatusStr);
+			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
 			CASE par.FailureMode OF
 				0 : Stop_Prog('Convergence failed at voltage = ' + FloatToStrF(new.Vint, ffGeneral,5,0)+ '. Maybe try smaller voltage steps?');

@@ -37,6 +37,9 @@ uses TypesAndConstants,
 	 SysUtils, {for reading the command line and FileExists}
 	 StrUtils; {for DelSpace}
 
+function myBoolStr(val : boolean) : string;
+{my implementation of BoolToStr. Returns 'TRUE' or 'FALSE'}
+
 function DelWhite(str : string) : string;
 {returns a copy of str with all white spaces (ASCII code 9,..13, and 32) removed from it.}
 
@@ -124,6 +127,13 @@ OVERLOAD;
 
 implementation
 
+function myBoolStr(val : boolean) : string;
+{my implementation of BoolToStr. Returns 'TRUE' or 'FALSE'}
+begin
+    if val 
+        then myBoolStr:='TRUE'
+        else myBoolStr:='FALSE'
+end;
 
 function DelWhite(str : string) : string;
 {removes all white space from a string, so all characters 9-13 and 32(=space)}

@@ -43,7 +43,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.05'; {version of this unit}
+CONST DDRoutinesVersion = '4.07'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -126,7 +126,8 @@ PROCEDURE Calc_trap_charge(VAR f_tb, f_ti, Ntb_charge, Nti_charge : vector; n, p
 {calculate the charge of the traps at every gridpoint.}
 
 PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion, f_tb, f_ti, Nti_charge, Ntb_charge : vector; 
-						VAR conv, coupleIonsPoisson : BOOLEAN; dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+						VAR conv, coupleIonsPoisson : BOOLEAN; VAR PoissMsg : STRING; 
+						dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Solves the Poisson equation, can be used in steady-state and transient simulations}
 
 PROCEDURE Calc_elec_mob(VAR mu : vector; V, n : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
@@ -188,10 +189,12 @@ PROCEDURE Contp(VAR p : vector; pPrevTime, V, Jp, n, mu, D, g, Lan, dp : vector;
 (Selberherr 6-1.74) as they correspond to an infinite timestep.
 If dti > 0 we're using the transient equations (Selberherr 6-4.33)}
 
-FUNCTION Determine_Convergence(VAR ResJ : TItResult; VAR new : TState; it : INTEGER; check_Poisson : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : INTEGER;
+FUNCTION Determine_Convergence(VAR ResJ : TItResult; VAR new : TState; it : INTEGER; VAR ConvMsg : STRING; check_Poisson : BOOLEAN; 
+							   CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : INTEGER;
 {Determine if main loop has converged. 0: no. 1: yes, 2: yes, but only because current is very small (<MinAbsJ)}
 
-PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLEAN; VAR StatusStr : ANSISTRING; 
+					  CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
 {can be used in steady-state and transient cases}
 
@@ -495,7 +498,6 @@ BEGIN
 		THEN BEGIN
 			Get_Float(inv, msg, 'Gehp', Gehp);  {generation rate of electron-hole pairs, m^-3/s}
 			Get_Float(inv, msg, 'Gfrac', Gfrac);
-			Gehp:=Gehp*Gfrac;
 		END;
 		Get_String(inv, msg, 'Gen_profile', Gen_profile); {name of file generation profile (or 'none')}
 		Use_gen_profile:= lowercase(Trim(Gen_profile))<>'none'; {use the profile if Gen_profile isn't 'none'}
@@ -663,6 +665,7 @@ BEGIN
 		IF (St_L > 0) AND (L_LTL=0) THEN Stop_Prog('You cannot have interface traps (St_L>0) without a TL (L_LTL=0).');
 		IF (St_R > 0) AND (L_RTL=0) THEN Stop_Prog('You cannot have interface traps (St_R>0) without a TL (L_RTL=0).');
 		IF num_GBs<0 THEN Stop_Prog('The number of grain boundaries (num_GBs) cannot be negative.');
+		IF (num_GBs>0) AND (GB_tr=0) THEN Stop_Prog('Trap density at grain boundaries (GB_tr) must be > 0 if num_GBs>0');
 		
 		{Only Cn OR Cp = 0 are allowed, if both are zero, no charge can reach the traps, this makes no sense.}
 		IF (Cn = 0) AND (Cp = 0) THEN Stop_Prog('Cn and Cp cannot both be zero, change parameters please.');	
@@ -674,14 +677,17 @@ BEGIN
 
 		{check whether the level at which Etrap sits makes sense (i.e. falls within the bands everywhere in
 		the device}
-		IF Etrap <= CB THEN Stop_Prog('Trap energy level should be lower than the conduction band.');
-		IF Etrap >= VB THEN Stop_Prog('Trap energy level should be higher than the valence band.');  
+		IF (St_L > 0) OR (St_R > 0) OR (Bulk_tr > 0) OR (num_GBs > 0) THEN 
+		BEGIN
+			IF Etrap <= CB THEN Stop_Prog('Trap energy level should be lower than the conduction band.');
+			IF Etrap >= VB THEN Stop_Prog('Trap energy level should be higher than the valence band.');  
 
-		IF Etrap <= CB_LTL THEN Stop_Prog('Trap energy level should be lower than the LTL conduction band.');
-		IF Etrap <= CB_RTL THEN Stop_Prog('Trap energy level should be lower than the RTL conduction band.');    
-		IF Etrap >= VB_LTL THEN Stop_Prog('Trap energy level should be higher than the LTL valence band.');
-		IF Etrap >= VB_RTL THEN Stop_Prog('Trap energy level should be higher than the RTL valence band.');     
-    
+			IF Etrap <= CB_LTL THEN Stop_Prog('Trap energy level should be lower than the LTL conduction band.');
+			IF Etrap <= CB_RTL THEN Stop_Prog('Trap energy level should be lower than the RTL conduction band.');    
+			IF Etrap >= VB_LTL THEN Stop_Prog('Trap energy level should be higher than the LTL valence band.');
+			IF Etrap >= VB_RTL THEN Stop_Prog('Trap energy level should be higher than the RTL valence band.');     
+		END;
+		
 {checks on ions:}
 		IF SIMsalabim AND (ion_red_rate<0) THEN Stop_Prog('Ion redistribution rate cannot be lower than zero, should be: 0 <= ion_red_rate < NJV');
 {checks on generation and recombination parameters}
@@ -1453,13 +1459,15 @@ BEGIN
 	END;
 END;
 
-PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion, f_tb, f_ti, Nti_charge, Ntb_charge : vector; VAR conv, coupleIonsPoisson : BOOLEAN; dti : myReal;
+PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion, f_tb, f_ti, Nti_charge, Ntb_charge : vector; 
+						VAR conv, coupleIonsPoisson : BOOLEAN; VAR PoissMsg : STRING; dti : myReal;
 						CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Solves the Poisson equation, can be used in steady-state and transient simulations}
 VAR it, i : INTEGER;
-	sumPre, sumPost : myReal;
+	sumPre, sumPost, NormDelV : myReal;
     delV, rhs, lower, upper, main : vector;
     fac, fac2, fac3 : myReal;
+    IonsOK : BOOLEAN;
 	lin	  : TLinFt; {this type (a record) stores the linearisation of the trapping terms.}
 BEGIN
     FOR i:=1 TO par.NP DO delV[i]:=1; {init delV}
@@ -1467,6 +1475,7 @@ BEGIN
     delV[par.NP+1]:=0;
     it:=0;
     conv:=FALSE;
+	PoissMsg:='Poisson solver status:' + LineEnding; {message string}
 
 	{if needed, check the total number of ions in volume}
 	IF (par.negIonsMove OR par.posIonsMove) AND coupleIonsPoisson THEN
@@ -1520,8 +1529,11 @@ BEGIN
 		END; {for loop}
 
         it:=it+1;
-        conv:=Norm(delV, 1, par.NP) <= par.tolPois  {finally, check for convergence}
+        NormDelV:=Norm(delV, 1, par.NP);
+        conv:=NormDelV <= par.tolPois  {finally, check for convergence}
     END;
+	
+	PoissMsg:=PoissMsg +'- delV ='+FloatToStrF(NormDelV, ffGeneral,5,0) + LineEnding;
     
     {OK, now see if we haven't changed the ions too much:}
     IF (par.negIonsMove OR par.posIonsMove) AND coupleIonsPoisson THEN
@@ -1530,8 +1542,12 @@ BEGIN
 		FOR i:=0 TO par.NP DO
 			sumPost:=sumPost + nion[i] + pion[i];
 		{note: by now, sumPost cannot be zero as there are ions}
-		conv:=conv AND ((ABS(sumPre-sumPost)/sumPost)< par.tolPois)
+		IonsOK:=(ABS(sumPre-sumPost)/sumPost) < par.tolPois;
+		conv:=conv AND IonsOK;
+		PoissMsg:=PoissMsg + '- movement of ions acceptable: ' + myBoolStr(IonsOK) + LineEnding;
 	END;
+	
+	PoissMsg:=PoissMsg + '- converged: ' + myBoolStr(conv);
 	
 END;
 
@@ -2138,15 +2154,16 @@ BEGIN
 
 END;
 
-FUNCTION Determine_Convergence(VAR ResJ : TItResult; VAR new : TState; it : INTEGER; check_Poisson : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : INTEGER;
+FUNCTION Determine_Convergence(VAR ResJ : TItResult; VAR new : TState; it : INTEGER; VAR ConvMsg : STRING; 
+							  check_Poisson : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : INTEGER;
 {Determine if main loop has converged. 0: no. 1: yes, 2: yes, but only because current is very small (<MinAbsJ)}
 VAR convIteration, convUniformJ, convCurrentSmallEnough, OpenCircuit : BOOLEAN;
 
 BEGIN
 
 	OpenCircuit:=(new.SimType=2) OR (new.SimType=3); {these imply we're trying to get Voc! exact solution of J is zero.}
-	
 	ResJ[it].Jint:=new.Jint; {we copy the new Jint into our array as we need to be able to calc the change per loop}
+	ConvMsg:=''; {our message string, empty at first}
 	
 	IF NOT check_Poisson 
 	THEN Determine_Convergence:=0 {convergence impossible if Poisson loop didn't converge}
@@ -2156,6 +2173,8 @@ BEGIN
 		1) check the iteration error, an estimate based on the relative changes per loop
 		2) is the current sufficiently uniform?
 		3) perhaps the current is simply really small (<minAbsJ)?}
+		
+		ConvMsg:='Main loop status:' + LineEnding;
 			
 		{First: calculate the error estimate based on the iteration behaviour:}
 		IF (it>1) AND (Jint<>0) THEN relchange:=ABS((Jint-ResJ[it-1].Jint)/Jint) ELSE relchange:=0;
@@ -2165,6 +2184,8 @@ BEGIN
 		{if the error <0, then the rel change increases instead of decreases!}
 		{also: if the behaviour is correct, then the error should also keep on decreasing}
 		convIteration:=(error<par.tolJ) AND (error>0) AND (error<ResJ[it-1].error); 
+		ConvMsg:=ConvMsg + '- current converged: '+myBoolStr(convIteration) + LineEnding;
+		ConvMsg:=ConvMsg + '- error on current: ' + FloatToStrF(error, ffGeneral,5,0) + LineEnding;
 
 		{Next: check if current is sufficiently uniform:}
 		RangeJ:=ABS(Calc_Range_Current(new.Jn, new.Jp, new.Jnion, new.Jpion, new.JD, par)); {A/m2, so absolute, i.e. not relative to Jint}	
@@ -2177,6 +2198,7 @@ BEGIN
 				ELSE RangeJ:=2*par.tolJ; {highly unlikely, but if Jint=0 then we can't calc the range}
 			convUniformJ:=(RangeJ < par.tolJ);
 		END;
+		ConvMsg:=ConvMsg+'- current is sufficiently uniform: '+myBoolStr(convUniformJ) + LineEnding;
 	
 		{In the dark (Gehp=0), we have an alternative criterion for convergence:}
 		{if the abs current is really small, then we won't bother. However, we need to be sure it really is small!}
@@ -2198,6 +2220,7 @@ BEGIN
 		THEN Determine_Convergence:=1  {we already know that check_Poisson=true!}
 		ELSE BEGIN
 			IF convCurrentSmallEnough THEN Determine_Convergence:=2;
+			ConvMsg:=ConvMsg + '- current smaller than MinAbsJDark: '+myBoolStr(convCurrentSmallEnough) + LineEnding;
 		END
 	END;
 	{at this stage we (should) have:
@@ -2206,14 +2229,14 @@ BEGIN
 							2: current simply very small and Poisson converged, so good enough}
 END;
 
-PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLEAN; VAR StatusStr : ANSISTRING; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
 {can be used in steady-state and transient cases}
 VAR i, MaxIt : INTEGER;
 	check_Poisson, coupleIonsPoisson : BOOLEAN;
 	oldn, oldp, oldnion, oldpion : vector; {we need this to monitor the iteration loops}
 	ResJ : TItResult; {we use this to store the J, change and error estimate in every loop} 
-	
+	PoissMsg, ConvMsg : STRING;
 BEGIN
 	{apply new bias to electrodes:}
 	new.V[0]:=stv.V0 - 0.5 *new.Vint;
@@ -2247,7 +2270,7 @@ BEGIN
 		oldnion:=nion;
 		oldpion:=pion;
 
-		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, Ntb_charge, Nti_charge, check_Poisson, coupleIonsPoisson, dti, stv, par); 
+		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, Ntb_charge, Nti_charge, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
 		UpdateGenPot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 		{note: pass (new) p to Contn nor (new) n to Contp. This is needed so we can also do t=0!}
 		Contn(n, curr.n, Vgn, Jn, p, mun, Dn, gen, Lang, diss_prob, Rn, stv, par, dti); {calc. new elec. density}
@@ -2282,7 +2305,7 @@ BEGIN
 			  + Average(Jnion,stv.h,0,par.NP+1) + Average(Jpion,stv.h,0,par.NP+1) + Average(JD,stv.h,0,par.NP+1);
 		
 		{check for convergence (several possibilities!) in separate routine:}
-		convIndex:=Determine_Convergence(ResJ, new, it, check_Poisson, stv, par); {this is the index: 0 (not conv), 1: ideal, 2: special}
+		convIndex:=Determine_Convergence(ResJ, new, it, ConvMsg, check_Poisson, stv, par); {this is the index: 0 (not conv), 1: ideal, 2: special}
 		
 		{if there are ions: Until the first time that convIndex>0, we have coupled the Poisson solver
 		 and the ion solver by allowing the Poisson solver to modified the ions densities on the fly.
@@ -2301,6 +2324,13 @@ BEGIN
 	END; {WITH new statement}
 
 	UNTIL conv OR (it = MaxIt); 
+	
+	{now construct string to report on our progress:}
+	StatusStr:='Overall convergence: '+myBoolStr(conv) + LineEnding;
+	StatusStr:=StatusStr + 'Iterations perfomed: '+IntToStr(it) + LineEnding;
+	StatusStr:=StatusStr + PoissMsg + LineEnding;
+	StatusStr:=StatusStr + ConvMsg;
+	
 END;
 
 PROCEDURE Calc_displacement_curr(VAR JD, V, VPrevTime : vector; dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);

@@ -1,3 +1,17 @@
+Version 4.07, 1 July 2021, LJAK
+
+BUG FIX!
+In SIMsalabim, there was a bug that affects the generation rate: If Gfrac <> 1, the total generation rate of eletron hole pairs was off as we multiplied the original rate (Gehp) TWICE with Gfrac. I have removed the statement Gehp:=Gehp*Gfrac in Read_Parameters (DDRoutines unit) to fix the problem. Thus, par.Gehp is the original rate and par.Gfrac is still relevant.
+
+Small change: Improved the checking of the input parameters that specify trapping.
+
+Version 4.06 25 June 2021, LJAK
+
+I have introduced a way to let the user know what is going on in the main and Poisson loops: if there is no convergence, then a message string (StatusStr) is written to the log file so the user can see what went wrong. The Poisson solver and the main solver (Determine_Convergence) build up a string (StatusStr) that shows which parts did/didn't convergence. If the Poisson solver did not converge, then we don't show the status of the main loop as we don't even determine the convergence behaviour (see function Determine_Convergence).
+
+Note: I also introduced a new function in InputOutputUtils: myBoolStr. This is used instead of the standard BoolToStr: BoolToStr converts false to 0 and true to -1 which is a bit counter-intuitive, I fear. myyBoolStr converges booleans true/false to string 'TRUE'/'FALSE' which is easier to understand.
+
+
 Version 4.05 11 June 2021, LJAK
 
 I have implemented an extra check on the convergence (main loop and Poisson) if there are ions. In the Poisson solver, we modify the ion densities (and electrons and holes, but that's different) based on the updated potential (see v4.01). This strongly improves the convergence if there are many ions. However, we did not check if the change in the overal ion density was sufficiently small.

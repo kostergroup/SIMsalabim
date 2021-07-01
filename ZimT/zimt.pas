@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.05';  
+    version = '4.07';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -91,6 +91,8 @@ VAR MainIt, ItVint, MaxItVint, CountNotConv, CounttVGPoints, CountStatic : INTEG
     conv, foundtVG, keepGoing, staticSystem, acceptNewSolution : BOOLEAN;
   
     MsgStr : ANSISTRING = ''; {Ansistrings have no length limit, init string to ''}
+
+	StatusStr : ANSISTRING; 
 
 PROCEDURE Read_tVG(VAR astate : TState; old_tijd : myReal; VAR inv : TEXT; VAR foundtVG : BOOLEAN);
 {try to read a line of tijd, Va, Gehp}
@@ -189,7 +191,7 @@ VAR it : INTEGER;
 BEGIN
 	VextTarget:=new.Vext; {store Vext. This is the Vext we are TRYING to get (only if simtype=4)}
 	new.Vint:=Vint; {apply the guessed internal voltage (Vint)}
-	Main_Solver(curr, new, it, conv, stv, par); {run the solver}
+	Main_Solver(curr, new, it, conv, StatusStr, stv, par); {run the solver}
 	CASE new.SimType OF
 		2,3 :  {steady-state, resp. transient open-circuit}
 				Residual_Current_Voltage:=new.Jext; {residual current is simply equal to device current}
@@ -289,7 +291,7 @@ BEGIN {main program}
 		prev:=curr;
 		
 		IF new.SimType = 1 
-		THEN Main_Solver(curr, new, MainIt, conv, stv, par) {easy: Vint = Vext, Vext is in input tVG_file}
+		THEN Main_Solver(curr, new, MainIt, conv, StatusStr, stv, par) {easy: Vint = Vext, Vext is in input tVG_file}
 		ELSE BEGIN {SimType > 1: Voc or Rseries <> 0: in both cases, we don't know Vint}
 			{first find Vmn and Vmx, voltages that bracket the device voltage new.Vint}
 			Bracket_device_voltage(Vmn, Vmx, curr.Vint, ResVmn, curr, new, stv, par);
@@ -310,6 +312,11 @@ BEGIN {main program}
 		THEN acceptNewSolution:=TRUE
 		ELSE BEGIN {o dear, now what?}
 			INC(CountNotConv);
+			{put error messages in log file:}
+			WRITELN(log);
+			WRITELN(log, 'Messages from main solver at time = ',FloatToStrF(new.tijd, ffGeneral,5,0),':');
+			WRITELN(log, StatusStr);
+			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
 			CASE par.FailureMode OF
 				0 : Stop_Prog('Convergence failed at time = ' + FloatToStrF(new.tijd, ffGeneral,5,0)+ '. Maybe try smaller time steps.');
@@ -324,7 +331,10 @@ BEGIN {main program}
 			{output:}
 			Write_to_tJV_File(uitv, curr, stv, par, TRUE);
 		END
-		ELSE BEGIN WRITELN(log, 'Skipping (t,V,G) point at time ',new.tijd); FLUSH(log) END;
+		ELSE BEGIN 
+			WRITELN(log, 'Skipping (t,Vext,Gehp) point at time ',FloatToStrF(new.tijd, ffGeneral,5,0)); 
+			FLUSH(log) 
+		END;
 
 		IF CounttVGPoints MOD par.OutputRatio = 0 THEN {output to screen and var_file every OutputRatio timesteps}
         BEGIN
