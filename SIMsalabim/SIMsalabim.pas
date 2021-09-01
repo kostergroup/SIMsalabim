@@ -60,7 +60,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SIMsalabim;  
-    version = '4.07';   {version, 1.00 = 10-03-2004}
+    version = '4.09';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -266,22 +266,29 @@ PROCEDURE Find_Solar_Cell_Parameters(JVChar : TJVList; VAR SCPar : TSCPar);
 VAR Nusable, i, k, i_start, InterpolationOrder : INTEGER;
     c1, c2, c3 : myReal;
     x_dat, y_dat : Row;
+    IntSuccess : BOOLEAN;
 BEGIN
-    {first count how many JV points are usable}
-    Nusable:=0;
+    {init the SCPar:}
+    WITH SCPar DO {if myReal=extended, then un-init. vars have value 'NaN'.}
+    BEGIN
+		Jsc:=0; Vmpp:=0; MPP:=0; FF:=0; Voc:=0; 
+		ErrJsc:=0; ErrVmpp:=0; ErrMPP:=0; ErrFF:=0; ErrVoc:=0;
+		calcSC:=FALSE; calcMPP:=FALSE; calcFF:=FALSE; calcOC:=FALSE;
+    END;
     
+    {first count how many JV points are usable}
+    Nusable:=0;  
     FOR i:=1 TO LENGTH(JVChar)-1 DO 
 		IF JVChar[i].Use THEN INC(Nusable);
     {we start at i=1 as the 0th point (if any) corresponds to a pre-bias}
     {note that the length of JVChar includes index 0, so we have to stop at i=LENGHT()-1}
-
-    
+  
     {now create 2 arrays for the J and V points:}
-    SetLength(x_dat, Nusable); {note: such arrays always start at index 0}
-    SetLength(y_dat, Nusable);
+    SetLength(x_dat, Nusable+1); {note: such arrays always start at index 0}
+    SetLength(y_dat, Nusable+1); {but we will take them to start at 1.}
     
     {now copy the usable points into x_dat and y_dat:}
-    k:=0; {index couter for x_dat, y_dat arrays}
+    k:=1; {index couter for x_dat, y_dat arrays}
     FOR i:=1 TO LENGTH(JVChar)-1 DO {we don't need i=0 as it corresponds to Vpre (if any)}
 		WITH JVChar[i] DO
 			IF Use THEN 
@@ -292,24 +299,24 @@ BEGIN
 			END;
 	
 	InterpolationOrder:=MIN(MaxInterpolationOrder, Nusable-1);
-   
+
     IF Nusable >= 2 THEN {we need at least 2 points}
     BEGIN
 		{first calculate at short-circuit}
-		Interpolation(x_dat, y_dat, 0, SCPar.Jsc, SCPar.ErrJsc, InterpolationOrder);
-		SCPar.ErrJsc:=ABS(SCPar.ErrJsc);
-		SCPar.calcSC:=SCPar.ErrJsc < threshold_err*ABS(SCPar.Jsc);
+		IntSuccess:=InterExtraPolation(x_dat, y_dat, 0, SCPar.Jsc, SCPar.ErrJsc, InterpolationOrder, 2);
+		{note: we allow some extrapolation for Jsc (ExtraIndex=1)}
+		SCPar.calcSC:=IntSuccess AND (SCPar.ErrJsc < threshold_err*ABS(SCPar.Jsc));
 
 		{now calculate Voc by swapping x_dat and y_dat:}
-		Interpolation(y_dat, x_dat, 0, SCPar.Voc, SCPar.ErrVoc, InterpolationOrder);
-		SCPar.ErrVoc:=ABS(SCPar.ErrVoc);
-		SCPar.calcOC:=SCPar.ErrVoc < threshold_err*ABS(SCPar.Voc);
+		IntSuccess:=InterExtraPolation(y_dat, x_dat, 0, SCPar.Voc, SCPar.ErrVoc, InterpolationOrder, 0);
+		SCPar.calcOC:=IntSuccess AND (SCPar.ErrVoc < threshold_err*ABS(SCPar.Voc));
+
 		{sometimes (e.g. if until_Voc=1) then it's better to try linear interpolation:}
 		IF (NOT SCPar.calcOC) AND (InterpolationOrder>1) THEN
 		BEGIN {redo with linear interpolation:}
-			Interpolation(y_dat, x_dat, 0, SCPar.Voc, SCPar.ErrVoc, 1);
-			SCPar.ErrVoc:=ABS(SCPar.ErrVoc);
-			SCPar.calcOC:=SCPar.ErrVoc < threshold_err*ABS(SCPar.Voc);
+			IntSuccess:=InterExtraPolation(y_dat, x_dat, 0, SCPar.Voc, SCPar.ErrVoc, 1, 1);
+			{now that we use linear interpolation, we allow for some extrapolation as well: ExtraIndex=1}
+			SCPar.calcOC:=IntSuccess AND (SCPar.ErrVoc < threshold_err*ABS(SCPar.Voc));
 		END;
 
 		{Calculate the Maximum Power Point (MPP) and the fill-factor (FF)}
@@ -342,13 +349,6 @@ BEGIN
 				SCPar.ErrFF:=SQRT( SQR(SCPar.ErrMPP/(SCPar.Jsc*SCPar.Voc)) + SQR(SCPar.ErrJsc*SCPar.FF/SCPar.Jsc) + SQR(SCPar.ErrVoc*SCPar.FF/SCPar.Voc));
 			END
 		END;
-    END
-    ELSE BEGIN {OK, so Nusable is too small!}
-		{make sure these are set to false so we don't accidentally use them}
-		SCPar.calcSC:=FALSE;
-		SCPar.calcOC:=FALSE;
-		SCPar.calcMPP:=FALSE;
-		SCPar.calcFF:=FALSE;
     END
 END;
 

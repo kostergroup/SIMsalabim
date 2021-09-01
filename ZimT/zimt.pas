@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.07';  
+    version = '4.09';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -242,7 +242,7 @@ BEGIN
 		success:=ResJmin*ResJmax < 0
 	END;
 
-	IF NOT success THEN Stop_Prog('Could not find bracketing values for Vint at time ' + FloatToStrF(new.tijd, ffGeneral,5,0));
+	IF NOT success THEN Stop_Prog('Could not find bracketing values for Vint at time ' + FloatToStrF(new.tijd, ffGeneral,10,0));
 END;
 
 BEGIN {main program}
@@ -314,12 +314,12 @@ BEGIN {main program}
 			INC(CountNotConv);
 			{put error messages in log file:}
 			WRITELN(log);
-			WRITELN(log, 'Messages from main solver at time = ',FloatToStrF(new.tijd, ffGeneral,5,0),':');
+			WRITELN(log, 'Messages from main solver at time = ',FloatToStrF(new.tijd, ffGeneral,10,0),':');
 			WRITELN(log, StatusStr);
 			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
 			CASE par.FailureMode OF
-				0 : Stop_Prog('Convergence failed at time = ' + FloatToStrF(new.tijd, ffGeneral,5,0)+ '. Maybe try smaller time steps.');
+				0 : Stop_Prog('Convergence failed at time = ' + FloatToStrF(new.tijd, ffGeneral,10,0)+ '. Maybe try smaller time steps.');
 				1 : acceptNewSolution:=TRUE;
 				2 : acceptNewSolution:=(new.dti=0) {is true if steady-state, false otherwise}
 			END;
@@ -332,7 +332,7 @@ BEGIN {main program}
 			Write_to_tJV_File(uitv, curr, stv, par, TRUE);
 		END
 		ELSE BEGIN 
-			WRITELN(log, 'Skipping (t,Vext,Gehp) point at time ',FloatToStrF(new.tijd, ffGeneral,5,0)); 
+			WRITELN(log, 'Skipping (t,Vext,Gehp) point at time ',FloatToStrF(new.tijd, ffGeneral,10,0)); 
 			FLUSH(log) 
 		END;
 

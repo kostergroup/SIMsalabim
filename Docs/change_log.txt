@@ -1,3 +1,23 @@
+Version 4.09, 1 Sep 2021, LJAK
+BUG FIX:
+In previous versions (>=4.00), the injection barriers (phi_left phi_right) were calculated based on the difference in the work function of the electrodes and the conduction/valence band of the main layer. So even if there are transport layers. To fix this, I have moved the calculation of the injection barriers from Read_Parameters into DefineLayers: in DefineLayers, we init. two arrays (E_CB and E_VB) that contain the local conduction and valence band extrema, so the injection barriers are easily calculated.
+
+Minor stuff:
+-Changed the formatting of the floating point numbers in the messages in the log file when the main solver does not converge.
+-ZimT: changed the formatting of the time stamp in the messages on screen/log file.
+
+
+
+Version 4.08, 5 July 2021, LJAK
+
+SIMsalabim only:
+The way we used to estimate (interpolate or even extrapolate) the Voc was not very robust. So, I have changed the interpolation routine(s) in NumericalUtils. 
+There is a new wrapper function (InterExtraPolation) which takes the input arrays and tries to find an estimate based on Neville interpolation. It can also do extrapolation: if ExtraIndex=0 (default value!), then extrapolation is excluded. If it's 2, we simply allow for all extrapolation no matter how ridiculous. If ExtraIndex=1, then we allow for limited extrapolation, i.e. x0 may not be more than the average x-spacing outside the interval.
+After performing a number of checks, InterExtraPolation tries to find the index (in x) closest to the required x-value (x0). After lots of thinking, trying, etc., I have decided to stick to a very simply linear search as this turns out to be the most robust way I could come up with. The speed of the program is in no way limited by this routine any way. Next, IntraExtraPolation defines an interval around x0 to pass on to the Neville routine (also new).
+SIMsalabim uses MaxInterpolationOrder = 3 (see DDTypesAndConstants) as the default interpolation order. It uses this to estimate Jsc. For Jsc, we allow for unlimited extrapolation (ExtraIndex=2). Note, that can yield a very large error on Jsc. This is not necessarily a problem, as we also check if the estimated error on Jsc is small enough: the relative error has to be smaller than threshold_err (DDTypesAndConstants), so if things get crazy, we still don't use Jsc. To be a little bit cautious, I have reduced threshold_err to 0.1 (was 0.2). For Voc, we are a little bit more careful (curve is very steep there!): First, we try interpolation only (ExtraIndex=0). If that fails, then we resort to linear (Order=1) extrapolation, where we allow a little bit of extrapolation (ExtraIndex=1).
+
+
+
 Version 4.07, 1 July 2021, LJAK
 
 BUG FIX!
@@ -9,7 +29,7 @@ Version 4.06 25 June 2021, LJAK
 
 I have introduced a way to let the user know what is going on in the main and Poisson loops: if there is no convergence, then a message string (StatusStr) is written to the log file so the user can see what went wrong. The Poisson solver and the main solver (Determine_Convergence) build up a string (StatusStr) that shows which parts did/didn't convergence. If the Poisson solver did not converge, then we don't show the status of the main loop as we don't even determine the convergence behaviour (see function Determine_Convergence).
 
-Note: I also introduced a new function in InputOutputUtils: myBoolStr. This is used instead of the standard BoolToStr: BoolToStr converts false to 0 and true to -1 which is a bit counter-intuitive, I fear. myyBoolStr converges booleans true/false to string 'TRUE'/'FALSE' which is easier to understand.
+Note: I also introduced a new function in InputOutputUtils: myBoolStr. This is used instead of the standard BoolToStr: BoolToStr converts false to 0 and true to -1 which is a bit counter-intuitive, I fear. myBoolStr converges booleans true/false to string 'TRUE'/'FALSE' which is easier to understand.
 
 
 Version 4.05 11 June 2021, LJAK

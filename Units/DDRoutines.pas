@@ -43,7 +43,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.07'; {version of this unit}
+CONST DDRoutinesVersion = '4.09'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -444,9 +444,6 @@ BEGIN
 		Get_Float(inv, msg, 'W_L', W_L); {eV, work function left electrode (= cathode)}
 		Get_Float(inv, msg, 'W_R', W_R); {eV, work function right electrode (= anode)}
 	
-		stv.phi_left:=W_L-CB;
-		stv.phi_right:=VB-W_R;
-
 		stv.V0:=0.5 * (VB+CB) - W_L;
 		stv.VL:=0.5 * (VB+CB) - W_R;
 
@@ -827,7 +824,11 @@ BEGIN
 				pid[i]:=0;
 				IF par.doping_RTL<=0 THEN nid[i]:=-par.doping_RTL ELSE pid[i]:=par.doping_RTL;
 				eps[i]:=par.eps_r_RTL * eps_0;
-			END;		  
+			END;	
+		
+		{now that we know the local CB and VB, we can compute the injection barriers:}	
+		phi_left:=par.W_L - E_CB[0];
+		phi_right:=E_VB[par.NP+1] - par.W_R;	  
 	END {WITH stv statement}
 END;
 
@@ -2178,14 +2179,18 @@ BEGIN
 			
 		{First: calculate the error estimate based on the iteration behaviour:}
 		IF (it>1) AND (Jint<>0) THEN relchange:=ABS((Jint-ResJ[it-1].Jint)/Jint) ELSE relchange:=0;
-		IF (it>2) AND (ResJ[it-1].relchange - relchange <> 0) 
+(*		IF (it>2) AND (ResJ[it-1].relchange - relchange <> 0) 
 			THEN error:=ResJ[it-1].relchange*relchange/(ResJ[it-1].relchange - relchange)
+			ELSE error:=-2*par.tolJ; {set to impossible value so we are sure this did not converge!}
+*)
+		IF (it>2) AND (ResJ[it-1].relchange <> relchange) AND (ResJ[it-1].relchange <> 0) 
+			THEN error:=relchange/(1-relchange/ResJ[it-1].relchange)
 			ELSE error:=-2*par.tolJ; {set to impossible value so we are sure this did not converge!}
 		{if the error <0, then the rel change increases instead of decreases!}
 		{also: if the behaviour is correct, then the error should also keep on decreasing}
 		convIteration:=(error<par.tolJ) AND (error>0) AND (error<ResJ[it-1].error); 
 		ConvMsg:=ConvMsg + '- current converged: '+myBoolStr(convIteration) + LineEnding;
-		ConvMsg:=ConvMsg + '- error on current: ' + FloatToStrF(error, ffGeneral,5,0) + LineEnding;
+		ConvMsg:=ConvMsg + '- error on current: ' + FloatToStrF(error, ffExponent,5,0) + LineEnding;
 
 		{Next: check if current is sufficiently uniform:}
 		RangeJ:=ABS(Calc_Range_Current(new.Jn, new.Jp, new.Jnion, new.Jpion, new.JD, par)); {A/m2, so absolute, i.e. not relative to Jint}	

@@ -72,15 +72,16 @@ The total system looks like:
 (               c[i1-1]        )    .            .
 (                    a[i1]b[i1]) (x[i1])      (r[i1])    }
 
-PROCEDURE Interpolation_rec(x_pts, y_pts : Row; n_pts : INTEGER; x : myReal; VAR y_est, dy : myReal);
-    {Given two arrays, x_ptx and y_pts, of length n_pts and a value x at which to interpolate, this
-    procedure returns an estimate of y at x. The error estimate is the difference between the y estimate
-    using a polynomial of order n_pts - 2 and n_pts - 1.}
+PROCEDURE Neville(x0 : myReal; VAR y, err : myReal; n : INTEGER; x_pts, y_pts : Row);
+{Neville interpolation. x0: x of desired point. y, err: estimated y and its error, n: order of polynomial}
 
-PROCEDURE Interpolation(x_array, y_array : Row; x_target : myReal; VAR y_estimate, y_error_estimate : myReal; interp_order : INTEGER);
-    {Given two arrays, x_ptx and y_pts, of length n_pts and a value x at which to interpolate, this
-    procedure returns an estimate of y at x. The error estimate is the difference between the y estimate
-    using a polynomial of order n_pts - 2 and n_pts - 1.}
+FUNCTION InterExtraPolation(x, y : Row; x0 : myReal; VAR y_estimate, err_estimate : myReal; Order : INTEGER; 
+							ExtraIndex : INTEGER = 0) : BOOLEAN; 
+{interpolation / extrapolation routine. This is a wrapper for Neville's algorithm}
+{x,y: are the original data, first index 1. Should be either ascending or descending.}
+{x0: desired x, y_estimate, err_estimate: estimated y and its error. Order: order of polynomial}
+{ExtraIndex: 0=> no extrapolation, 1=> extrapolation limited to average x-spacing, 2=> full extrapolation}
+{Returns TRUE if successful, FALSE if not}
 
 PROCEDURE Fit_Parabola(x1, x2, x3, y1, y2, y3 : myReal; VAR a, b, c : myReal);
 {Fits a parabola through [(x1, y1), (x2, y2), (x3,y3)], y = ax^2 + bx + c}
@@ -303,175 +304,124 @@ BEGIN
 END;
 
 
-PROCEDURE Interpolation_rec(x_pts, y_pts : Row; n_pts : INTEGER; x : myReal; VAR y_est, dy : myReal);
-    {Given two arrays, x_ptx and y_pts, of length n_pts and a value x at which to interpolate, this
-    procedure returns an estimate of y at x. The error estimate is the difference between the y estimate
-    using a polynomial of order n_pts - 2 and n_pts - 1.}
-VAR 
-    i_nearest, idx : INTEGER;
-    d_c, d_d, CD_prtl, dx_old, dx_new : myReal;
-    C_cor, D_cor : ARRAY OF myReal;
+PROCEDURE Neville(x0 : myReal; VAR y, err : myReal; n : INTEGER; x_pts, y_pts : Row);
+{Neville interpolation. x0: x of desired point. y, err: estimated y and its error, n: order of polynomial}
+VAR i, j : INTEGER;
+	p : ARRAY OF ARRAY OF myReal;
+BEGIN
+	{first check if inputs make sense:}
+	IF Length(x_pts) <> Length(y_pts) THEN Stop_Prog('Error in Neville routine: x_pts and y_pts not of same length.');
+	IF n>=Length(x_pts) THEN Stop_Prog('Error in Neville routine: n cannot be equal or larger than number of points.');
+	FOR i:=1 TO Length(x_pts)-2 DO
+		IF SameValue(x_pts[i],x_pts[i+1]) THEN Stop_Prog('Error in Neville routine: 2 consecutive x-values are equal.');
 
-    PROCEDURE estimate_y(i_col : INTEGER);
-    {This calculates one column of the Neville table, increasing in order of the polynomials
-    with increasing column index.}
-    VAR 
-        i_row : INTEGER;
-    BEGIN
-        {calculate the corrections to our estimate of y for every row.}
-        FOR i_row := 0 TO n_pts-i_col-1 DO 
-        BEGIN 
-            d_c := x_pts[i_row] - x; 
-            d_d := x_pts[i_row+i_col] - x;
-            IF d_c = d_d THEN BEGIN 
-                Stop_Prog('Error in interpolation routine.');
-            END;
-            CD_prtl := (C_cor[i_row+1] - D_cor[i_row]) / (d_c - d_d);  
-            C_cor[i_row] := d_c * CD_prtl;
-            D_cor[i_row] := d_d * CD_prtl;
-        END;
-        IF 2*(i_nearest+1) < n_pts-i_col THEN 
-            dy := C_cor[i_nearest+1]
-        ELSE 
-        BEGIN 
-            dy := D_cor[i_nearest];
-            i_nearest := i_nearest - 1
-        END;
+	SetLength(p, n+1, n+1); {our matrix for storing the intermediate results}
+	{copy original y-values into the first column of the matrix:}
+	FOR i:=1 TO n DO
+		p[i,1]:=y_pts[i];
 
-        y_est := y_est + dy;
-        IF i_col < n_pts-1 THEN 
-        BEGIN 
-            estimate_y(i_col+1);
-        END;
-    END;
-{start of interpolation procedure.}
-BEGIN 
-    SETLENGTH(C_cor, n_pts);
-    SETLENGTH(D_cor, n_pts);
-    i_nearest := 0;
-    dx_old := ABS(x-x_pts[0]);
-    FOR idx := 0 TO n_pts-1 DO 
-    BEGIN
-        dx_new := ABS(x-x_pts[idx]);
-        IF dx_new < dx_old THEN 
-        BEGIN 
-            i_nearest := idx;
-            dx_old := dx_new
-        END; 
-        C_cor[idx] := y_pts[idx];
-        D_cor[idx] := y_pts[idx]
-    END;
-    y_est := y_pts[i_nearest];
-    i_nearest := i_nearest - 1;
-
-    {now estimate y for increasing polynomyal order, starting at order 1.}
-    estimate_y(1);
+	{now use Neville's formula to calc the polynomial approximations:}
+	FOR i:=2 TO n DO
+		FOR j:=i TO n DO
+			p[j,i]:=((x0 - x_pts[j-i+1]) * p[j,i-1] - (x0 - x_pts[j]) * p[j-1,i-1]) / (x_pts[j] - x_pts[j-i+1]);
+			
+	y:=p[n,n]; {our final result}
+	err:=MIN(ABS(p[n,n-1]-p[n,n]), ABS(p[n-1,n-1]-p[n,n]));	
 END;
 
+FUNCTION InterExtraPolation(x, y : Row; x0 : myReal; VAR y_estimate, err_estimate : myReal; Order : INTEGER; 
+							ExtraIndex : INTEGER = 0) : BOOLEAN; 
+{interpolation / extrapolation routine. This is a wrapper for Neville's algorithm}
+{x,y: are the original data, first index 1. Should be either ascending or descending.}
+{x0: desired x, y_estimate, err_estimate: estimated y and its error. Order: order of polynomial}
+{ExtraIndex: 0=> no extrapolation, 1=> extrapolation limited to average x-spacing, 2=> full extrapolation}
+{Returns TRUE if successful, FALSE if not}
+VAR i1, N, istart, ifin : INTEGER;
+	delx : myReal;
+	x_selected, y_selected : Row; {selected points close to x0}
+	x0Bracketed : BOOLEAN;
+	
 
-PROCEDURE Interpolation(x_array, y_array : Row; x_target : myReal; VAR y_estimate, y_error_estimate : myReal; interp_order : INTEGER);
-VAR 
-    closest_sum, sum_pts : myReal;
-    x_selected, y_selected : ARRAY OF myReal;
-    len_x_arr, len_y_arr, idx, idx_sum, idx_closest : INTEGER;
+	FUNCTION Locate(x : Row; x0 : myReal; imin, imax : INTEGER) : INTEGER;
+	{simple, slow, (hopefully) robust routine to an index within 
+	row x (from imin to imax). x0 is some target we're looking for.
+	The resulting index is such that x0 sits between x[i] and x[i+1]
+	if x0 is outside the interval determined by x[imin], x[imax] then it 
+	returns imin-1 or imax+1.}
+	VAR i, r : INTEGER;
+	BEGIN
+		{check if x is descending or ascending:}
+		r:=SIGN(x[imax]-x[imin]); {so r=1 if ascending, r=-1 if descending}
+		IF r=0 THEN Stop_Prog('Error in Locate: row x is constant?');
 
-    PROCEDURE Neville_interpolation(x_pts, y_pts : Row; n_pts : INTEGER; x_target : myReal; VAR y_est, dy : myReal);
-        {Given two arrays, x_ptx and y_pts, of length n_pts and a value x at which to interpolate, this
-        procedure returns an estimate of y at x. The error estimate is the difference between the y estimate
-        using a polynomial of order n_pts - 2 and n_pts - 1.}
-    VAR 
-        i_nearest, idx : INTEGER;
-        d_c, d_d, CD_prtl, dx_old, dx_new : myReal;
-        C_cor, D_cor : ARRAY OF myReal;
+		i:=imin; {first init i!}
+		{Check if x0 sits beyond the interval, either left or right:}
+		IF r*(x0-x[imax]) > 0 THEN i:=imax+1;
+		IF r*(x0-x[imin]) < 0 THEN i:=imin-1;
+		IF SameValue(x0, x[imax]) THEN i:=imax;
+	
+		{now: if i is still imin, then we have to look within the interval:}
+		IF (i=imin) THEN 
+			WHILE NOT ((r*(x[i]-x0)<=0) AND (r*(x[i+1]-x0)>0)) AND (i<imax-1) DO
+				INC(i);
 
-        PROCEDURE estimate_y(i_col : INTEGER);
-        {This calculates one column of the Neville table, increasing in order of the polynomials
-        with increasing column index.}
-        VAR 
-            i_row : INTEGER;
-        BEGIN
-            {calculate the corrections to our estimate of y for every row.}
-            FOR i_row := 0 TO n_pts-i_col-1 DO 
-            BEGIN 
-                d_c := x_pts[i_row] - x_target; 
-                d_d := x_pts[i_row+i_col] - x_target;
-                IF d_c = d_d THEN BEGIN 
-                    Stop_Prog('Error in interpolation routine, two subsequent x points are of the same value.');
-                END;
-                CD_prtl := (C_cor[i_row+1] - D_cor[i_row]) / (d_c - d_d);  
-                C_cor[i_row] := d_c * CD_prtl;
-                D_cor[i_row] := d_d * CD_prtl;
-            END;
-            IF 2*(i_nearest+1) < n_pts-i_col THEN 
-                dy := C_cor[i_nearest+1]
-            ELSE 
-            BEGIN 
-                dy := D_cor[i_nearest];
-                i_nearest := i_nearest - 1
-            END;
+		Locate:=i
+	END;
+	
 
-            y_est := y_est + dy; {this is the new estimate of y, the error will be dy, the last step size}
-            IF i_col < n_pts-1 THEN 
-            BEGIN 
-                estimate_y(i_col+1);
-            END;
-        END;
-    
-    BEGIN {start of interpolation procedure.}
-        SETLENGTH(C_cor, n_pts);
-        SETLENGTH(D_cor, n_pts);
-        i_nearest := 0;
-        dx_old := ABS(x_target-x_pts[0]);
+	
+BEGIN
+	InterExtraPolation:=FALSE;
+	{just make sure these are initialised:}
+	y_estimate:=0;
+	err_estimate:=0;
+	
+	{check input}
+	N:=LENGTH(x)-1; {max index in our arrays that run from 1...N}
+	IF Order>=N THEN Stop_Prog('Error in InterExtraPol: Not enough points for interpolation order.');
+	IF Order<1 THEN Stop_Prog('Error in InterExtraPol: Order should be at least 1.');
 
-        FOR idx := 0 TO n_pts-1 DO 
-        BEGIN
-            dx_new := ABS(x_target-x_pts[idx]);
-            IF dx_new < dx_old THEN 
-            BEGIN 
-                i_nearest := idx;
-                dx_old := dx_new
-            END; 
-            C_cor[idx] := y_pts[idx];
-            D_cor[idx] := y_pts[idx]
-        END;
-        y_est := y_pts[i_nearest];
-        i_nearest := i_nearest - 1;
-        
-        {now estimate y for increasing polynomyal order, starting at order 1.}
-        estimate_y(1);
-    END;
+	{does the interval bracket x0?}
+	x0Bracketed:=(x[1]-x0)*(x[N]-x0)<=0; {note: we include the 0 as x0 might be exactly equal to either point}
 
-BEGIN {start preprocessing the arrays to interpolate to have the number of points matching the interpolation order}
-    SETLENGTH(x_selected, interp_order + 1);
-    SETLENGTH(y_selected, interp_order + 1);
+	IF (ExtraIndex>0) OR x0Bracketed THEN 
+	{only enter this block if either we allow extrapolation or we don't need it:}
+	BEGIN
+		i1:=Locate(x, x0, 1, N);
+		{NOTE: i1 might be 0 or N+1 if x0Bracketed is false}
+		
+		{by now, i1 might be outside the interval [1,..,N], so we map it back to 1,..,N:}
+		i1:=MAX(1, i1);
+		i1:=MIN(N, i1);
+		
+		{istart and ifin define the points that will be passed on to Neville's routine:}
+		istart:=MAX(FLOOR(i1 - 0.5*Order), 1); {try to put istart close to i1-Order/2, but >= 1}
+		ifin:=Order + istart;
+		IF ifin>N THEN 
+		BEGIN
+			ifin:=N;
+			istart:=ifin-Order			
+		END;
 
-    len_x_arr := length(x_array);
-    len_y_arr := length(y_array);
-
-    IF len_x_arr <> len_y_arr THEN Stop_Prog('Interpolation: arrays not of equal length.');
-    IF len_x_arr <= interp_order THEN Stop_Prog('Interpolation: more points required for requested order of interpolation.');
-    closest_sum := 0; {we need to initialize because of a compiler warning, this serves no purpose.}
-    FOR idx := 0 TO length(x_array) - interp_order - 1 DO {find closest sequence of points to x_target}
-    BEGIN 
-        sum_pts := 0;
-        FOR idx_sum := 0 TO interp_order DO 
-            sum_pts := sum_pts + x_array[idx+idx_sum];
-
-        IF (idx = 0) OR (ABS(sum_pts - interp_order * x_target) < ABS(sum_pts - closest_sum)) THEN 
-        BEGIN 
-            idx_closest := idx;
-            closest_sum := sum_pts
-        END;
-    END;
-
-    FOR idx := 0 TO interp_order DO {add the selected points from the arrays to the interpolation point arrays.}
-    BEGIN
-        x_selected[idx] := x_array[idx_closest+idx];
-        y_selected[idx] := y_array[idx_closest+idx];
-    END;
-
-    {Use Neville interpolation on closest points to x_target}
-    Neville_interpolation(x_selected, y_selected, interp_order + 1, x_target, y_estimate, y_error_estimate);
+		{now we should have istart, ifin within [1,..,N] and i1 as close as possible to the middle}
+		{copy selected points into local arrays so we can pass them on to the Neville routine:}
+		SetLength(x_selected, Order+2); {Order+2? array starts at 0, the last index should be Order+1}
+		SetLength(y_selected, Order+2);
+		FOR i:=istart TO ifin DO
+		BEGIN
+			x_selected[i-istart+1]:=x[i];
+			y_selected[i-istart+1]:=y[i];
+		END;
+	
+		{do the actual interpolation/extrapolation:}
+		Neville(x0, y_estimate, err_estimate, Order+1, x_selected, y_selected);
+	
+		{OK, now check if extrapolation (if any!) was acceptable}
+		delx:=MIN(ABS(x_selected[1]-x0), ABS(x_selected[Order+1]-x0));
+		InterExtraPolation:=(ExtraIndex=2) OR x0Bracketed OR (delx <= ABS(x_selected[1]-x_selected[Order+1])/Order) 
+		{so IF there was extrapolation, then we accept this if either ExtraIndex=2, or if 
+		 the delx ("amount" of extrapolation) is limited to the average x-spacing in the selected points}
+	END
 END;
 
 PROCEDURE Fit_Parabola(x1, x2, x3, y1, y2, y3 : myReal; VAR a, b, c : myReal);

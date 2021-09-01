@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.07'; {version of this unit}
+    DDTypesAndConstantsVersion = '4.09'; {version of this unit}
     parameter_file = 'device_parameters.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -48,8 +48,8 @@ CONST
 
 {Magic numbers, used in the code:}
     {Name                    Where                        What does it do?}
-    threshold_err = 0.2; {IN: Find_Solar_Cell_Parameters, defines max relative error when displaying solar cell parameters}
-    MaxInterpolationOrder = 2; {IN: Find_Solar_Cell_Parameters, maximum interpolation order in estimating Jsc, Voc}
+    threshold_err = 0.1; {IN: Find_Solar_Cell_Parameters, defines max relative error when displaying solar cell parameters}
+    MaxInterpolationOrder = 3; {IN: Find_Solar_Cell_Parameters, maximum interpolation order in estimating Jsc, Voc}
     temp_file = '.temp.txt';{IN: Tidy_up_parameter_file_Exit, a temporary file used to store the device parameters}
     myDelims = [#0..' ', ';', '/', '\', '''', '"', '`', '*', '=']; {IN Tidy_up_parameter_file_Exit, note: not a decimal point or comma!}
     nd = 20; {IN: main, it limits the number of digits to this value to prevent unnecessarily large output files}
