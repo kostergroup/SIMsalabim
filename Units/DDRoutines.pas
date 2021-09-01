@@ -2179,12 +2179,8 @@ BEGIN
 			
 		{First: calculate the error estimate based on the iteration behaviour:}
 		IF (it>1) AND (Jint<>0) THEN relchange:=ABS((Jint-ResJ[it-1].Jint)/Jint) ELSE relchange:=0;
-(*		IF (it>2) AND (ResJ[it-1].relchange - relchange <> 0) 
+		IF (it>2) AND (ResJ[it-1].relchange - relchange <> 0) 
 			THEN error:=ResJ[it-1].relchange*relchange/(ResJ[it-1].relchange - relchange)
-			ELSE error:=-2*par.tolJ; {set to impossible value so we are sure this did not converge!}
-*)
-		IF (it>2) AND (ResJ[it-1].relchange <> relchange) AND (ResJ[it-1].relchange <> 0) 
-			THEN error:=relchange/(1-relchange/ResJ[it-1].relchange)
 			ELSE error:=-2*par.tolJ; {set to impossible value so we are sure this did not converge!}
 		{if the error <0, then the rel change increases instead of decreases!}
 		{also: if the behaviour is correct, then the error should also keep on decreasing}
