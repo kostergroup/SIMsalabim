@@ -9,7 +9,7 @@ SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, sola
 4. [How to cite](#how-to-cite)
 5. [How to compile](#how-to-compile)
 6. [Pre-compiled binaries](#pre-compiled-binaries)
-7. [Quickstart guide](#Quickstart guide)
+7. [Quickstart guide](#quickstart-guide)
 8. [Scientific publications based on SIMsalabim](#scientific-publications-based-on-simsalabim)
 
 ## Introduction
