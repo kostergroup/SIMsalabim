@@ -1,7 +1,7 @@
 ** SIMsalabim Device data:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.09
+** version: 4.20
 
 **General**************************************************************************
 T = 295                  * K, absolute temperature
@@ -97,10 +97,12 @@ Tr_type_B = -1           * Trap type of bulk and grain boundary traps: -1: accep
 **Numerical Parameters**************************************************************
 NP = 1000                * integer, number of grid points, must be at least 5.
 tolPois = 1e-5           * V, abs. tolerance of iterative Poisson solver
-maxDelV = 1              * maximum change (in Vt) of the potential per loop
+maxDelV = 10             * maximum change (in Vt) of the potential per loop
 MaxItPois = 1e3          * max. number it. Poisson loop
 MaxItSS = 1e3            * max. number it. main loop
+CurrDiffInt = 1          * Calc. current from differential (1) or integral (2) expression
 tolJ = 1e-3              * max. allowed relative range of current, 1% OK.
+MinRelChange = 1e-7      * if change per loop smaller than this, then the loop converges
 MinAbsJDark = 0          * A/m2, if |Jint|<MinAbsJDark and Gehp=0 we simply stop and take Jint=0
 accDens = 0.9            * accelation parameter for density solver, 0 < accDens < 2
 IgnoreNegDens = 1        * whether(1) or not(<>1) to ignore negative densities

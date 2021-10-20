@@ -1,4 +1,4 @@
-# SIMsalabim
+# SIMsalabim Project
 
 SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, solar cells, diodes, organics, perovskites). 
 
@@ -9,15 +9,23 @@ SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, sola
 4. [How to cite](#how-to-cite)
 5. [How to compile](#how-to-compile)
 6. [Pre-compiled binaries](#pre-compiled-binaries)
-7. [Scientific publications based on SIMsalabim](#scientific-publications-based-on-simsalabim)
+7. [Quickstart guide](#Quickstart guide)
+8. [Scientific publications based on SIMsalabim](#scientific-publications-based-on-simsalabim)
 
 ## Introduction
 
-SIMsalabim can be used to simulate current-voltage (JV) characteristics of semiconductor devices. It includes the effects of generation, recombination and trapping of electrons and holes, the effect of ions and dopants, and self-consistently solves the electric field that results from all charged species.
+SIMsalabim and ZimT can be used to simulate current-voltage (JV) characteristics of semiconductor devices. This includes the effects of generation, recombination and trapping of electrons and holes, the effect of ions and dopants, and self-consistently solves the electric field that results from all charged species. The routines that make up this project are used in two different guises: SIMsalabim and ZimT. The former is a steady-state version and is the 'main' code. The latter, ZimT, can be used to simulate transients. 
+The project folder is structured as follows:
+- Binaries: compiling the code from source is easy, but if you do not want to do this then you can try the binaries in this folder
+- Docs: this folder contains a reference manual, developer guidelines, and a log of all changes to the code
+- SIMsalabim: contains the steady-state version of this software
+- Tests: contains a number of tests to assess the functioning of the codes (SIMsalabim and ZimT)
+- Units: this is where the heart of the code resides. These units are shared between SIMsalabim and ZimT
+- ZimT: the transient equivalent of SIMsalabim
 
 ## Copyright and license
 
-SIMsalabim is licensed under the GNU Lesser General Public Licence version. The details of this licence can be found in the files COPYING.txt and COPYING.LESSER.txt. 
+The SIMsalabim project is licensed under the GNU Lesser General Public Licence version 3. The details of this licence can be found in the files COPYING.txt and COPYING.LESSER.txt. 
 Several authors (all from the University of Groningen) have contributed to the code: 
 - Dr T.S. (Tejas) Sherkar
 - Dr V.M. (Vincent) Le Corre
@@ -27,7 +35,7 @@ Several authors (all from the University of Groningen) have contributed to the c
 
 ## Instructional videos
 
-In order to help new users to get the most out of SIMsalabim, we have recorded a few instructional videos:
+In order to help new users to get the most out of SIMsalabim/ZimT, we have recorded a few instructional videos:
 
 1 [Installation and basic use](https://youtu.be/0mtpGJMnbFE "Installation and basic use")
 
@@ -43,41 +51,98 @@ For the use of perovskite solar cells, the following paper offers a detailed des
 
 ## Pre-compiled binaries
 
-SIMsalabim comes as a pre-compiled binary for WIN or Linux (64 bits), see folder 'Binaries'. This avoids having to download and install the FPC compiler and compiling the code which is described below. There is no guarantee that these will work, but it is worth a try. Simply copy the binary to the main SIMsalabim folder. The Linux one might require a change of permissions to run, something like:
+SIMsalabim and ZimT come as pre-compiled binaries for WIN or Linux (64 bits), see folder 'Binaries'. This avoids having to download and install the FPC compiler and compiling the code which is described below. There is no guarantee that these will work, but it is worth a try. Simply copy the binary to the main SIMsalabim/ZimT folder. The Linux one might require a change of permissions to run, something like:
 <pre><code>
     chmod +x SIMsalabim
  </code></pre>
 
 
-## How to compile
+## Quickstart guide
+There are 3 steps to complete to run SIMsalabim or ZimT for the first time:
+  1. Install the free pascal compiler.
+  2. Compile SIMsalabim (or ZimT).
+  3. Run SIMsalabim (or ZimT). 
 
-1) SIMsalabim and ZimT use fpc (free pascal compiler)
-- it requires version 3.2.0 or newer. 
-- download and install fpc from https://www.freepascal.org/
-- You'll probably want to use (install?) some form of integrated development environment (IDE). Popular IDEs include Lazarus and Geany.
+Below are the instructions for performing these steps on Ubuntu (or any other Debian based Linux distribution) and Windows. 
 
-2) Compile SIMsalabim [ZimT] (note: on Linux this is case-sensitve):
-- open a terminal window and go to the SIMsalabim [ZimT] folder and compile SIMsalabim [ZimT]:
- <pre><code>
- fpc SIMsalabim [zimt]
-  </code></pre>
+*Installing on other Linux distributions:*
 
+Most package managers for other Linux distributions ship the compiler package in a recent enough version (version 3.2.0 or newer of package *fpc*), so it suffices to exchange the *apt install* command with another package manager's equivalent.  
+
+
+### Ubuntu guide
+
+Navigate to the SIMsalabim or ZimT folder, where you can find SIMsalabim.pas or zimt.pas. This example assumes you want to compile SIMsalabim, but you can replace SIMsalabim with zimt in the commands and run from the ZimT folder to compile and run zimt. 
+
+**Ubuntu 20.10 or newer**
+Steps:
+  - Open a terminal in the SIMsalabim folder
+  - run the following commands to perform step 1, 2, and 3 (install, compile, run):
+```
+sudo apt install fpc
+fpc SIMsalabim
+./SIMsalabim
+```
+
+**Ubuntu 20.04 or older**
+We need a relatively recent version of the Pascal compiler (v 3.2.0 or higher). Therefore, manual installation of the compiler is required on Ubuntu 20.04 or older.
+Steps:
+  - Download the relevant version of the compiler from https://www.freepascal.org/
+  - Install the compiler. This is done by running the installation script that can be found in the downloaded archive. While it can be installed without root privilege, the compiler should be manually added to path making installation a bit more tricky. To install as root run the command: `sudo ./install.sh`. 
+  - Open a terminal in the SIMsalabim folder
+  - run the following commands to perform step 2 and 3 (compile and run):
+```
+fpc SIMsalabim
+./SIMsalabim
+```
+
+### Windows guide
+
+Navigate to the SIMsalabim or ZimT folder, where you can find SIMsalabim.pas or zimt.pas. This example assumes you want to compile SIMsalabim, but you can replace SIMsalabim with zimt in the commands and run from the ZimT folder to compile and run zimt. 
+
+Steps:
+  - Download and install fpc from https://www.freepascal.org/ (SIMsalabim and zimt require version 3.2.0 or newer)
+  - Open a command prompt or powershell instance in the SIMsalabim folder (for example by opening the folder in explorer, pressing <kbd>alt</kbd>+<kbd>D</kbd> to select the location bar, typing 'cmd' and pressing <kbd>enter</kbd>).
+  - run the following commands to perform step 2 and 3 (compile, run):
+  
+```
+fpc SIMsalabim
+SIMsalabim.exe
+```
+
+Alternative:
+  - Install Windows subsystem for Linux.
+  - Follow the Ubuntu instructions above.
+
+### Miscellaneous
+
+**Warning message**
 You may see this warning message:
 /usr/bin/ld.bfd: warning: link.res contains output sections; did you forget -T?
 Just ignore this.
 
+**Editing the code**
+You'll probably want to use (install?) some form of integrated development environment (IDE). Most modern IDE's include syntax highlighting for the Pascal language. Popular IDEs include Lazarus, Geany, and Visual studio code (requires extension to perform syntax highlighting for pascal). Some guidelines for extending the code can be found in Docs/Developer_guidelines.md.
 
-3) Running SIMsalabim:
-- all parameters are specified in device_parameters.txt
-- on Linux run SIMsalabim by entering in the terminal: 
+## Running SIMsalabim (or ZimT)
+- all parameters are specified in device_parameters.txt (in ZimT an additional time-generation-voltage (tgv) file is present to indicate what time, generation, and voltage at every simulation step).
+- on Linux run SIMsalabim/ZimT by entering in the terminal from the folder where the compiled program is located and run using
 <pre><code>
 ./SIMsalabim
- </code></pre>
-
+</code></pre>
+or 
+<pre><code>
+./zimt
+</code></pre>
 on windows:
 <pre><code>
 SIMsalabim.exe
- </code></pre>
+</code></pre>
+or 
+<pre><code>
+zimt.exe
+</code></pre>
+Alternatively, the programs can be double clicked in the file manager on both Windows and Linux to run.
 
 - all parameters listed in device_parameters.txt can also be changed via the command line. This will override the respective parameter value in device_parameters.txt. Simply add the parameter name and value to the command line after a dash (-).
 Example: change of thickness (L) and JV output file (JV_file):
@@ -90,7 +155,7 @@ Example: change of thickness (L) and JV output file (JV_file):
 - in general, input files and the log file have extension .txt, whereas output files that can be used for plotting (J-V curves, for example) have extension .dat.
 - all changes are shown and commented on in the file Docs/Change_log.txt. Here we document not just the changes, but also explain and motivate some of the choices in naming, physical models, etc. 
 
-## Scientific publications based on SIMsalabim
+## Scientific publications based on SIMsalabim or ZimT
 
 List of publications (not complete):
 
@@ -162,13 +227,13 @@ List of publications (not complete):
 
 - L. J. A. Koster, V. D. Mihailetchi, and P. W. M. Blom, Bimolecular recombination in polymer/fullerene bulk heterojunction solar cells, Appl. Phys. Lett. 88, 052104 (2006).
  
- - V. D. Mihailetchi, H. Xie, B. de Boer, L. J. A. Koster, L. M. Popescu, J. C. Hummelen, and P. W. M. Blom, Origin of the enhanced performance in poly(3-exylthiophene):methanofullerene solar cells using slow drying, Appl. Phys. Lett. 89, 012107 (2006).
+- V. D. Mihailetchi, H. Xie, B. de Boer, L. J. A. Koster, L. M. Popescu, J. C. Hummelen, and P. W. M. Blom, Origin of the enhanced performance in poly(3-exylthiophene):methanofullerene solar cells using slow drying, Appl. Phys. Lett. 89, 012107 (2006).
   
-  - L. J. A. Koster, E. C. P. Smits, V. D. Mihailetchi, and P. W. M. Blom, Device model for the operation of polymer/fullerene bulk heterojunction solar cells, Phys. Rev. B 72, 085205 (2005).
+- L. J. A. Koster, E. C. P. Smits, V. D. Mihailetchi, and P. W. M. Blom, Device model for the operation of polymer/fullerene bulk heterojunction solar cells, Phys. Rev. B 72, 085205 (2005).
   
-  - L. J. A. Koster, V. D. Mihailetchi, R. Ramaker, and P. W. M. Blom, Light intensity dependence of open-circuit voltage of polymer:fullerene solar cells, Appl. Phys. Lett. 86, 123509 (2005).
+- L. J. A. Koster, V. D. Mihailetchi, R. Ramaker, and P. W. M. Blom, Light intensity dependence of open-circuit voltage of polymer:fullerene solar cells, Appl. Phys. Lett. 86, 123509 (2005).
    
-   - L. J. A. Koster, V. D. Mihailetchi, H. Xie, and P. W. M. Blom, Origin of the light intensity dependence of the short-circuit current of polymer/fullerene solar cells, Appl. Phys. Lett. 87, 203502 (2005).
+- L. J. A. Koster, V. D. Mihailetchi, H. Xie, and P. W. M. Blom, Origin of the light intensity dependence of the short-circuit current of polymer/fullerene solar cells, Appl. Phys. Lett. 87, 203502 (2005).
 
 
 

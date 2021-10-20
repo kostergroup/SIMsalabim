@@ -3,7 +3,10 @@
 
 The literature on semiconductor physics provides many analytical expressions that hold in certain limits that can be reproduced by SIMsalabim/ZimT. These expressions therefore serve as highly suitable validation tests for the codebase. We chose the tests in such a way that most of the functionality is covered by the test cases. In this document, we describe the tests, while we provide the test results in graph form and the used simulation parameters in the test-specific folders. In all tests, we specify in what limits SIMsalabim/ZimT should produce the same results as the analytical expression it is tested against.
 
-# SIMsalabim Tests
+# How to run the tests
+Each folder contains the input files need to reproduce the test. Copy the input file(s) to either the SIMsalabim or ZimT folder. Note that ZimT needs an additional input file (tVG*.txt). Running the program generates output that can be compared with the sample output in the test folder. A graphical comparison of the latest version with the analytical results is also provided. 
+
+# SIMsalabim tests
 
 ## Test 1: Photoconductivity of an insulator
 
@@ -21,10 +24,10 @@ Test 4 is another test of the space-charge-limited regime. This time, the mobili
 At high voltages, the simulation should approach the Mott-Gruney law: This is indeed the case, despite the fact that the simulation includes a built-in voltage. At low voltages, the current is linear as a consequence of background charge density that stems from the contacts. This regime is described by the moving-electrode equation. The agreement in both limits is excellent.
 
 ## Test 5: Space-charge-limited-diode with trapping
-In this test, we assess the ability of SIMsalabim to simulate a diode with a single trap level (situated mid-gap). As a reference, we also show the simulated current-voltage curve without traps. The inclusion of traps, as expected, strongly reduces the current at low voltages. The trap-filled-limit (V<sub>TFL</sub>) is obtained as outlined in V.M. Le Corre, E.A. Duijnstee, O.  El Tambouli, J.M. Ball, H.J. Snaith, J. Lim, and L.J.A. Koster, ACS Energy Lett. **6**,  1087 (2021): two tangents are used (dashed lines in graph), one in the steepest part of the curve and one in the quadratic regime. They cross at 1.2 V, which agrees very nicely with the anticipated value for V<sub>TFL</sub> of 1 V which is based on the input parameters.
+In this test, we assess the ability of SIMsalabim to simulate a diode with a single trap level (situated mid-gap). As a reference, we also show the simulated current-voltage curve without traps. To obtain the reference, either put Bulk_tr to zero in the parameter file, or run SIMsalabim with -Bulk_tr 0. The inclusion of traps, as expected, strongly reduces the current at low voltages. The trap-filled-limit (V<sub>TFL</sub>) is obtained as outlined in V.M. Le Corre, E.A. Duijnstee, O.  El Tambouli, J.M. Ball, H.J. Snaith, J. Lim, and L.J.A. Koster, ACS Energy Lett. **6**,  1087 (2021): two tangents are used (dashed lines in graph), one in the steepest part of the curve and one in the quadratic regime. They cross at 1.2 V, which agrees very nicely with the anticipated value for V<sub>TFL</sub> of 1 V which is based on the input parameters.
 
 
-# ZimT Tests
+# ZimT tests
 
 ## Test 6: Open-circuit voltage in steady-state
 ZimT can be used to solve for the open-circuit voltage of a solar cell, in transient cases as well as steady-state. The open-circuit in steady-state is compared with an analytical solution given in L.J.A. Koster, V.D. Mihailetchi, R. Ramaker, and P.W.M. Blom, Appl. Phys. Lett. **86**, 123509 (2005). The agreement is excellent.

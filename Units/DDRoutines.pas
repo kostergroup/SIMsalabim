@@ -43,7 +43,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.09'; {version of this unit}
+CONST DDRoutinesVersion = '4.20'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -52,7 +52,7 @@ PROCEDURE DisplayHelpExit;
 {displays a short help message and exits}
 
 FUNCTION B(x : myReal) : myReal; 
-{use an approximation to the Bernoulli function, much (~ 3x) faster!}
+{use an approximation to the Bernoulli function, much faster than full version}
 
 FUNCTION Bessel(x : myReal) : myReal;
 {calculates the Bessel function of order 1, with some scaling}
@@ -78,15 +78,15 @@ PROCEDURE Check_Parameters(CONSTREF stv : TStaticVars; CONSTREF par : TInputPara
 {performs a number of checks on the parameters. Just to ensure that they are valid, consistent, make sense}
 {Some bits are specific to either ZimT or SIMsalabim}
 
-PROCEDURE Make_Grid(VAR k, x : vector; CONSTREF par : TInputParameters);
-{Makes a exponential symmetric grid, normalized to unity}
+PROCEDURE Make_Grid(VAR k, x : vector; VAR i1, i2 : INTEGER; CONSTREF par : TInputParameters);
+{Makes an exponential symmetric grid, for every layer}
 {k[i] = (x[i+1] - x[i])/L and initialises the array with x-positions}
+{i1 is the last point in the left insulator (or 0 if there isn't any)
+i2 is the first point in the right insulator (or NP+1 if there is none)}
 
 PROCEDURE DefineLayers(VAR stv : TStaticVars; CONSTREF par : TInputParameters);
 {Note, stv are not CONSTREF as we need to change them}
-{Sets layer dependent properties and computes i1 and i2.
-i1 is the last point in the left insulator (or 0 if there isn't any)
-i2 is the first point in the right insulator (or NP+1 if there is none)}
+{Sets layer dependent properties}
 
 PROCEDURE Init_Generation_Profile(VAR stv : TStaticVars; VAR log : TEXT; CONSTREF par : TInputParameters);
 {Inits the generation profile, either constant or from a file. This is the SHAPE of the profile}
@@ -136,12 +136,6 @@ PROCEDURE Calc_elec_mob(VAR mu : vector; V, n : vector; CONSTREF stv : TStaticVa
 PROCEDURE Calc_hole_mob(VAR mu : vector; V, p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {calculates the hole mob. on the interleaved mesh, mup[i]=mup at x=i+1/2}
 
-PROCEDURE Calc_Dn(VAR D : vector; mu, n : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Calculates the diffusion constant, just Einstein for now, Dn[i]= Dn at x=i+1/2 }
-
-PROCEDURE Calc_Dp(VAR D : vector; mu, p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Calculates the diffusion constant, just Einstein for now, Dn[i]= Dn at x=i+1/2 }
-
 PROCEDURE Calc_Langevin_factor(VAR Lan : vector; mob_n, mob_p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculates the Langevin recombination strength.}
 
@@ -177,13 +171,13 @@ PROCEDURE Calc_Recombination_n(VAR Rn : TRec; CONSTREF n, p, dp, Lan : vector; C
 PROCEDURE Calc_Recombination_p(VAR Rp : TRec; CONSTREF n, p, dp, Lan : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculate all recombination processes and their contribution to the continuity equation for holes. For a derivation see the doc files.}
 
-PROCEDURE Contn(VAR n : vector; nPrevTime, V, Jn, p, mu, D, g, Lan, dp : vector; VAR Rn : TRec;
+PROCEDURE Contn(VAR n : vector; nPrevTime, V, Jn, p, mu, g, Lan, dp : vector; VAR Rn : TRec;
 				CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters;  dti : myReal = 0);
 {dti: DeltaTInverse, so dti = 1/delt. If dti=0 then we're using the steady-state equations
 (Selberherr 6-1.73) as they correspond to an infinite timestep.
 If dti > 0 we're using the transient equations (Selberherr 6-4.32)}
 
-PROCEDURE Contp(VAR p : vector; pPrevTime, V, Jp, n, mu, D, g, Lan, dp : vector; VAR Rp : TRec;
+PROCEDURE Contp(VAR p : vector; pPrevTime, V, Jp, n, mu, g, Lan, dp : vector; VAR Rp : TRec;
 				CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; dti : myReal = 0);
 {dti: DeltaTInverse, so dti = 1/delt. If dti=0 then we're using the steady-state equations
 (Selberherr 6-1.74) as they correspond to an infinite timestep.
@@ -198,29 +192,8 @@ PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLE
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
 {can be used in steady-state and transient cases}
 
-PROCEDURE Calc_displacement_curr(VAR JD, V, VPrevTime : vector; dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure calculates the displacement current}
-
-PROCEDURE Calc_elec_curr(VAR Curr, V, n, p, g, Lan, dp, D, mu : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure calculates the electron current density from Selberherr eq. 6.1-39 modified for generalised Einstein relation}
-
-PROCEDURE Calc_hole_curr(VAR Curr, V, p, n, g, Lan, dp, D, mu : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure calculates the electron current density from Selberherr eq. 6.1-41 modified for generalised Einstein relation}
-
-PROCEDURE Calc_elec_curr_Int(VAR Curr : vector; V, r, mun, Dn : vector; n0, nL : double; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{calculates the current from Jn(x)= -q Int_0^x r(x) dx + Kn
- Kn: integration constant,
- see De Mari, solid-state elec. vol 11 p.33 (68) eq. 15
- HOWEVER, we can use the generalised Einstein relation}
-
-PROCEDURE Calc_hole_curr_Int(VAR Curr : vector; V, r, mup, Dp : vector; p0, pL : double; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{calculates the current from Jp(x)= q Int_0^x r(x) dx + Kp
- Kp: integration constant,
- see De Mari, solid-state elec. vol 11 p.33 (68) eq. 15
- HOWEVER, we can use the generalised Einstein relation}
-
-PROCEDURE Calc_ionic_currents(VAR Jnion, Jpion : vector; dti : myReal; V, nion, pion : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure calculates the ionic current densities from Selberherr eq. 6.1-39/41}
+PROCEDURE Calc_All_Currents(VAR new : TState; CONSTREF curr : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
+{calculates all the currents for state new}
 
 FUNCTION Calc_Range_Current(VAR Jn, Jp, Jnion, Jpion, JD : vector; CONSTREF par : TInputParameters) : myReal;
 {Calc. range of total current}
@@ -252,7 +225,7 @@ VAR strprogname : STRING;
 BEGIN
     Str(ProgName, strprogname); {convert variable ProgName to a string}
     WRITELN('Welcome to ',strprogname,' version ',version,'.');
-    WRITELN('Copyright (C) 2020 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans');
+    WRITELN('Copyright (C) 2020, 2021 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans');
     WRITELN('F. Wobben, and Prof L.J.A. Koster, University of Groningen.');
     WRITELN;
 END;
@@ -271,34 +244,30 @@ BEGIN
     Stop_Prog('''-h''     : displays this help message');
 END;
 
-{use an approximation to the Bernoulli function, much (~ 3x) faster!}
 FUNCTION B(x : myReal) : myReal; {The Bernoulli function, an approximation}
 {we use several approximations to the Bernoulli function:
- close to 0: 1st order, then 2nd order, then 4th order. Finally, for large (pos.) x B=0 and for
- x << 0 we have B=-x}
-CONST C1 = 0.083333333333; {1/12}
-	  C2 = 1.388888889e-3; {1/720}
-	  C3 = 0.25; {cut-off}
-	  C4 = 1.2; {another cut-off}
-	  C5 = 3.9; {3rd cut-off}
+ close to 0: 1st order, then 2nd order, then 4th order. Finally, for large (abs.) x, we use the full expression}
+{Taylor series around 0 is: B(x) = 1 - x/2 + x^2/12 -x^4/720 + O(x^6)}
+CONST A1 : myReal = 1/12;
+	  A2 : myReal = 1/720; 
+	  C1 = 0.05; {if |x| < C1, then use 1st order Taylor}
+	  C2 = 0.45; {if C1 <= |x| < C2, then use 2nd order Taylor}
+	  C3 = 1.5; {if C2 <= |x| < C3, then use 4th order Taylor}
+	  {if |x| is even larger, then we use the full expression}
 VAR absx : myReal;
 BEGIN
     absx:=ABS(x);
-    IF absx < C3 {if x close to zero (=most common case!)}
+    IF absx < C1 {if x close to zero (=most common case!)}
 		THEN B:=1 - 0.5*x {then use 1st order Taylor}
 		ELSE
-		BEGIN {absx >= C3}
-			IF absx < C4 THEN B:=1 - x*(0.5 - C1 * x) {use 2nd order}
+		BEGIN {absx >= C1}
+			IF absx < C2 THEN B:=1 - x*(0.5 - A1 * x) {use 2nd order}
 			ELSE
-			BEGIN {absx >= C4}
-				IF absx < C5 THEN B:=1 + x*(-0.5 + x*(C1 - x*x*C2)) {use 4th order Taylor}
-				ELSE BEGIN
-					IF x < -C5 
-						THEN B:=-x {x < -C5}
-						ELSE B:=x/(EXP(x)-1); {x > C5, will be a very small value}
-				END; {absx >= C5}
-			END {absx >= C4}
-		END; {absx >= C3}
+			BEGIN {absx >= C2}
+				IF absx < C3 THEN B:=1 + x*(-0.5 + x*(A1 - x*x*A2)) {use 4th order Taylor}
+				ELSE B:=x/(EXP(x)-1); {x > C3, will be a very small value}
+			END {absx >= C2}
+		END; {absx >= C1}
 END;
 
 FUNCTION Bessel(x : myReal) : myReal;
@@ -536,7 +505,9 @@ BEGIN
 		Get_Integer(inv, msg, 'MaxItPois', MaxItPois); {Max. number of loops Poisson solver}
 		Get_Integer(inv, msg, 'MaxItSS', MaxItSS); {max. number it. steady-state loops}
 		IF ZimT THEN Get_Integer(inv, msg, 'MaxItTrans', MaxItTrans); {max. number it. transient solver}
+		Get_Integer(inv, msg, 'CurrDiffInt', CurrDiffInt); {Calc. current from differential (1) or integral (2) expression}
 		Get_Float(inv, msg, 'tolJ', tolJ); {tolerance of current density in main loop}
+		Get_Float(inv, msg, 'MinRelChange', MinRelChange); {if change per loop smaller than this, then loop converges}	
 		Get_Float(inv, msg, 'MinAbsJDark', MinAbsJDark); {A/m2, if |Jint|<MinAbsJDark we simply stop and take Jint=0}		
 		Get_Float(inv, msg, 'accDens', accDens); {accelation for densities, 0 < accDens < 2}
 		Get_Integer(inv, msg, 'IgnoreNegDens', dumint);
@@ -692,11 +663,13 @@ BEGIN
 		IF (P0>=1) OR (P0<0) THEN Stop_Prog('Invalid value of P0, should be: 0<=P0<1');
 		IF (P0<>0) AND (Field_dep_G = FALSE) THEN Stop_Prog('P0 should be zero if not using field dependent generation');
 {checks on numerical parameters:}
-		IF (NP<=5) OR (NP>Max_NP) THEN Stop_Prog('Invalid number of grid points (NP) selected, must be >=5 and <'+IntToStr(Max_NP)+'.');
+		IF (MinRelChange < 0) OR (MinRelChange >= 1) THEN Stop_Prog('Invalid MinRelChange.');
+		IF (NP<=15) OR (NP>Max_NP) THEN Stop_Prog('Invalid number of grid points (NP) selected, must be >=15 and <'+IntToStr(Max_NP)+'.');
+		IF (CurrDiffInt <> 1) AND (CurrDiffInt <> 2) THEN Stop_Prog('CurrDiffInt can only be 1 or 2.');
 		IF maxDelV<=0 THEN Stop_Prog('maxDelV should be positive.');
 		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog('maxDelV*Vt should be (much) larger than tolPois.');
 		{check if value of accDens makes any sense:}
-		IF (accDens>=2) or (accDens<=0) THEN Stop_Prog('Invalid value of accDens selected.');  
+		IF (accDens>=2) OR (accDens<=0) THEN Stop_Prog('Invalid value of accDens selected.');  
 		IF NOT (FailureMode IN [0,1,2]) THEN Stop_Prog('Invalid FailureMode selected.');
 {checks on voltages, SIMsalabim only:}
 		IF SIMsalabim THEN
@@ -741,47 +714,82 @@ BEGIN
     END
 END;
 
-PROCEDURE Make_Grid(VAR k, x : vector; CONSTREF par : TInputParameters);
-{Makes a exponential symmetric grid, normalized to unity}
-{k[i] = (x[i+1] - x[i])/L and initialises the array with x-positions}
+PROCEDURE Make_Sub_Grid(VAR k : vector; istart, ifinish : INTEGER; grad, xstart, xfinish, L : myReal);
+{this makes a grid on part of the volume}
 VAR i, ending : INTEGER;
     norm : myReal;
 BEGIN
-    FOR i:=0 TO par.NP+1 DO k[i]:=1;
+    FOR i:=istart TO ifinish DO k[i]:=1;
     {note: we assign a value to k[np+1], but it doesn't have any meaning!}
-    ending:=ROUND(par.NP/4); {defines the exponential part of the grid}
+    ending:=ROUND(0.25*(ifinish-istart)); {defines the exponential part of the grid}
     FOR i:=0 TO ending DO
     BEGIN
-        k[i]:=EXP(par.grad*(1/ending - 1/(i+1)));
-        k[par.NP-i]:=k[i]
+        k[i+istart]:=EXP(grad*(1/ending - 1/(i+1)));
+        k[ifinish-i]:=k[i+istart]
     END;
     norm:=0;
-    FOR i:=0 TO par.NP DO norm:=norm + k[i];
-    norm:=1/norm;
-    FOR i:=0 TO par.NP+1 DO k[i]:=k[i]*norm;
-
-    x[0]:=0;    {and calculate the positions}
-    FOR i:=1 TO par.NP+1 DO x[i]:=x[i-1] + par.L*k[i-1];
+    FOR i:=istart TO ifinish DO norm:=norm + k[i];
+    norm:=(xfinish-xstart)/(L*norm);
+    FOR i:=istart TO ifinish DO k[i]:=k[i]*norm;
 END;
 
+PROCEDURE Make_Grid(VAR k, x : vector; VAR i1, i2 : INTEGER; CONSTREF par : TInputParameters);
+{Makes an exponential symmetric grid, for every layer}
+{k[i] = (x[i+1] - x[i])/L and initialises the array with x-positions}
+{i1 is the last point in the left insulator (or 0 if there isn't any)
+i2 is the first point in the right insulator (or NP+1 if there is none)}
+VAR del : myReal;
+BEGIN
+   
+	WITH par DO 
+	BEGIN
+		{number of grid point in a layer: at least 5, proportional to thickness of layer:}
+		IF L_LTL=0 THEN i1:=0 ELSE i1:=MAX(5, ROUND(NP*L_LTL/L));
+		IF L_RTL=0 THEN i2:=NP+1 ELSE i2:=NP+1 - MAX(5, ROUND(NP*L_RTL/L));
+
+		{first make sub-grids in TLs:}
+		IF L_LTL>0 THEN Make_Sub_Grid(k, 0, i1, grad, 0, L_LTL, L);
+		IF L_RTL>0 THEN Make_Sub_Grid(k, i2, NP+1, grad, L-L_RTL, L, L);
+		{now main layer:}
+		Make_Sub_Grid(k, i1, i2, grad, L_LTL, L-L_RTL, L);
+    
+		{and compute the x-positions:}
+		x[0]:=0;    
+		FOR i:=1 TO NP+1 DO x[i]:=x[i-1] + L*k[i-1];
+    
+		{Now we revisite the points at the interfaces, if any, and make their spacing uniform}
+		{this helps with convergence if there are traps and we're using De Mari's form of the current}
+		IF L_LTL>0 THEN 
+		BEGIN
+			{next, make sure that points around interfaces have the same spacing:}
+			del:=(x[i1+2]-x[i1-1])/3;
+			k[i1-1]:=del/L; k[i1]:=del/L; k[i1+1]:=del/L;
+			x[i1]:=x[i1-1]+del;
+			x[i1+1]:=x[i1] + del;
+		END;
+		
+		IF L_RTL>0 THEN 
+		BEGIN
+			del:=(x[i2+1]-x[i2-2])/3;
+			k[i2-2]:=del/L; k[i2-1]:=del/L; k[i2]:=del/L;
+			x[i2-1]:=x[i2-2]+del;
+			x[i2]:=x[i2-1]+del;
+		END;
+		
+		{note: i1: last point in LTL, i2: first point in RTL}
+		{however, x[i1] is a little bit off from L_LTL, likewise for x[i2]}
+		{because the interface sits between grid points}
+
+	END; {WITH par statement}
+END;
 
 PROCEDURE DefineLayers(VAR stv : TStaticVars; CONSTREF par : TInputParameters);
 {Note, stv are not CONSTREF as we need to change them}
-{Sets layer dependent properties and computes i1 and i2.
-i1 is the last point in the left insulator (or 0 if there isn't any)
-i2 is the first point in the right insulator (or NP+1 if there is none)}
+{Sets layer dependent properties}
 VAR i : INTEGER;
 BEGIN
 	{first define layers:}
-    {we need i1, i2 to update the generalised potentials}
     WITH stv DO BEGIN
-		i1:=0;
-		WHILE x[i1+1]<par.L_LTL DO INC(i1);
-		i2:=par.NP+1;
-		WHILE x[i2-1]>par.L-par.L_RTL DO DEC(i2);
-		{i1 is the last point in the left insulator (or 0 if there isn't any)
-		i2 is the first point in the right insulator (or NP+1 if there is none)}
-
 		{define different properties of the layers:}
  
 		{first define bulk}
@@ -1159,13 +1167,12 @@ BEGIN
 				-0.5*dti*SQR(par.L)*h[i]*(h[i]+h[i-1]);
 		u[i]:=Vt*par.mobnion*B(Vti*(V[i+1]-V[i]));   
 	END
-	ELSE 
-	BEGIN {ions can move towards the contacts, nion[0]<>0:}
+	ELSE BEGIN {ions can move towards the contacts, nion[0]<>0:}
 		istart:=0;
 		{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
 		lo[istart]:=0;
 		m[istart]:=1;
-		u[istart]:=-B(stv.Vti*(V[istart+1]-V[istart])) / B(stv.Vti*(V[istart]-V[istart+1]));
+		u[istart]:=-B(stv.Vti*(V[1]-V[0])) / B(stv.Vti*(V[0]-V[1]));
 		rhs[istart]:=0; 
 	END;
   
@@ -1181,8 +1188,7 @@ BEGIN
 				-0.5*dti*SQR(par.L)*h[i-1]*(h[i]+h[i-1]);
 		u[i]:=0;
 	END 
-	ELSE 
-	BEGIN {ions can move towards the contacts, nion[NP+1]<>0:}
+	ELSE BEGIN {ions can move towards the contacts, nion[NP+1]<>0:}
 		ifinish:=par.NP+1;
 		lo[ifinish]:=-B(stv.Vti*(V[par.NP]-V[par.NP+1])) / B(stv.Vti*(V[par.NP+1]-V[par.NP]));
 		m[ifinish]:=1;
@@ -1202,8 +1208,9 @@ BEGIN
         u[i]:=h[i-1]*Vt*par.mobnion*B(Vti*(V[i+1]-V[i]));          
     END;
 
- 	{Solves for all grid points, so including i=0 and i=NP+1:}
+ 	{Solve nion from istart to ifinish:}
 	Tridiag(nion, lo, m, u, rhs, istart, ifinish);
+	
 	{now check if nion is still well behaved, i.e. positive, and has the correct overall value}
 	FOR i:=istart TO ifinish DO
 		IF (nion[i]<0) THEN 
@@ -1222,21 +1229,19 @@ If dti > 0 we're using the transient equations (Selberherr 6-4.33)}
 VAR i, istart, ifinish : INTEGER;
     lo, m, u, rhs : vector;
 BEGIN
-	IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN istart:=stv.i1 ELSE istart:=0;
-	IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN ifinish:=stv.i2 ELSE ifinish:=par.NP+1;
-	{note: istart, ifinish are slightly different from those in Calc_Ion_Distribution_Steady_State}
-		
 	IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN
 	WITH stv DO
 	BEGIN {ions cannot move towards the contacts}
+		istart:=i1+1;
 		i:=istart;
 		rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(par.L)*h[i]*(h[i]+h[i-1]);
 		lo[i]:=0;
 		m[i]:=-Vt*par.mobpion*B(Vti*(V[i+1]-V[i])) 
 				-0.5*dti*SQR(par.L)*h[i]*(h[i]+h[i-1]);
-		u[i]:=Vt*par.mobpion*B(stv.Vti*(V[i]-V[i+1])); 
+		u[i]:=Vt*par.mobpion*B(Vti*(V[i]-V[i+1])); 
 	END
 	ELSE BEGIN {ions can move towards the contacts, pion[0]<>0:}
+		istart:=0;
 		{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
 		lo[istart]:=0;
 		m[istart]:=1;
@@ -1257,6 +1262,7 @@ BEGIN
 		u[i]:=0;  
 	END 
 	ELSE BEGIN {ions can move towards the contacts, pion[NP+1]<>0:}
+		ifinish:=par.NP+1;
 		lo[ifinish]:=-B(stv.Vti*(V[par.NP+1]-V[par.NP])) / B(stv.Vti*(V[par.NP]-V[par.NP+1])); 
 		m[ifinish]:=1;
 		u[ifinish]:=0;
@@ -1275,7 +1281,7 @@ BEGIN
         u[i]:=h[i-1]*Vt*par.mobpion*B(Vti*(V[i]-V[i+1]));         
     END;
 
- 	{Solves for all grid points, so including i=0 and i=NP+1:}
+ 	{Solve pion from istart to ifinish:}
     Tridiag(pion, lo, m, u, rhs, istart, ifinish); {Solve for the new ion densities}
 
 	{now check if pion is still well behaved, i.e. positive, and has the correct overall value}
@@ -1289,6 +1295,7 @@ BEGIN
 	{make sure the number of ions is preserved, i.e. correct:}
 	RescaleIonDensity(pion, par.CPI, stv, par);
 END;
+
 
 FUNCTION Calc_f_ti_numer(n, p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters): vector;
 {This routine is not visible outside this unit, so it is not listed in INTERFACE.}
@@ -1467,7 +1474,7 @@ PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion, f_tb, f_ti, Nti_charge, Ntb_cha
 VAR it, i : INTEGER;
 	sumPre, sumPost, NormDelV : myReal;
     delV, rhs, lower, upper, main : vector;
-    fac, fac2, fac3 : myReal;
+    fac_m, fac_u, fac_l, fac2, fac3 : myReal;
     IonsOK : BOOLEAN;
 	lin	  : TLinFt; {this type (a record) stores the linearisation of the trapping terms.}
 BEGIN
@@ -1494,20 +1501,18 @@ BEGIN
         FOR i:=1 TO par.NP DO {filling the matrix and the right-hand side}
 			WITH stv DO
 			BEGIN
-				fac:=h[i]*h[i-1]*par.L*(h[i]+h[i-1])*par.L*0.5*q;
-				
-				rhs[i]:=- eps[i-1]*h[i]*V[i-1] - eps[i]*h[i-1]*V[i+1] + (eps[i]*h[i-1] + eps[i-1]*h[i])*V[i] {same as v386}
-				        + fac*(n[i] + nion[i] + pid[i] - p[i] - pion[i] - nid[i] - Nti_charge[i] - Ntb_charge[i]); {add all negative charges and substract all positive charges.}
+			    {to properly deal with non-uniform dielectric constants we need an extra term in the Poisson equation, that's where these factors originate.}
+				fac_m:= (eps[i]-eps[i-1])/(SQR(h[i-1])*SQR(par.L)) - 2*eps[i]*(1 / (h[i]*(h[i]+h[i-1])*SQR(par.L)) + 1 / (h[i-1]*(h[i]+h[i-1])*SQR(par.L)));
+				fac_l:= 2*eps[i] / (h[i-1]*(h[i]+h[i-1])*SQR(par.L)) -(eps[i]-eps[i-1])/(SQR(h[i-1])*SQR(par.L));
+				fac_u:= 2*eps[i] / (h[i]*(h[i]+h[i-1])*SQR(par.L));
 
-				lower[i]:=  eps[i-1]*h[i]
-         				  - fac*lin.f_ti_lo[i]; {linearization of f_ti with respect to delV at gridpoint i}
+				rhs[i]:=- fac_l*V[i-1] - fac_u*V[i+1] -fac_m*V[i]
+				        + q*(n[i] + nion[i] + pid[i] - p[i] - pion[i] - nid[i] - Nti_charge[i] - Ntb_charge[i]); {add all negative charges and substract all positive charges.}
 
-				upper[i]:=  eps[i]*h[i-1]
-				          - fac*lin.f_ti_up[i]; {linearization of f_ti with respect to delV at gridpoint i}
-
+				lower[i]:= fac_l - q*lin.f_ti_lo[i]; {linearization of f_ti with respect to delV at gridpoint i}
+				upper[i]:= fac_u - q*lin.f_ti_up[i]; {linearization of f_ti with respect to delV at gridpoint i}
 				{While unintuitive, the main diagonal adds all charges regardless of sign. This is because we don't add the charges but their derivatives to delV, which is also the source of the factor Vti.}
-				main[i]:=-(h[i-1]*eps[i]+h[i]*eps[i-1]) - (n[i]+p[i]+nion[i]+pion[i] + lin.f_tb_m[i] + lin.f_ti_m[i])*fac*Vti;
-
+				main[i]:= fac_m - q*Vti*(n[i]+p[i]+nion[i]+pion[i] + lin.f_tb_m[i] + lin.f_ti_m[i]);
 			END;
 
         Tridiag(delV, lower, main, upper, rhs, 1, par.NP); {solve for delV}
@@ -1606,20 +1611,6 @@ BEGIN
 		FOR i:=stv.i2 TO par.NP+1 DO mu[i]:=par.mob_RTL;
 	END
 
-END;
-
-PROCEDURE Calc_Dn(VAR D : vector; mu, n : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Calculates the diffusion constant, just Einstein for now, Dn[i]= Dn at x=i+1/2 }
-VAR i : INTEGER;
-BEGIN
-	FOR i:=0 TO par.NP DO D[i]:=mu[i]*stv.Vt;
-END;
-
-PROCEDURE Calc_Dp(VAR D : vector; mu, p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Calculates the diffusion constant, just Einstein for now, Dn[i]= Dn at x=i+1/2 }
-VAR i : INTEGER;
-BEGIN
-	FOR i:=0 TO par.NP DO D[i]:=mu[i]*stv.Vt;
 END;
 
 PROCEDURE Calc_Langevin_factor(VAR Lan : vector; mob_n, mob_p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
@@ -1765,6 +1756,12 @@ BEGIN
 	{initialize a vector with zeros for all processes that do not contribute}
 	FOR i:=0 TO par.NP+1 DO zeros[i]:=0;
 
+	{make sure points on the electrodes are zero}
+	{Note: extended reals otherwise get initialised as 'NAN'}
+	Rn.direct[0]:=0; Rn.direct[par.NP+1]:=0;
+	Rn.bulk[0]:=0; Rn.bulk[par.NP+1]:=0;
+	Rn.int[0]:=0; Rn.int[par.NP+1]:=0;
+	
 	{direct recombination}
 	FOR i:=1 TO par.NP DO
 	BEGIN
@@ -1867,6 +1864,12 @@ BEGIN
 	{initialize a vector with zeros for all processes that do not contribute}
 	FOR i:=0 TO par.NP+1 DO zeros[i]:=0;
 
+	{make sure points on the electrodes are zero}
+	{Note: extended reals otherwise get initialised as 'NAN'}
+	Rp.direct[0]:=0; Rp.direct[par.NP+1]:=0;
+	Rp.bulk[0]:=0; Rp.bulk[par.NP+1]:=0;
+	Rp.int[0]:=0; Rp.int[par.NP+1]:=0;
+
 	{direct recombination}
 	FOR i:=1 TO par.NP DO
 	BEGIN
@@ -1957,7 +1960,7 @@ BEGIN
 	END;
 END;
 
-PROCEDURE Contn(VAR n : vector; nPrevTime, V, Jn, p, mu, D, g, Lan, dp : vector; VAR Rn : TRec;
+PROCEDURE Contn(VAR n : vector; nPrevTime, V, Jn, p, mu, g, Lan, dp : vector; VAR Rn : TRec;
 				CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters;  dti : myReal = 0);
 {dti: DeltaTInverse, so dti = 1/delt. If dti=0 then we're using the steady-state equations
 (Selberherr 6-1.73) as they correspond to an infinite timestep.
@@ -1982,8 +1985,8 @@ BEGIN
 	BEGIN
 		{Finite surface recombination}
 		lo[0]:= 0;
-		m[0]:=-D[0]*B(mu[0]*(V[0]-V[1])/D[0])/(par.L*stv.h[0]) - par.Sn_L;
-		u[0]:=D[0]*B(mu[0]*(V[1]-V[0])/D[0])/(par.L*stv.h[0]);
+		m[0]:=-mu[0]*stv.Vt*B((V[0]-V[1])*stv.Vti)/(par.L*stv.h[0]) - par.Sn_L;
+		u[0]:=mu[0]*stv.Vt*B((V[1]-V[0])*stv.Vti)/(par.L*stv.h[0]);
 		rhs[0]:= - par.Sn_L*stv.NcLoc[0] * EXP((stv.E_CB[0] - par.W_L)*stv.Vti);
 	END;
 
@@ -2001,17 +2004,17 @@ BEGIN
 		        	+ fac*Rn.bulk_cont_rhs[i] {the part of Rn_bulk that does not depend on n_new}
 			        + fac*Rn.int_cont_rhs[i]; {the part of Rn_int that does not depend on n_new}
 			
-			lo[i]:=  h[i]*D[i-1]*B(mu[i-1]*(V[i-1]-V[i])/D[i-1]) +
+			lo[i]:=  h[i]*mu[i-1]*stv.Vt*B((V[i-1]-V[i])*stv.Vti) +
          		   - fac*Rn.int_cont_lo[i]; {the part of Rn_int that depends on n[i-1]}
 			
-			m[i]:=- (h[i-1]*D[i]*B(mu[i]*(V[i]-V[i+1])/D[i]) +
-				    h[i]*D[i-1]*B(mu[i-1]*(V[i]-V[i-1])/D[i-1]))
+			m[i]:=- (h[i-1]*mu[i]*stv.Vt*B((V[i]-V[i+1])*stv.Vti) +
+				    h[i]*mu[i-1]*stv.Vt*B((V[i]-V[i-1])*stv.Vti))
 				  - fac*dti
 			      - fac*Rn.dir_cont_m[i] {direct / Langevin recombination}
 			      - fac*Rn.bulk_cont_m[i] {the part of Rn_bulk that depends on n[i]}
                   - fac*Rn.int_cont_m[i]; {the part of Rn_int that depends on n[i]}
 			
-			u[i]:=  h[i-1]*D[i]*B(mu[i]*(V[i+1]-V[i])/D[i])
+			u[i]:=  h[i-1]*mu[i]*stv.Vt*B((V[i+1]-V[i])*stv.Vti)
 			      - fac*Rn.int_cont_up[i]; {the part of Rn_int that depends on n[i+1]}
 		END;
 
@@ -2027,8 +2030,8 @@ BEGIN
 	ELSE
 	BEGIN
 		{Finite surface recombination}
-		lo[NP+1]:=-D[NP] * B(mu[NP]*(V[NP]-V[NP+1])/D[NP])/(par.L*stv.h[NP]);
-		m[NP+1]:=D[NP] * B(mu[NP]*(V[NP+1]-V[NP])/D[NP])/(par.L*stv.h[NP]) - par.Sn_R;
+		lo[NP+1]:=-mu[NP]*stv.Vt * B((V[NP]-V[NP+1])*stv.Vti)/(par.L*stv.h[NP]);
+		m[NP+1]:=mu[NP]*stv.Vt * B((V[NP+1]-V[NP])*stv.Vti)/(par.L*stv.h[NP]) - par.Sn_R;
 		u[NP+1]:=0;
 		rhs[NP+1]:=-par.Sn_R*stv.NcLoc[NP+1] * EXP((stv.E_CB[NP+1] - par.W_R)*stv.Vti);
 	END;
@@ -2055,7 +2058,7 @@ BEGIN
 END;
 
 
-PROCEDURE Contp(VAR p : vector; pPrevTime, V, Jp, n, mu, D, g, Lan, dp : vector; VAR Rp : TRec;
+PROCEDURE Contp(VAR p : vector; pPrevTime, V, Jp, n, mu, g, Lan, dp : vector; VAR Rp : TRec;
 				CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; dti : myReal = 0);
 {dti: DeltaTInverse, so dti = 1/delt. If dti=0 then we're using the steady-state equations
 (Selberherr 6-1.74) as they correspond to an infinite timestep.
@@ -2080,8 +2083,8 @@ BEGIN
 	BEGIN
 		{Finite surface recombination}
 		lo[0]:= 0;
-		m[0]:=D[0] * B(mu[0]*(V[1]-V[0])/D[0])/(par.L*stv.h[0]) - par.Sp_L;
-		u[0]:=-D[0] * B(mu[0]*(V[0]-V[1])/D[0])/(par.L*stv.h[0]);
+		m[0]:=mu[0]*stv.Vt * B((V[1]-V[0])*stv.Vti)/(par.L*stv.h[0]) - par.Sp_L;
+		u[0]:=-mu[0]*stv.Vt * B((V[0]-V[1])*stv.Vti)/(par.L*stv.h[0]);
 		rhs[0]:=-par.Sp_L*stv.NcLoc[0] * EXP((par.W_L - stv.E_VB[0])*stv.Vti);
 	END;
 
@@ -2099,18 +2102,18 @@ BEGIN
 			        + fac*Rp.bulk_cont_rhs[i] {the part of Rp_bulk that is independent of p_new}
          			+ fac*Rp.int_cont_rhs[i]; {the part of Rp_int that is independent of p_new}
 
-			lo[i]:=  h[i]*D[i-1]*B(mu[i-1]*(V[i]-V[i-1])/D[i-1])
+			lo[i]:=  h[i]*mu[i-1]*stv.Vt*B((V[i]-V[i-1])*stv.Vti)
 			       - fac*Rp.int_cont_lo[i]; {the part of Rp_int that depends on p[i-1]}
 			
-			m[i]:=- (h[i-1]*D[i]*B(mu[i]*(V[i+1]-V[i])/D[i]) +
-				    h[i]*D[i-1]*B(mu[i-1]*(V[i-1]-V[i])/D[i-1]))
+			m[i]:=- (h[i-1]*mu[i]*stv.Vt*B((V[i+1]-V[i])*stv.Vti) +
+				    h[i]*mu[i-1]*stv.Vt*B((V[i-1]-V[i])*stv.Vti))
 				  - fac*dti
 			      - fac*Rp.dir_cont_m[i] {direct / Langevin recombination}
 			      - fac*Rp.bulk_cont_m[i] {part of Rp_bulk that depends on p[i]}
 			      - fac*Rp.int_cont_m[i]; {the part of Rp_int that depends on p[i]}
 
 			
-			u[i]:=  h[i-1]*D[i]*B(mu[i]*(V[i]-V[i+1])/D[i])
+			u[i]:=  h[i-1]*mu[i]*stv.Vt*B((V[i]-V[i+1])*stv.Vti)
 			      - fac*Rp.int_cont_up[i]; {the part of Rp_int that depends on p[i+1]}
 		END;
 
@@ -2125,9 +2128,9 @@ BEGIN
 	END
 	ELSE
 	BEGIN
-		{Finite durface recombination}
-		lo[NP+1]:=D[NP]*B(mu[NP]*(V[NP+1]-V[NP])/D[NP])/(par.L*stv.h[NP]);
-		m[NP+1]:=-D[NP]*B(mu[NP]*(V[NP]-V[NP+1])/D[NP])/(par.L*stv.h[NP]) - par.Sp_R;
+		{Finite surface recombination}
+		lo[NP+1]:=mu[NP]*stv.Vt*B((V[NP+1]-V[NP])*stv.Vti)/(par.L*stv.h[NP]);
+		m[NP+1]:=-mu[NP]*stv.Vt*B((V[NP]-V[NP+1])*stv.Vti)/(par.L*stv.h[NP]) - par.Sp_R;
 		u[NP+1]:=0;
 		rhs[NP+1]:=-par.Sp_R*stv.NcLoc[NP+1] * EXP((par.W_R - stv.E_VB[NP+1])*stv.Vti);
 	END;
@@ -2158,7 +2161,7 @@ END;
 FUNCTION Determine_Convergence(VAR ResJ : TItResult; VAR new : TState; it : INTEGER; VAR ConvMsg : STRING; 
 							  check_Poisson : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : INTEGER;
 {Determine if main loop has converged. 0: no. 1: yes, 2: yes, but only because current is very small (<MinAbsJ)}
-VAR convIteration, convUniformJ, convCurrentSmallEnough, OpenCircuit : BOOLEAN;
+VAR convIteration, convChangeSmallEnough, convUniformJ, convCurrentSmallEnough, OpenCircuit : BOOLEAN;
 
 BEGIN
 
@@ -2166,14 +2169,12 @@ BEGIN
 	ResJ[it].Jint:=new.Jint; {we copy the new Jint into our array as we need to be able to calc the change per loop}
 	ConvMsg:=''; {our message string, empty at first}
 	
-	IF NOT check_Poisson 
-	THEN Determine_Convergence:=0 {convergence impossible if Poisson loop didn't converge}
-	ELSE {OK, Poisson converged, let's look at the current Jint:}
 	WITH ResJ[it] DO BEGIN
-		{OK, Poisson converged. Now check the rest:
+		{check the following:
 		1) check the iteration error, an estimate based on the relative changes per loop
 		2) is the current sufficiently uniform?
-		3) perhaps the current is simply really small (<minAbsJ)?}
+		3) is the change per loop very very small?
+		4) perhaps the current is simply really small (<minAbsJ)?}
 		
 		ConvMsg:='Main loop status:' + LineEnding;
 			
@@ -2187,6 +2188,7 @@ BEGIN
 		convIteration:=(error<par.tolJ) AND (error>0) AND (error<ResJ[it-1].error); 
 		ConvMsg:=ConvMsg + '- current converged: '+myBoolStr(convIteration) + LineEnding;
 		ConvMsg:=ConvMsg + '- error on current: ' + FloatToStrF(error, ffExponent,5,0) + LineEnding;
+		ConvMsg:=ConvMsg + '- error decreasing: ' + myBoolStr(error<ResJ[it-1].error) + LineEnding;
 
 		{Next: check if current is sufficiently uniform:}
 		RangeJ:=ABS(Calc_Range_Current(new.Jn, new.Jp, new.Jnion, new.Jpion, new.JD, par)); {A/m2, so absolute, i.e. not relative to Jint}	
@@ -2201,13 +2203,19 @@ BEGIN
 		END;
 		ConvMsg:=ConvMsg+'- current is sufficiently uniform: '+myBoolStr(convUniformJ) + LineEnding;
 	
+		{check if relative change was small MinCountChangeSmall times in a row!}
+		IF ABS(relchange) <= par.MinRelChange 
+			THEN CountChangeSmall:=ResJ[it-1].CountChangeSmall + 1 
+			ELSE CountChangeSmall:=0;
+		convChangeSmallEnough:= CountChangeSmall >= MinCountChangeSmall;
+	
 		{In the dark (Gehp=0), we have an alternative criterion for convergence:}
 		{if the abs current is really small, then we won't bother. However, we need to be sure it really is small!}
 		{We count the number of consecutive iterations where the current is small enough:}
 		IF (new.Gehp=0) AND (ABS(Jint) < par.MinAbsJDark) 
 			THEN CountJSmall:=ResJ[it-1].CountJSmall + 1 
 			ELSE CountJSmall:=0;
-		
+	
 		convCurrentSmallEnough:=FALSE;
 		IF (CountJSmall >= MinCountJSmall) THEN {check if J was small MinCountJSmall times in a row!}
 		BEGIN
@@ -2217,17 +2225,23 @@ BEGIN
 	
 		{now check if all criteria have been met:}
 		Determine_Convergence:=0;
-		IF convUniformJ AND convIteration 
-		THEN Determine_Convergence:=1  {we already know that check_Poisson=true!}
-		ELSE BEGIN
-			IF convCurrentSmallEnough THEN Determine_Convergence:=2;
-			ConvMsg:=ConvMsg + '- current smaller than MinAbsJDark: '+myBoolStr(convCurrentSmallEnough) + LineEnding;
-		END
+		IF check_Poisson THEN
+		BEGIN {OK, Poisson converged, let's look at the rest:}
+			{we check from the worst to the best situation, we know that check_Poisson = true:}
+			IF convChangeSmallEnough AND convUniformJ THEN Determine_Convergence:=3;
+			IF convCurrentSmallEnough THEN Determine_Convergence:=2;	
+			IF convUniformJ AND convIteration THEN Determine_Convergence:=1;  
+		END;	
+	
+		ConvMsg:=ConvMsg + '- current smaller than MinAbsJDark: '+myBoolStr(convCurrentSmallEnough) + LineEnding;
+		ConvMsg:=ConvMsg + '- relative change smaller MinRelChange: '+myBoolStr(convChangeSmallEnough) + LineEnding;	
+	
 	END;
 	{at this stage we (should) have:
 	Determine_Convergence = 0: convergence failed!
-							1: success, ideal case
-							2: current simply very small and Poisson converged, so good enough}
+							1: success, ideal case: Poisson converged and current has small error
+							2: current simply very small and Poisson converged, so good enough
+							3: relative change very small, current uniform, Poisson converged: OK}
 END;
 
 PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLEAN; VAR StatusStr : ANSISTRING; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
@@ -2249,9 +2263,11 @@ BEGIN
 		THEN MaxIt:=par.MaxItSS 
 		ELSE MaxIt:=par.MaxItTrans;
 
+
 	{init array where we'll store the results of each iteration loop. We need this to monitor our progress}
 	SetLength(ResJ, MaxIt+1); {we will use this array to store the result of J so we can estimate the error}
 	ResJ[it].CountJSmall:=0; {this counts the number of times (consecutively) that abs(Jint)<MinAbsJ}
+	ResJ[it].CountChangeSmall:=0; {counts the number of times (consecutively) that rel.change <MinRelChange}
 	
 	coupleIonsPoisson:=TRUE; {signfies whether ion density can be modified by Poisson solver}
 	
@@ -2261,8 +2277,6 @@ BEGIN
 		{perform 1 iteration, calc mobilities, densities, etc:}
 		Calc_elec_mob(mun, V, n, stv, par); {calc. the new mobilities}
 		Calc_hole_mob(mup, V, p, stv, par);
-		Calc_Dn(Dn, mun, n, stv, par); {update the diffusivities}
-		Calc_Dp(Dp, mup, p, stv, par);
 		Calc_Langevin_factor(Lang, mun, mup, stv, par);{Calc. the Langevin recombination strength}
 		Calc_Dissociation(diss_prob, gen, Gm, Lang, V, mun, mup, stv, par); {update generation rate}
 
@@ -2274,8 +2288,8 @@ BEGIN
 		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, Ntb_charge, Nti_charge, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
 		UpdateGenPot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 		{note: pass (new) p to Contn nor (new) n to Contp. This is needed so we can also do t=0!}
-		Contn(n, curr.n, Vgn, Jn, p, mun, Dn, gen, Lang, diss_prob, Rn, stv, par, dti); {calc. new elec. density}
-		Contp(p, curr.p, Vgp, Jp, n, mup, Dp, gen, Lang, diss_prob, Rp, stv, par, dti); {calc. new hole density}
+		Contn(n, curr.n, Vgn, Jn, p, mun, gen, Lang, diss_prob, Rn, stv, par, dti); {calc. new elec. density}
+		Contp(p, curr.p, Vgp, Jp, n, mup, gen, Lang, diss_prob, Rp, stv, par, dti); {calc. new hole density}
 		{note: transient ion solvers cannot (as yet) do steady-state, as that yields all densities=0!}
 		IF dti=0 {dti=0 => steady-date}
 			THEN Calc_Ion_Distribution_Steady_State(nion, pion, V, stv, par) {use steady-state proc for ions}
@@ -2294,16 +2308,7 @@ BEGIN
 		END;
 
 		{calculate current densities:}
-		Calc_elec_curr(Jn, Vgn, n, p, gen, Lang, diss_prob, Dn, mun, stv, par);
-		Calc_hole_curr(Jp, Vgp, p, n, gen, Lang, diss_prob, Dp, mup, stv, par);
-		
-		{the next 2 should be zero, of course, in steady-state}
-		Calc_ionic_currents(Jnion, Jpion, dti, V, nion, pion, stv, par); {calculate the ionic currents}
-		Calc_displacement_curr(JD, V, curr.V, dti, stv, par); {calc. displacement current}
-		
-		{calc the total current density}
-		Jint:=Average(Jn, stv.h,0,par.NP+1) + Average(Jp,stv.h,0,par.NP+1) 
-			  + Average(Jnion,stv.h,0,par.NP+1) + Average(Jpion,stv.h,0,par.NP+1) + Average(JD,stv.h,0,par.NP+1);
+		Calc_All_Currents(new, curr, stv, par); {calcs vectors Jn, Jp, Jnion, Jpion, JD and overall current Jint} 
 		
 		{check for convergence (several possibilities!) in separate routine:}
 		convIndex:=Determine_Convergence(ResJ, new, it, ConvMsg, check_Poisson, stv, par); {this is the index: 0 (not conv), 1: ideal, 2: special}
@@ -2334,121 +2339,13 @@ BEGIN
 	
 END;
 
-PROCEDURE Calc_displacement_curr(VAR JD, V, VPrevTime : vector; dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Calc_Displacement_Curr(VAR JD : vector; V, VPrevTime : vector; dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {This procedure calculates the displacement current}
 VAR i : INTEGER;
 BEGIN
 	FOR i:=0 TO par.NP DO
 		JD[i]:=stv.eps[i] * (V[i+1]-V[i]-VPrevTime[i+1]+VPrevTime[i]) * dti / (par.L*stv.h[i]);
 	JD[par.NP+1]:=JD[par.NP]; {doesn't have a physical meaning though}
-END;
-
-PROCEDURE Calc_elec_curr(VAR Curr, V, n, p, g, Lan, dp, D, mu : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure calculates the electron current density from Selberherr eq. 6.1-39 modified for generalised Einstein relation}
-VAR i  : INTEGER;
-	Rn : TRec;
-BEGIN
-	Calc_Recombination_n(Rn, n, p, dp, Lan, stv, par);
-	
-	FOR i:=0 TO par.NP DO
-	BEGIN
-		Curr[i]:=-q*(n[i+1]*D[i]*B(mu[i]*(V[i+1]-V[i])/D[i]) - n[i]*D[i]*B(mu[i]*(V[i]-V[i+1])/D[i]))/(par.L*stv.h[i]);
-		IF (stv.Nti[i] <> 0) AND (stv.Nti[i+1] <> 0) THEN
-			Curr[i]:= curr[i] + 0.5*q*par.L*stv.h[i]*(Rn.int[i] - Rn.int[i+1]);
-	END;
-	Curr[par.NP+1]:=Curr[par.NP]; {doesn't have a physical meaning though}
-END;
-
-PROCEDURE Calc_elec_curr_Int(VAR Curr : vector; V, r, mun, Dn : vector; n0, nL : double; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{calculates the current from Jn(x)= -q Int_0^x r(x) dx + Kn
- Kn: integration constant,
- see De Mari, solid-state elec. vol 11 p.33 (68) eq. 15
- HOWEVER, we can use the generalised Einstein relation}
-VAR i : INTEGER;
-    Kn, single_int, triple_int, double_int, int_R : EXTENDED;
-BEGIN
-    single_int:=0;
-    double_int:=0;
-    triple_int:=0;
-    int_R:=0;	
-	FOR i:=0 TO par.NP DO
-    BEGIN
-        single_int:=single_int + (V[i]-V[i+1])*mun[i]/Dn[i];
-		double_int:=double_int + stv.h[i]*par.L*EXP(single_int)/Dn[i];
-		int_R:=int_R + r[i]*stv.h[i]*par.L;
-		triple_int:=triple_int + stv.h[i]*par.L*int_R*EXP(single_int)/Dn[i];
-    END;
-    Kn:=(nL*EXP(single_int) - n0 - triple_int)/double_int;
-
-{note: now we swap the sign of the current to get negative Jsc, as is customary}
-{see LJAK's thesis p. 23 (footnote)}
-    Curr[0]:=-q*Kn;
-	FOR i:=1 TO par.NP+1 DO
-		Curr[i]:=Curr[i-1] - q*par.L*stv.h[i]*r[i]       
-END;
-
-PROCEDURE Calc_hole_curr_Int(VAR Curr : vector; V, r, mup, Dp : vector; p0, pL : double; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{calculates the current from Jp(x)= q Int_0^x r(x) dx + Kp
- Kp: integration constant,
- see De Mari, solid-state elec. vol 11 p.33 (68) eq. 15
- HOWEVER, we can use the generalised Einstein relation}
-VAR i : INTEGER;
-    Kp, single_int, triple_int, double_int, int_R : EXTENDED;
-BEGIN
-    single_int:=0;
-    double_int:=0;
-    triple_int:=0;
-    int_R:=0;		
-	FOR i:=0 TO par.NP DO
-    BEGIN
-        single_int:=single_int - (V[i]-V[i+1])*mup[i]/Dp[i];
-		double_int:=double_int + stv.h[i]*par.L*EXP(single_int)/Dp[i];
-		int_R:=int_R + r[i]*stv.h[i]*par.L;
-		triple_int:=triple_int + stv.h[i]*par.L*int_R*EXP(single_int)/Dp[i];
-    END;
-    Kp:=(p0 - pL*EXP(single_int) + triple_int)/double_int;
-{note: now we swap the sign of the current to get negative Jsc, as is customary}
-{see LJAK's thesis p. 23 (footnote)}    
-    Curr[0]:=-q*Kp;
-	FOR i:=1 TO par.NP+1 DO
-		Curr[i]:=Curr[i-1] + q*par.L*stv.h[i]*r[i]
-END;
-
-PROCEDURE Calc_hole_curr(VAR Curr, V, p, n, g, Lan, dp, D, mu : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure calculates the electron current density from Selberherr eq. 6.1-41 modified for generalised Einstein relation}
-VAR i  : INTEGER;
-	Rp : TRec;	
-BEGIN
-	Calc_Recombination_p(Rp, n, p, dp, Lan, stv, par);	
-	FOR i:=0 TO par.NP DO
-	BEGIN
-		Curr[i]:=-q*(p[i]*D[i]*B(mu[i]*(V[i+1]-V[i])/D[i]) - p[i+1]*D[i]*B(mu[i]*(V[i]-V[i+1])/D[i]))/(par.L*stv.h[i]);
-		IF (stv.Nti[i] <> 0) AND (stv.Nti[i+1] <> 0) THEN
-			Curr[i]:= curr[i] - 0.5*q*par.L*stv.h[i]*(Rp.int[i] - Rp.int[i+1]);		
-	END;
-	Curr[par.NP+1]:=Curr[par.NP]; {doesn't have a physical meaning though}
-END;
-
-PROCEDURE Calc_ionic_currents(VAR Jnion, Jpion : vector; dti : myReal; V, nion, pion : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure calculates the ionic current densities from Selberherr eq. 6.1-39/41}
-VAR i : INTEGER;
-BEGIN
-	FOR i:=0 TO par.NP DO
-	BEGIN
-		{ONLY calc the ionic current if: 
-		1) they move, and, 
-		2) we are not in steady-state (so dti<>0), and
-		3) we are not crossing an interface where there are no ions at one of the sides of the interface (nion[i]*nion[i+1]<>0)}
-		
-		IF par.negIonsMove AND (dti<>0) AND (nion[i]*nion[i+1]<>0) {if dti=0, then we're in steady-state => ionic currents are zero!}
-			THEN Jnion[i]:=-q*stv.Vt*par.mobnion*(nion[i+1]*B(stv.Vti*(V[i+1]-V[i])) - nion[i]*B(stv.Vti*(V[i]-V[i+1])))/(par.L*stv.h[i])
-			ELSE Jnion[i]:=0;
-		IF par.posIonsMove AND (dti<>0) AND (pion[i]*pion[i+1]<>0)
-			THEN Jpion[i]:=-q*stv.Vt*par.mobpion*(pion[i]*B(stv.Vti*(V[i+1]-V[i])) - pion[i+1]*B(stv.Vti*(V[i]-V[i+1])))/(par.L*stv.h[i])
-			ELSE Jpion[i]:=0;
-	END;
-	Jnion[par.NP+1]:=Jnion[par.NP]; {doesn't have a physical meaning though}
-	Jpion[par.NP+1]:=Jpion[par.NP]; {doesn't have a physical meaning though}
 END;
 
 FUNCTION Calc_Range_Current(VAR Jn, Jp, Jnion, Jpion, JD : vector; CONSTREF par : TInputParameters) : myReal;
@@ -2467,6 +2364,133 @@ BEGIN
 	END;
 	Calc_Range_Current:=highJ-lowJ; {range: difference between largest and smallest J}
 END;
+
+PROCEDURE Calc_Curr_Diff(sn : ShortInt; istart, ifinish : INTEGER; VAR J : vector; V, dens, mu, Rint : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{This procedure calculates the current density in differential form, see Selberherr eq. 6.1-39 or 6.1-41}
+{sn denotes the sign of the carrier, so -1 for electrons, +1 for holes}
+VAR i  : INTEGER;
+BEGIN
+	IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Diff');
+	IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Diff.');
+
+	{the current is only non-zero between istart and ifinish, so first init the zero's:}
+	FOR i:=0 TO istart-1 DO J[i]:=0;
+	FOR i:=ifinish+1 TO par.NP DO J[i]:=0;
+	
+	{now actually calc the current:}
+	FOR i:=istart TO ifinish DO
+	BEGIN
+		J[i]:=sn*q*mu[i]*stv.Vt*(dens[i+1]*B(sn*(V[i]-V[i+1])*stv.Vti) - dens[i]*B(sn*(V[i+1]-V[i])*stv.Vti))/(par.L*stv.h[i]);
+		IF (stv.Nti[i] <> 0) AND (stv.Nti[i+1] <> 0) THEN
+				J[i]:=J[i] - sn*0.5*q*par.L*stv.h[i]*(Rint[i] - Rint[i+1])
+	END;
+	
+	{last point as this is in the output (Var_file)}
+	J[par.NP+1]:=J[par.NP]; {doesn't have a physical meaning: J[NP+1] is current between NP+1 and NP+2}
+END;
+
+PROCEDURE Calc_Curr_Int(sn : ShortInt; istart, ifinish : INTEGER; dti : myReal; VAR J : vector; V, dens, olddens, mu, g : vector; 
+						CONSTREF Rec : TRec; CONSTREF stv : TStaticVars; 
+						CONSTREF par : TInputParameters);
+{Calculates the current density in integral form, see De Mari, solid-state elec. vol 11 p.33 (68) eq. 15}
+{istart and ifinish exclude the electrodes, so istart>=1, ifinish<=NP}
+{sn denotes the sign of the carrier, so -1 for electrons, +1 for holes}
+VAR i : INTEGER;
+    K, single_int, double_int, int_U, dx : myReal;
+    U : vector;
+BEGIN
+	{first check a few things:}
+	IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Int');
+	IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Int.');
+
+    single_int:=0;
+    double_int:=0;
+    int_U:=0;
+
+	{the current is only non-zero between istart and ifinish, so first init the zero's:}
+	FOR i:=0 TO istart-1 DO J[i]:=0;
+	FOR i:=ifinish+1 TO par.NP DO J[i]:=0;
+
+	{now we compute the various integrals. Note: some variables are on-grid (V, dens, Rnet.direct/bulk), but 
+	others are not: Rnet.int is defined between 2 grid points. We approximate the integral in either case 
+	by value(grid point i) * grid spacing between i and i+1. This works as we're using a grid with a uniform
+	spacing near the interfaces (see Make_Grid)} 
+    FOR i:=istart TO ifinish DO
+    BEGIN
+		U[i]:=Rec.direct[i] + Rec.bulk[i] + Rec.int[i] - g[i] {recombination - generation in grid point i}
+				   + dti * (dens[i]-olddens[i]); {change in density also contributes}    
+        dx:=stv.x[i+1]-stv.x[i]; {grid spacing between x[i] and x[i+1]}
+        single_int:=single_int + EXP(sn*V[i]*stv.Vti)*dx/mu[i];
+        int_U:=int_U + U[i]*dx;
+        double_int:=double_int + EXP(sn*V[i]*stv.Vti)*int_U*dx/mu[i]
+    END;
+    K:=(stv.Vt*(sn*dens[ifinish+1]*EXP(sn*V[ifinish+1]*stv.Vti) - sn*dens[istart]*EXP(sn*V[istart]*stv.Vti)) 
+		- sn*double_int)/single_int;
+
+    J[istart]:=q*K;
+    FOR i:=istart+1 TO ifinish DO
+        J[i]:=J[i-1] + sn*q*par.L*stv.h[i]*U[i];
+	
+	{now correct for interface recombination. This represents the current THROUGH the interface traps.}
+	FOR i:=1 TO par.NP+1 DO 
+		IF (stv.Nti[i] <> 0) AND (stv.Nti[i+1] <> 0) THEN
+			J[i]:=J[i-1] + sn*0.5*q*par.L*stv.h[i]*(Rec.int[i] + Rec.int[i+1]);
+
+    J[par.NP+1]:=J[par.NP]; {doesn't have a physical meaning: J[NP+1] is current between NP+1 and NP+2}
+END;
+
+PROCEDURE Calc_All_Currents(VAR new : TState; CONSTREF curr : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
+{calculates all the currents for state new}
+VAR Rec : TRec; {temp variable that will store the electron, hole, ion recombination}
+	mob : vector;
+	i, istart, ifinish : INTEGER;
+BEGIN
+	WITH new DO 
+	BEGIN
+		{first do the electrons}
+		Calc_Recombination_n(Rec, n, p, diss_prob, Lang, stv, par); {calc net recombination of electrons}
+		CASE par.CurrDiffInt OF
+			1 : Calc_Curr_Diff(-1, 0, par.NP, Jn, Vgn, n, mun, Rec.int, stv, par); {only needs part of Rec with interface recombination}
+			2 : Calc_Curr_Int(-1, 0, par.NP, dti, Jn, Vgn, n, curr.n, mun, gen, Rec, stv, par); {needs full Rec and curr.n}
+		END;	
+
+		{now do the holes}
+		Calc_Recombination_p(Rec, n, p, diss_prob, Lang, stv, par); {calc net recombination of holes}
+		CASE par.CurrDiffInt OF
+			1 : Calc_Curr_Diff(1, 0, par.NP, Jp, Vgp, p, mup, Rec.int, stv, par);{only needs part of Rec with interface recombination}
+			2 : Calc_Curr_Int(1, 0, par.NP, dti, Jp, Vgp, p, curr.p, mup, gen, Rec, stv, par); {needs full Rec and curr.p}
+		END;	
+
+		{ions can be limited to the middle layer (which can take up the whole device i=0...NP+1.}
+		{we calc the current between points istart and ifinish:}
+		IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN istart:=stv.i1+1 ELSE istart:=0;
+		IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN ifinish:=stv.i2-2 ELSE ifinish:=par.NP;
+
+		{for the ions, we always take the diff form as this appears to work best, also in transient simulations}
+		IF par.negIonsMove AND (dti<>0) THEN {dti=0, then we're in steady-state => ionic currents are zero!}
+		BEGIN 
+			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobnion;
+			Calc_Curr_Diff(-1, istart, ifinish, Jnion, V, nion, mob, Rec.int, stv, par);			
+		END
+		ELSE FILLCHAR(Jnion, SIZEOF(Jnion), 0); {set ionic current to zero}
+	
+		IF par.posIonsMove AND (dti<>0) THEN {dti=0, then we're in steady-state => ionic currents are zero!}
+		BEGIN 
+			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobpion;
+			Calc_Curr_Diff(1, istart, ifinish, Jpion, V, pion, mob, Rec.int, stv, par);
+		END
+		ELSE FILLCHAR(Jpion, SIZEOF(Jpion), 0); {set ionic current to zero}
+		
+		{lastly, the displacement current:}
+		IF (dti<>0)
+			THEN Calc_displacement_curr(JD, V, curr.V, dti, stv, par) {calc. displacement current}
+			ELSE FILLCHAR(JD, SIZEOF(JD), 0); {if dti=0 => steady-state, so zero.}
+		
+		{calc the total current density}
+		Jint:=Average(Jn, stv.h,0,par.NP+1) + Average(Jp,stv.h,0,par.NP+1) 
+			  + Average(Jnion,stv.h,0,par.NP+1) + Average(Jpion,stv.h,0,par.NP+1) + Average(JD,stv.h,0,par.NP+1);	
+	END;
+END; 
 
 PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN); 
 {create a new tJV_file with appropriate heading

@@ -1,7 +1,7 @@
 ** ZimT Device data
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'
-** version: 4.09
+** version: 4.20
 
 **General**************************************************************************
 T = 300              * K, absolute temperature
@@ -98,9 +98,11 @@ maxDelV = 10         * maximum change (in Vt) of the potential per loop
 MaxItPois = 3e2      * max. number it. Poisson loop
 MaxItSS = 1e3        * max. number it. steady-state loops
 MaxItTrans = 300     * max. number it. transient solver
+CurrDiffInt = 1      * Calc. current from differential (1) or integral (2) expression
 tolJ = 0.01          * tolerance of current in main loop, 1% OK.
-MinAbsJDark = 1e-10  * A/m2, if |Jint|<MinAbsJDark and Gehp=0 we simply stop and take Jint=0 
-accDens = 0.2        * accelation for densities, 0 < accDens < 2, reduce if convergence is difficult
+MinRelChange = 1e-8  * if change per loop smaller than this, then the loop converges
+MinAbsJDark = 0      * A/m2, if |Jint|<MinAbsJDark and Gehp=0 we simply stop and take Jint=0
+accDens = 0.9        * accelation parameter for density solver, 0 < accDens < 2
 IgnoreNegDens = 1    * whether(1) or not(<>1) to ignore negative densities
 FailureMode = 2      * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
 grad = 1             * determines shape of exp. grid, increase grad for smaller h[1]

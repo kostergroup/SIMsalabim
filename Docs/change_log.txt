@@ -1,3 +1,62 @@
+Version 4.20, 19 Oct 2021, LJAK
+
+I have removed the ri, rf parameters introduced in version 4.13 and re-introduced accDens to use SOR/SUR: Now that a couple of other issues that affect stability have been addressed (versions 4.14-4.19), ri and rf are no longer needed and actually decrease stability and convergence. After testing both ZimT and SIMsalabim in a large number of cases, I conclude that SOR/SUR (accDens) is a better way of limiting the change per loop.
+
+
+Version 4.19, 12 Oct 2021, LJAK
+I have improved the approximation to the Bernoulli function (B in DDRoutines). The full B(x) function is quite costly to calculate and unstable near x=0 so there exist several approximation schemes. I have simplified our implementation and have improved it as well. We use a Taylor series near x=0. If |x| is too large, then we use the full expression (x/(exp(x)-1). Please note, |x| is mostly small so we rarely need to use the full expression. 
+The Taylor series around 0 is: B(x) = 1 - x/2 + x^2/12 -x^4/720 + O(x^6). So, if |x| < 0.05, we use the 1st order, then we use the 2nd order expression as long as |x|<0.45. Next, we use the 4th order expansion if |x|<1.5. This ensures that (for all x), the error (approximation - full B) range from ... to... and the relative error ABS( (approximation-B)/B) ) < .
+
+Also updated the copyright information (where applicable) and removed the (redundant) licence files in the sub-folders.
+
+Version 4.18, 7 Oct 2021, MK
+
+I've changed the Poisson solver to solve the correct equation when the dielectric constant is not uniform over the device. The previous implementation of the Poisson equation assumed a uniform dielectric constant over the device. To change this I've re-derived the Poisson equation for the case of non-uniform dielectric constant. In this case an extra term pops up that is zero when the dielectric constant is uniform.
+
+
+Version 4.17, 6 Oct 2021
+
+1) I have implemented the integral form of calculating the electron and hole currents (see version 4.16): This is based on a paper by De Mari (De Mari, solid-state elec. vol 11 p.33 (68)). Instead of calculating the current from the drift-diffusion equation (so based on the derivatives of the potential and densities), De Mari integrates the continuity equation (dJ_{n,p}/dx = +-qU, where U is the net generation/recombination). The nice thing about the expression is that the resulting total current density is often uniform across the simulation volume. This new routine (Calc_Curr_Int) needs the recombination and generation across the layer so these are calculated first. This should also work for ions by simply making the generation and recombination equal to zero. However, if the ions cannot move into the transport layers, then there is a peak in the current at these interfaces. Not sure why so, for now at least, we simply use the differential expression for the ionic currents. The user can switch between the differential and integral forms for calculating the current by setting parameter CurrDiffInt either to 1 or 2.
+Note, in the integrals some variables are on-grid (V, dens, Rnet.direct/bulk), but others are not: Interface recombination is defined between two grid points. We approximate the integral in either case by value(grid point i) * grid spacing between i and i+1. This works as we are using a grid with a uniform spacing near the interfaces (see Make_Grid). 
+
+2) BUG: SolvePosIons did not properly determine istart, ifinish and was not consistent with its sibling SolveNegIons. 
+
+
+
+Version 4.16, 30 Sep 2021, LJAK
+I have combined the calculations of the current densities inside the device (Jn, Jp, Jnion, Jpion, and JD) into one procedure called Calc_All_Currents. This procedure also calculates the total current inside the device, Jint. I have done this as the ionic currents and the electron/hole currents are all based on the same expression (Selberherr eq. 6.1-39/41) so there is no point in having four such routines. 
+The actual calculation of the currents is done in procedure Calc_Curr_Diff (only listed in implementation part) which takes a sign (sn) of the charge carrier as one of the inputs. It is called ..._Diff as this expression is based on the differentials of the density and voltage. In another update, I will make a similar procedure called Calc_Curr_Int which is based on De Mari's form for the current, based on integration.
+
+
+Version 4.15, 23 Sep 2021, LJAK
+Small change to update 4.13: If the change per loop (in the densities) is small (i.e. change is smaller than r), then we simply don't touch the densities. Previously, we would first calculate the change and then add the change to the old density. That might look like the same thing, but it is not quite (I suppose due to the finite number of digits and loss of accuracy when subtracting two numbers that are almost the same).
+
+Version 4.14, 22 Sep 2021, LJAK
+I have improved the grid: The grid is now finer near internal interfaces (if any) and near the contacts if grad>0. Routine Make_Grid also defines the parameters i1, i2 (previously done by Define_Layers), the indices that define the interfaces. The actual grid in a layer (TL or main layer) is created by Make_Sub_Grid. The number of grid points per layer is proportional to its thickness but cannot be fewer than 5. Also, we ensure that the grid spacing (h[] array) is constant at the interface. This makes the code a bit more stable.
+
+
+Version 4.13, 17 Sep 2021, LJAK
+In order to help stability and convergence, I have changed the way we update the carrier and ion densities in the main loop. Previously, we would use SUR/SOR (SUR, in reality) to update the densities, controlled by parameter accDens. I found that limiting the change in densities (for electrons, holes, and both ionic species) to some fraction of the density works much better. The program is less likely to crash and way more voltages (SIMsalabim) appear to converge. 
+What we do now: the change in density (show for electrons, so n) is limited to r. r changes with the number of iterations done. It decays exponentially from ri to rf, so from some initial value (say, 10) down to a smaller final value (for example, 0.05). This allow the program to do some rapid changes in the first couple of iterations, but dampens oscillatory behaviour later on.
+
+
+
+Version 4.12, 14 Sep 2021, LJAK
+I have removed the diffusivities from the code as we rely on the Einstein relation (qD=mu kT) any way and we use the drift-diffusion equations in their non-degenerate form. Therefore, there is no point in have separate diffusivities. The resulting code is about 1% faster. Had hoped for a little bit more, to be honest.
+So:
+1) Removed arrays Dn, Dp from TState
+2) Removed routines Calc_Dn,p
+
+
+Version 4.11, 7 Sep 2021, LJAK
+Slight change to the Determine_Convergence routine: Previously, if the Poisson solver didn't converge, then we would not check for any of the other indicators of convergence. As a result, the relative change that was stored (ResJ) could be zero, simply because it was never assigned a value. As of now, we look at all convergence criteria, even if the Poisson solver did not converge. As a consequence, the program will converge if the Poisson solver converged in the current loop, even if the previous loop did not.
+
+
+
+Version 4.10, 6 Sep 2021, LJAK, MK
+Added a new convergence criterion: We allow for convergence (index = 3) if the absolute relative change is consistenly (MinCountChangeSmall, see DDTypesAndConstants) is smaller than MinRelChange (input). We also require that the Poisson loop has converged and that the current is sufficiently uniform.
+
+
 Version 4.09, 1 Sep 2021, LJAK
 BUG FIX:
 In previous versions (>=4.00), the injection barriers (phi_left phi_right) were calculated based on the difference in the work function of the electrodes and the conduction/valence band of the main layer. So even if there are transport layers. To fix this, I have moved the calculation of the injection barriers from Read_Parameters into DefineLayers: in DefineLayers, we init. two arrays (E_CB and E_VB) that contain the local conduction and valence band extrema, so the injection barriers are easily calculated.

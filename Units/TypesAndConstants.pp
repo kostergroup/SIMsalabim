@@ -34,7 +34,7 @@ Nijenborgh 4, 9747 AG Groningen, the Netherlands
 interface
 
 const
-    Max_NP = 1000;     {max number of grid points except contacts}
+    Max_NP = 2000;     {max number of grid points except contacts}
 
 type myReal = EXTENDED; 
 	 vector = ARRAY[0..Max_NP + 1] OF myReal;

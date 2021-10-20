@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.09'; {version of this unit}
+    DDTypesAndConstantsVersion = '4.20'; {version of this unit}
     parameter_file = 'device_parameters.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -58,7 +58,8 @@ CONST
     tab2 = 28; {IN: Calc_and_Output_Solar_Cell_Parameters, 2nd position of tab in table with solar cell parameters}
     tab3 = 50; {IN: Calc_and_Output_Solar_Cell_Parameters, 3rd position of tab in table with solar cell parameters}
 	MinCountStatic = 5; {number of time steps we consider to be static}
-	MinCountJSmall = 3; {IN: Main_Solver, used if we're simulating really small currents.}
+	MinCountChangeSmall = 3; {IN: determine_convergence, used if loop hardly changes.}
+	MinCountJSmall = 3; {IN: determine_convergence, used if we're simulating really small currents.}
     
 TYPE 
     TProgram = (ZimT, SIMsalabim); {which program are we using?}
@@ -82,7 +83,7 @@ TYPE
 				    dti, Vint, Vext, Jint, Jext : myReal; {derivative variables or result of simulation}
 				    SimType, convIndex : INTEGER; 
 				    V, Vgn, Vgp, n, p, nion, pion, Gm, 
-				    Jn, Jp, Jnion, Jpion, JD, mun, mup, Dn, Dp,
+				    Jn, Jp, Jnion, Jpion, JD, mun, mup,
 				    gen, Lang, SRH, diss_prob, 
 				    Ntb_charge, Nti_charge, {charge density of bulk/interface trap}
 				    f_tb, f_ti : vector; {f_tb/i: occupancy of bulk/interface trap}
@@ -115,7 +116,7 @@ TYPE
 							kf, Lang_pre, kdirect,
 							Bulk_tr, St_L, St_r, GB_tr, 
 							Cn, Cp, Etrap, tolPois, maxDelV,
-							tolJ, accDens, grad, TolRomb, 
+							tolJ, MinRelChange, accDens, grad, TolRomb, 
 							LowerLimBraun, UpperLimBraun,
 							TolVint,
 							MinAbsJDark, Vpre, Vmin, Vmax, Vstep, Vacc, rms_threshold : myReal; 
@@ -123,7 +124,8 @@ TYPE
 							MaxItPois, MaxRombIt, 
 							mob_n_dep, mob_p_dep,
 							ThermLengDist, ion_red_rate, num_GBs, Tr_type_L, Tr_type_R, Tr_type_B, 
-							NP, MaxItSS, MaxItTrans, FailureMode, OutputRatio, Vdistribution, Vscan, 
+							NP, CurrDiffInt, MaxItSS, MaxItTrans, 
+							FailureMode, OutputRatio, Vdistribution, Vscan, 
 							Pause_at_end : INTEGER; 
 							{derived booleans:}
 							Field_dep_G, negIonsMove, posIonsMove, TLsAbsorb,
@@ -148,7 +150,7 @@ TYPE
 											
 	TItResult = ARRAY OF RECORD {we use this in MainSolver to store the J, change and error estimate in every iteration loop}
 						Jint, RangeJ, relchange, error : myReal;
-						CountJSmall : INTEGER;
+						CountChangeSmall, CountJSmall : INTEGER;
 					END;									
 		
 

@@ -4,7 +4,7 @@
 
 {
 ZimT:a transient 1D drift-diffusion simulator 
-Copyright (c) 2020 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
+Copyright (c) 2020, 2021 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
 F. Wobben, and Prof. Dr L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.09';  
+    version = '4.20';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -259,7 +259,7 @@ BEGIN {main program}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
     IF par.AutoTidy THEN Tidy_up_parameter_file(FALSE); {clean up file but don't exit!}
     
-    Make_Grid(stv.h, stv.x, par); {Initialize the grid}
+    Make_Grid(stv.h, stv.x, stv.i1, stv.i2, par); {Initialize the grid}
     DefineLayers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
     Init_nt0_and_pt0(stv, par); {inits nt0 and pt0 arrays needed for SRH recombination}
 	Init_Trap_Distribution(stv, par); {Places all types of traps (bulk and interface) in the device at places deterined by define_layers.}
