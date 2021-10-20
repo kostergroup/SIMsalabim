@@ -51,7 +51,7 @@ For the use of perovskite solar cells, the following paper offers a detailed des
 
 ## Pre-compiled binaries
 
-SIMsalabim and ZimT come as pre-compiled binaries for WIN or Linux (64 bits), see folder 'Binaries'. This avoids having to download and install the FPC compiler and compiling the code which is described below. There is no guarantee that these will work, but it is worth a try. Simply copy the binary to the main SIMsalabim/ZimT folder. The Linux one might require a change of permissions to run, something like:
+SIMsalabim and ZimT come as pre-compiled binaries for WIN or Linux (64 bits), see [releases](https://github.com/kostergroup/SIMsalabim/releases). This avoids having to download and install the FPC compiler and compiling the code which is described below. There is no guarantee that these will work, but it is worth a try. Simply copy the binary to the main SIMsalabim/ZimT folder. The Linux one might require a change of permissions to run, something like:
 <pre><code>
     chmod +x SIMsalabim
  </code></pre>
