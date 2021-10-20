@@ -1,5 +1,5 @@
 ---
-title: 'SIMsalabim: A time resolved drift-diffusion simulation software'
+title: 'SIMsalabim: An open-source drift-diffusion simulator for semiconductor devices'
 tags:
     - semiconductor
     - solar cell
