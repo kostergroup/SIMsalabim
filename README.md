@@ -59,18 +59,16 @@ SIMsalabim and ZimT come as pre-compiled binaries for WIN or Linux (64 bits), se
 
 ## Quickstart guide
 There are 3 steps to complete to run SIMsalabim or ZimT for the first time:
-  1. Install the free pascal compiler.
+  1. Install the "Free Pascal" compiler.
   2. Compile SIMsalabim (or ZimT).
   3. Run SIMsalabim (or ZimT). 
 
-Below are the instructions for performing these steps on Ubuntu (or any other Debian based Linux distribution) and Windows. 
+SIMsalabim and ZimT should compile and run on any platform supported by the "Free Pascal" compiler. We provide detailed instructions for installing both the compiler and running the code for Windows and Linux (Ubuntu). For any other platform, please install the compiler (version 3.2.0 or newer) following the instructions from https://www.freepascal.org/. Steps 2 and 3 (compile and run) should be similar to the Ubuntu and Windows steps outlined below.
 
-*Installing on other Linux distributions:*
-
-Most package managers for other Linux distributions ship the compiler package in a recent enough version (version 3.2.0 or newer of package *fpc*), so it suffices to exchange the *apt install* command with another package manager's equivalent.  
+Below are the instructions for performing these steps on Ubuntu (or any other Debian based Linux distribution) and Windows.  
 
 
-### Ubuntu guide
+### Ubuntu (Linux) guide
 
 Navigate to the SIMsalabim or ZimT folder, where you can find SIMsalabim.pas or zimt.pas. This example assumes you want to compile SIMsalabim, but you can replace SIMsalabim with zimt in the commands and run from the ZimT folder to compile and run zimt. 
 
@@ -95,6 +93,10 @@ Steps:
 fpc SIMsalabim
 ./SIMsalabim
 ```
+
+*Installing on other Linux distributions:*
+
+Most package managers for other Linux distributions ship the compiler package in a recent enough version (version 3.2.0 or newer of package *fpc*), so it suffices to exchange the *apt install* command with another package manager's equivalent. 
 
 ### Windows guide
 
