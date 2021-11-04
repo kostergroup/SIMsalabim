@@ -1,3 +1,10 @@
+Version 4.22, 3 Nov 2021, MK
+Bugfix: In Calc_trap_charge, the charge for interface traps was not correctly saved, resulting in a zero charge when this should not be the case.
+
+Version 4.21, 27 Oct 2021, LJAK
+BUG: in the main solver (line 2288) there was a mistake in the call to the Poisson solver. The parameters (arrays) Nti_charge and Ntb_charge were swapped as compared to the declaration in the implementation part. In general, I think it's easiest to stick to alphabetic ordering in such cases, so I have changed the order in the declaration.
+
+
 Version 4.20, 19 Oct 2021, LJAK
 
 I have removed the ri, rf parameters introduced in version 4.13 and re-introduced accDens to use SOR/SUR: Now that a couple of other issues that affect stability have been addressed (versions 4.14-4.19), ri and rf are no longer needed and actually decrease stability and convergence. After testing both ZimT and SIMsalabim in a large number of cases, I conclude that SOR/SUR (accDens) is a better way of limiting the change per loop.

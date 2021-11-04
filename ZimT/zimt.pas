@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.20';  
+    version = '4.22';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -262,7 +262,7 @@ BEGIN {main program}
     Make_Grid(stv.h, stv.x, stv.i1, stv.i2, par); {Initialize the grid}
     DefineLayers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
     Init_nt0_and_pt0(stv, par); {inits nt0 and pt0 arrays needed for SRH recombination}
-	Init_Trap_Distribution(stv, par); {Places all types of traps (bulk and interface) in the device at places deterined by define_layers.}
+	Init_Trap_Distribution(stv, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
 
 	Open_and_Read_tVG_file(inv, new, par); {open tVG file, read header and first time/voltage/Gehp}
 

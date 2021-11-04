@@ -43,7 +43,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.20'; {version of this unit}
+CONST DDRoutinesVersion = '4.22'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -125,7 +125,7 @@ If dti > 0 we're using the transient equations (Selberherr 6-4.33)}
 PROCEDURE Calc_trap_charge(VAR f_tb, f_ti, Ntb_charge, Nti_charge : vector; n, p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {calculate the charge of the traps at every gridpoint.}
 
-PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion, f_tb, f_ti, Nti_charge, Ntb_charge : vector; 
+PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion, f_tb, f_ti, Ntb_charge, Nti_charge : vector; 
 						VAR conv, coupleIonsPoisson : BOOLEAN; VAR PoissMsg : STRING; 
 						dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Solves the Poisson equation, can be used in steady-state and transient simulations}
@@ -1389,7 +1389,7 @@ BEGIN
 	IF (stv.Traps_int_poisson) THEN
 	BEGIN
 		f_ti := Calc_f_ti(Calc_f_ti_numer(n, p, stv, par), Calc_inv_f_ti_denom(n, p, stv, par), par);			
-		Nti_charge[i] := stv.q_tr_igb[i]*(stv.cwe_i[i] - f_ti[i]) * 0.5 * stv.Nti[i]; {each side of the interface hosts half the traps}
+		FOR i:=0 TO par.NP+1 DO Nti_charge[i] := stv.q_tr_igb[i]*(stv.cwe_i[i] - f_ti[i]) * 0.5 * stv.Nti[i]; {each side of the interface hosts half the traps}
 	END
 	ELSE
 		Nti_charge := zeros;
@@ -1467,7 +1467,7 @@ BEGIN
 	END;
 END;
 
-PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion, f_tb, f_ti, Nti_charge, Ntb_charge : vector; 
+PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion, f_tb, f_ti, Ntb_charge, Nti_charge : vector; 
 						VAR conv, coupleIonsPoisson : BOOLEAN; VAR PoissMsg : STRING; dti : myReal;
 						CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Solves the Poisson equation, can be used in steady-state and transient simulations}
