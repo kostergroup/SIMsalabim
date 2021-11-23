@@ -11,10 +11,10 @@ In case of bug reports we will need the exact configuration of the 'device_param
 
 
 ## Overall structure
-- ZimT and SIMsalabim share much of the same code, so try to put new code in the units, not in ZimT or SIMsalabim
-- Routines, types and constants that are specific to drift-diffusion modelling should go in DDRoutines or DDTypesAndConstants. These units should have the same version number as the ZimT/SIMsalabim codes.
+- ZimT and SimSS share much of the same code, so try to put new code in the units, not in ZimT or SimSS
+- Routines, types and constants that are specific to drift-diffusion modelling should go in DDRoutines or DDTypesAndConstants. These units should have the same version number as the ZimT/SimSS codes.
 - Somewhat generic routines, types and constants should go into units TypesAndConstant, InputOutputUtils, and NumericalUtils. As yet, these units do not have a version number.
-- Input parameters and parameters that are directly derived from those input parameters (like Booleans based on a 0,1 input) are stored in par (='parameters') of type TInputParameters. The order of the fields within this record (integers, reals, etc are grouped) should follow the order of the variables in the file device_parameters.txt. Note: some parameters are limited to either SIMsalabim or ZimT. However, we do not make use of the possibility of introducing a variant part in these records as this led to unexpected behaviour. For example, when a field is only defined (through the variant part) to ZimT, it was still availalbe in SIMsalabim and no warning or exception was given when using that part of the record (with an undefined value!).
+- Input parameters and parameters that are directly derived from those input parameters (like Booleans based on a 0,1 input) are stored in par (='parameters') of type TInputParameters. The order of the fields within this record (integers, reals, etc are grouped) should follow the order of the variables in the file device_parameters.txt. Note: some parameters are limited to either SimSS or ZimT. However, we do not make use of the possibility of introducing a variant part in these records as this led to unexpected behaviour. For example, when a field is only defined (through the variant part) to ZimT, it was still availalbe in SimSS and no warning or exception was given when using that part of the record (with an undefined value!).
 - Other variables that remain do not change throughout the simulation are stored in stv (='static variables') of type TStaticVars.
 
 ## General remarks on changing the code
@@ -33,4 +33,4 @@ In case of bug reports we will need the exact configuration of the 'device_param
 
 ## Parameters
 - Physical units: SI only, except for work functions (eV). Work functions are given as the distance to vacuum so they are positive.
-- Device parameters: try to keep the same order for ZimT and SIMsalabim. Every parameter should have a unit (if any) and a short description. After reading the parameters, they should be checked (to some extent) whether they make sense (logical, physical) in Check_Parameters.
+- Device parameters: try to keep the same order for ZimT and SimSS. Every parameter should have a unit (if any) and a short description. After reading the parameters, they should be checked (to some extent) whether they make sense (logical, physical) in Check_Parameters.

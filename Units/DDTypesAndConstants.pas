@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.22'; {version of this unit}
+    DDTypesAndConstantsVersion = '4.25'; {version of this unit}
     parameter_file = 'device_parameters.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -62,7 +62,7 @@ CONST
 	MinCountJSmall = 3; {IN: determine_convergence, used if we're simulating really small currents.}
     
 TYPE 
-    TProgram = (ZimT, SIMsalabim); {which program are we using?}
+    TProgram = (ZimT, SimSS); {which program are we using?}
     
     TJVList = ARRAY OF RECORD {for storing the JV curve}
                         Vint, Vext : myReal;

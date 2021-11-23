@@ -1,7 +1,7 @@
-** SIMsalabim Device data:
+** SimSS Device data:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.22
+** version: 4.25
 
 **General**************************************************************************
 T = 295                  * K, absolute temperature
@@ -128,12 +128,12 @@ Vstep = 0.1              * V
 Vacc = 0                 * V, point of accumulation of row of V's, note: Vacc should be
                          * slightly larger than Vmax or slightly lower than Vmin
 NJV = 50                 * number of JV points in logarithmic distribution
-until_Voc = 0            * if 1 then SIMsalabim will stop at Voc
+until_Voc = 0            * if 1 then SimSS will stop at Voc
 
 **User interface********************************************************************
 Pause_at_end = 0         * pause at the end of the simulation yes(1) or no (0)
-AutoTidy = 1             * if 1, then SIMsalabim will always tidy up this file
-UseExpData = 0           * if 1, SIMsalabim will try to read JV_Exp and use it
+AutoTidy = 1             * if 1, then SimSS will always tidy up this file
+UseExpData = 0           * if 1, SimSS will try to read JV_Exp and use it
 ExpJV = expJV.csv        * name of file with experimental JV characteristics
 rms_mode = lin           * lin or log: use J or log(J) in calc. of rms error
 rms_threshold = 0.8      * threshold of fraction converged points in calc. rms error

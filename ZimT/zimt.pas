@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.22';  
+    version = '4.25';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -266,7 +266,7 @@ BEGIN {main program}
 
 	Open_and_Read_tVG_file(inv, new, par); {open tVG file, read header and first time/voltage/Gehp}
 
-	WITH new DO Init_Pot_Dens_Ions(V, Vgn, Vgp, n, p, nion, pion, Vint, stv, par); {init. (generalised) potentials and densities}
+	WITH new DO Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, Vint, stv, par); {init. (generalised) potentials and densities}
 	{just to make sure these are initialised!}
 	curr:=new;
 	prev:=curr;

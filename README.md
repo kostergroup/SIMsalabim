@@ -1,43 +1,153 @@
 # SIMsalabim Project
 
-SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, solar cells, diodes, organics, perovskites). 
+SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, solar cells, diodes, organics, perovskites). It consists of two programs that share most of their code: SimSS (simulates steady-state), and ZimT (zimulates transients).
 
 ## Table of Contents
 1. [Introduction](#introduction)
-2. [Copyright and license](#copyright-and-license)
+2. [Quickstart guide](#quickstart-guide)
 3. [Instructional videos](#instructional-videos)
-4. [How to cite](#how-to-cite)
-5. [How to compile](#how-to-compile)
-6. [Pre-compiled binaries](#pre-compiled-binaries)
-7. [Quickstart guide](#quickstart-guide)
-8. [Scientific publications based on SIMsalabim](#scientific-publications-based-on-simsalabim)
+4. [Running SIMsalabim](#running-simss-or-zimt)
+5. [How to cite](#how-to-cite)
+6. [Copyright and license](#copyright-and-license)
+7. [How to contribute](#how-to-contribute)
+8. [Scientific publications based on SIMsalabim](#scientific-publications-based-on-the-simsalabim-project)
 
 ## Introduction
 
-SIMsalabim and ZimT can be used to simulate current-voltage (JV) characteristics of semiconductor devices. This includes the effects of generation, recombination and trapping of electrons and holes, the effect of ions and dopants, and self-consistently solves the electric field that results from all charged species. The routines that make up this project are used in two different guises: SIMsalabim and ZimT. The former is a steady-state version and is the 'main' code. The latter, ZimT, can be used to simulate transients. 
+SimSS and ZimT can be used to simulate current-voltage (JV) characteristics of semiconductor devices. This includes the effects of generation, recombination and trapping of electrons and holes, the effect of ions and dopants, and self-consistently solves the electric field that results from all charged species. It is up to the user to make sure that the physical model that underlies SIMsalabim is applicable (see Reference Manual for more details).
+
+The routines that make up this project are used in two different guises: SimSS and ZimT. The former is a steady-state version and is the 'main' code. The latter, ZimT, can be used to simulate transients. 
 The project folder is structured as follows:
-- Binaries: compiling the code from source is easy, but if you do not want to do this then you can try the binaries in this folder
 - Docs: this folder contains a reference manual, developer guidelines, and a log of all changes to the code
-- SIMsalabim: contains the steady-state version of this software
-- Tests: contains a number of tests to assess the functioning of the codes (SIMsalabim and ZimT)
-- Units: this is where the heart of the code resides. These units are shared between SIMsalabim and ZimT
-- ZimT: the transient equivalent of SIMsalabim
+- SimSS: contains the steady-state version of this software
+- Tests: contains a number of tests to assess the functioning of the codes (SimSS and ZimT)
+- Units: this is where the heart of the code resides. These units are shared between SimSS and ZimT
+- ZimT: the transient equivalent of SimSS
 
-## Copyright and license
 
-The SIMsalabim project is licensed under the GNU Lesser General Public Licence version 3. The details of this licence can be found in the files COPYING.txt and COPYING.LESSER.txt. 
-Several authors (all from the University of Groningen) have contributed to the code: 
-- Dr T.S. (Tejas) Sherkar
-- Dr V.M. (Vincent) Le Corre
-- M. (Marten) Koopmans
-- F. (Friso) Wobben
-- Prof. Dr. L.J.A. (Jan Anton) Koster
+## Quickstart guide
+There are two ways to get SimSS or ZimT running on your machine:
+1. [Use pre compiled binaries](#Pre-compiled binaries)
+2. [Compile SIMsalabim](#Compiling SIMsalabim)
+While using the pre-compiled binaries is easiest, they will not work on every machine. If they do not work follow the instructions for [Compiling SIMsalabim](#Compiling SIMsalabim).
+
+### Pre-compiled binaries
+
+SimSS and ZimT come as pre-compiled binaries for WIN or Linux (64 bits), see [releases](https://github.com/kostergroup/SIMsalabim/releases). This avoids having to download and install the FPC compiler and compiling the code which is described below. There is no guarantee that these will work, but it is worth a try. Simply copy the binary to the main SimSS/ZimT folder. The Linux one might require a change of permissions to run, something like:
+<pre><code>
+    chmod +x simss
+ </code></pre>
+
+### Compiling SIMsalabim
+
+There are 3 steps to complete to run SimSS or ZimT for the first time:
+  1. Install the "Free Pascal" compiler.
+  2. Compile SimSS (or ZimT).
+  3. Run SimSS (or ZimT). 
+
+SimSS and ZimT should compile and run on any platform supported by the "Free Pascal" compiler. We provide detailed instructions for installing both the compiler and running the code for Windows and Linux (Ubuntu). For any other platform, please install the compiler (version 3.2.0 or newer) following the instructions from https://www.freepascal.org/. Steps 2 and 3 (compile and run) should be similar to the Ubuntu and Windows steps outlined below.
+
+Below are the instructions for performing these steps on Ubuntu (or any other Debian based Linux distribution) and Windows.  
+
+
+### Ubuntu (Linux) guide
+
+Navigate to the SimSS or ZimT folder, where you can find simss.pas or zimt.pas. This example assumes you want to compile SimSS, but you can replace `simss` with `zimt` in the commands and run from the ZimT folder to compile and run ZimT. 
+
+**Ubuntu 20.10 or newer:**
+Steps:
+  - Open a terminal in the SimSS folder
+  - run the following commands to perform step 1, 2, and 3 (install, compile, run):
+```
+sudo apt install fpc
+fpc simss
+./simss
+```
+
+**Ubuntu 20.04 or older:**
+We need a relatively recent version of the Pascal compiler (v 3.2.0 or higher). Therefore, manual installation of the compiler is required on Ubuntu 20.04 or older.
+Steps:
+  - Download the relevant version of the compiler from https://www.freepascal.org/
+  - Install the compiler. This is done by running the installation script that can be found in the downloaded archive. While it can be installed without root privilege, the compiler should be manually added to path making installation a bit more tricky. To install as root run the command: `sudo ./install.sh`. 
+  - Open a terminal in the SimSS folder
+  - run the following commands to perform step 2 and 3 (compile and run):
+```
+fpc simss
+./simss
+```
+
+**Installing on other Linux distributions:**
+Most package managers for other Linux distributions ship the compiler package in a recent enough version (version 3.2.0 or newer of package *fpc*), so it suffices to exchange the *apt install* command with another package manager's equivalent. 
+
+### Windows guide
+
+Navigate to the SimSS or ZimT folder, where you can find simss.pas or zimt.pas. This example assumes you want to compile SimSS, but you can replace `simss` with `zimt` in the commands and run from the ZimT folder to compile and run ZimT. 
+
+Steps:
+  - Download and install fpc from https://www.freepascal.org/ (SimSS and ZimT require version 3.2.0 or newer)
+  - Open a command prompt or powershell instance in the SimSS folder (for example by opening the folder in explorer, pressing <kbd>alt</kbd>+<kbd>D</kbd> to select the location bar, typing 'cmd' and pressing <kbd>enter</kbd>).
+  - run the following commands to perform step 2 and 3 (compile, run):
+  
+```
+fpc simss
+simss.exe
+```
+
+Alternative:
+  - Install Windows subsystem for Linux.
+  - Follow the Ubuntu instructions above.
+
+
+### Miscellaneous
+
+**Warning message**
+You may see this warning message when compiling the codes:
+/usr/bin/ld.bfd: warning: link.res contains output sections; did you forget -T?
+Just ignore this.
+
+**Editing the code**
+You'll probably want to use (install?) some form of integrated development environment (IDE). Most modern IDE's include syntax highlighting for the Pascal language. Popular IDEs include Lazarus, Geany, and Visual studio code (requires extension to perform syntax highlighting for pascal). Some guidelines for extending the code can be found in Docs/Developer_guidelines.md.
+
 
 ## Instructional videos
 
-In order to help new users to get the most out of SIMsalabim/ZimT, we have recorded a few instructional videos:
+In order to help new users to get the most out of SimSS/ZimT, we have recorded a few instructional videos: 
 
 1 [Installation and basic use](https://youtu.be/0mtpGJMnbFE "Installation and basic use")
+
+Please note that at the time of recording SimSS was called SIMsalabim, so the project name and the name of one of the programs was the same.
+
+
+## Running SimSS or ZimT
+- all parameters are specified in device_parameters.txt (in ZimT an additional time-voltage-generation (tVG) file is present to indicate what time, generation, and voltage at every simulation step).
+- on Linux run SimSS/ZimT by entering in the terminal from the folder where the compiled program is located and run using
+<pre><code>
+./simss
+</code></pre>
+or 
+<pre><code>
+./zimt
+</code></pre>
+on windows:
+<pre><code>
+simss.exe
+</code></pre>
+or 
+<pre><code>
+zimt.exe
+</code></pre>
+Alternatively, the programs can be double clicked in the file manager on both Windows and Linux to run.
+
+- all parameters listed in device_parameters.txt can also be changed via the command line. This will override the respective parameter value in device_parameters.txt. Simply add the parameter name and value to the command line after a dash (-).
+Example: change of thickness (L) and JV output file (JV_file):
+<pre><code>
+./simss -L 345E-9 -JV_file anotherJV.dat
+</code></pre>
+- multiple output files will be generated (see device_parameters) and log file.
+
+4) Other remarks
+- in general, input files and the log file have extension .txt, whereas output files that can be used for plotting (J-V curves, for example) have extension .dat.
+- all changes are shown and commented on in the file Docs/Change_log.txt. Here we document not just the changes, but also explain and motivate some of the choices in naming, physical models, etc. 
 
 
 ## How to cite
@@ -49,115 +159,23 @@ The original paper showing how this code can be used for organic solar cells is:
 For the use of perovskite solar cells, the following paper offers a detailed description of the modelling assumptions:
 - T.S. Sherkar, C. Momblona, L. Gil-Escrig, J. Ávila, M. Sessolo, H. Bolink, and L.J.A. Koster, Recombination in Perovskite Solar Cells: Significance of Grain Boundaries, Interface Traps and Defect Ions, ACS Energy Lett. **2**, 1214 (2017).
 
-## Pre-compiled binaries
 
-SIMsalabim and ZimT come as pre-compiled binaries for WIN or Linux (64 bits), see [releases](https://github.com/kostergroup/SIMsalabim/releases). This avoids having to download and install the FPC compiler and compiling the code which is described below. There is no guarantee that these will work, but it is worth a try. Simply copy the binary to the main SIMsalabim/ZimT folder. The Linux one might require a change of permissions to run, something like:
-<pre><code>
-    chmod +x SIMsalabim
- </code></pre>
+## Copyright and license
 
-
-## Quickstart guide
-There are 3 steps to complete to run SIMsalabim or ZimT for the first time:
-  1. Install the "Free Pascal" compiler.
-  2. Compile SIMsalabim (or ZimT).
-  3. Run SIMsalabim (or ZimT). 
-
-SIMsalabim and ZimT should compile and run on any platform supported by the "Free Pascal" compiler. We provide detailed instructions for installing both the compiler and running the code for Windows and Linux (Ubuntu). For any other platform, please install the compiler (version 3.2.0 or newer) following the instructions from https://www.freepascal.org/. Steps 2 and 3 (compile and run) should be similar to the Ubuntu and Windows steps outlined below.
-
-Below are the instructions for performing these steps on Ubuntu (or any other Debian based Linux distribution) and Windows.  
+The SIMsalabim project is licensed under the GNU Lesser General Public Licence version 3. The details of this licence can be found in the files COPYING.txt and COPYING.LESSER.txt. 
+Several authors (all from the University of Groningen) have contributed to the code: 
+- Dr T.S. (Tejas) Sherkar
+- Dr V.M. (Vincent) Le Corre
+- M. (Marten) Koopmans
+- F. (Friso) Wobben
+- Prof. Dr. L.J.A. (Jan Anton) Koster
 
 
-### Ubuntu (Linux) guide
+## How to contribute
+If you would like to would like to contribute to the SIMsalabim project or have any questions, please read the [Developer instructions](https://github.com/kostergroup/SIMsalabim/blob/master/Docs/Developer_guidelines.md). It covers how we would like to approach both questions and possible code changes.
 
-Navigate to the SIMsalabim or ZimT folder, where you can find SIMsalabim.pas or zimt.pas. This example assumes you want to compile SIMsalabim, but you can replace SIMsalabim with zimt in the commands and run from the ZimT folder to compile and run zimt. 
 
-**Ubuntu 20.10 or newer**
-Steps:
-  - Open a terminal in the SIMsalabim folder
-  - run the following commands to perform step 1, 2, and 3 (install, compile, run):
-```
-sudo apt install fpc
-fpc SIMsalabim
-./SIMsalabim
-```
-
-**Ubuntu 20.04 or older**
-We need a relatively recent version of the Pascal compiler (v 3.2.0 or higher). Therefore, manual installation of the compiler is required on Ubuntu 20.04 or older.
-Steps:
-  - Download the relevant version of the compiler from https://www.freepascal.org/
-  - Install the compiler. This is done by running the installation script that can be found in the downloaded archive. While it can be installed without root privilege, the compiler should be manually added to path making installation a bit more tricky. To install as root run the command: `sudo ./install.sh`. 
-  - Open a terminal in the SIMsalabim folder
-  - run the following commands to perform step 2 and 3 (compile and run):
-```
-fpc SIMsalabim
-./SIMsalabim
-```
-
-*Installing on other Linux distributions:*
-
-Most package managers for other Linux distributions ship the compiler package in a recent enough version (version 3.2.0 or newer of package *fpc*), so it suffices to exchange the *apt install* command with another package manager's equivalent. 
-
-### Windows guide
-
-Navigate to the SIMsalabim or ZimT folder, where you can find SIMsalabim.pas or zimt.pas. This example assumes you want to compile SIMsalabim, but you can replace SIMsalabim with zimt in the commands and run from the ZimT folder to compile and run zimt. 
-
-Steps:
-  - Download and install fpc from https://www.freepascal.org/ (SIMsalabim and zimt require version 3.2.0 or newer)
-  - Open a command prompt or powershell instance in the SIMsalabim folder (for example by opening the folder in explorer, pressing <kbd>alt</kbd>+<kbd>D</kbd> to select the location bar, typing 'cmd' and pressing <kbd>enter</kbd>).
-  - run the following commands to perform step 2 and 3 (compile, run):
-  
-```
-fpc SIMsalabim
-SIMsalabim.exe
-```
-
-Alternative:
-  - Install Windows subsystem for Linux.
-  - Follow the Ubuntu instructions above.
-
-### Miscellaneous
-
-**Warning message**
-You may see this warning message:
-/usr/bin/ld.bfd: warning: link.res contains output sections; did you forget -T?
-Just ignore this.
-
-**Editing the code**
-You'll probably want to use (install?) some form of integrated development environment (IDE). Most modern IDE's include syntax highlighting for the Pascal language. Popular IDEs include Lazarus, Geany, and Visual studio code (requires extension to perform syntax highlighting for pascal). Some guidelines for extending the code can be found in Docs/Developer_guidelines.md.
-
-## Running SIMsalabim (or ZimT)
-- all parameters are specified in device_parameters.txt (in ZimT an additional time-generation-voltage (tgv) file is present to indicate what time, generation, and voltage at every simulation step).
-- on Linux run SIMsalabim/ZimT by entering in the terminal from the folder where the compiled program is located and run using
-<pre><code>
-./SIMsalabim
-</code></pre>
-or 
-<pre><code>
-./zimt
-</code></pre>
-on windows:
-<pre><code>
-SIMsalabim.exe
-</code></pre>
-or 
-<pre><code>
-zimt.exe
-</code></pre>
-Alternatively, the programs can be double clicked in the file manager on both Windows and Linux to run.
-
-- all parameters listed in device_parameters.txt can also be changed via the command line. This will override the respective parameter value in device_parameters.txt. Simply add the parameter name and value to the command line after a dash (-).
-Example: change of thickness (L) and JV output file (JV_file):
-<pre><code>
-./SIMsalabim -L 345E-9 -JV_file anotherJV.dat
-</code></pre>
-- multiple output files will be generated (see device_parameters) and log file.
-
-4) Other remarks
-- in general, input files and the log file have extension .txt, whereas output files that can be used for plotting (J-V curves, for example) have extension .dat.
-- all changes are shown and commented on in the file Docs/Change_log.txt. Here we document not just the changes, but also explain and motivate some of the choices in naming, physical models, etc. 
-
-## Scientific publications based on SIMsalabim or ZimT
+## Scientific publications based on the SIMsalabim project
 
 List of publications (not complete):
 

@@ -1,5 +1,42 @@
+Version 4.25, 17 Nov 2021, LJAK, MK
+
+In order to make it a little bit more clear how the SIMsalabim project can be compiled to give 2 different programs, we have renamed the SIMsalabim code 'SimSS'.SimSS simulates steady-states and, thus, is the steady-state equivalent of ZimT. SIMsalabim remains the name of the overall project.
+
+
+Version 4.24, 4 Nov. 2021, MK, LJAK
+
+Building on version 4.23, we have implemented fully transient trapping/de-trapping statistics for interface traps.
+
+to do:
+-Calc_f_ti aanpassen: ook het aanroepen niet meer met 2 functies (denom and numerator) in heading.
+-Rec_np aanpassen (linearisatie!!!)
+
+
+Version 4.23, 4 Nov. 2021, MK, LJAK
+
+Up till now the trapping/detrapping in bulk and interface traps was treated in a quasi-steady-state fashion: The occupancy of the traps was obtained from the steady-state expressions. In steady-state this is, of course, the right thing to do. In transient simulations this might be a decent approximation in some cases (if the time scale of the simulation is much longer than both the trapping and de-trapping times), but it can be a bad approximation in other cases. 
+In this version we have made the way we treat bulk traps fully transient: This is only really relevant to ZimT (of course). In the transient case (so if time <> zero), we calculate the trap occupancy (f_tb) of bulk traps by soling an ordinary differential equation based on the rates of trapping and detrapping. One gets an equation of the form d(f_tb)/dt = a f_tb + b, which yields an exponential function. So, we can calculate f_tb on the fly such that it is consistent with V, n, p (and all the other charges) and the trap occupancy in the previous time step.
+
+Note: the interface trapping/detrapping is still quasi-steady-state. We leave this for a future update.
+
+How did we do this:
+
+-Renamed Init_Pot_Dens_Ions Init_Pot_Dens_Ions_Traps which now also initializes f_tb, f_ti by simply setting them to zero. This is important as 1) we don't want to have a random value, and 2) if they are not initialized and if myReal=EXTENDED then they will have the value 'NAN' and the programs crash.
+
+-In the main solver: In the transient case, we first update the trap fillings (if there are any traps). In steady-state we calculate them based on the newest n,p,V.
+
+-Renamed Calc_trap_charge to Calc_Trap_Filling_Charge as this also computes the filling of the traps (f_tb/i). Also changed this to make sure that f_tb/i are calculated even if the traps do not contain any charge.
+
+-f_tb (if transient) calculated from an ODE of the from d(f_tb)/dt = a f_tb + b.
+
+-In the transient case we calculate f_tb from the ODE, so we no longer need the linearization in the Poisson solver. Therefore, Calc_linearization_f_t_all now checks if dti=0 or not.
+
+-In WriteVariablesToFile, we now list both SRH recombination via bulk traps for electrons (BulkSRHn) and for holes (BulkSRHp) as in the transient case these might be different.
+
+
 Version 4.22, 3 Nov 2021, MK
 Bugfix: In Calc_trap_charge, the charge for interface traps was not correctly saved, resulting in a zero charge when this should not be the case.
+
 
 Version 4.21, 27 Oct 2021, LJAK
 BUG: in the main solver (line 2288) there was a mistake in the call to the Poisson solver. The parameters (arrays) Nti_charge and Ntb_charge were swapped as compared to the declaration in the implementation part. In general, I think it's easiest to stick to alphabetic ordering in such cases, so I have changed the order in the declaration.

@@ -30,7 +30,9 @@ SIMsalabim is a numerical 1D drift-diffusion simulation software implemented in 
 
 Multiple purposes can be fulfilled using SIMsalabim. It can be used to help in designing experiments by allowing physics-based estimates of experimental parameters. Another use is making plausible that certain formulas hold for a wide range of different input parameters, representing a broad class of devices [@VincentTLs2019]. Due to the fast pace of research in fields such as that of perovskite solar cells, it is important that the user can perform adaptations to the codebase to include novel effects, without waiting on another entity to implement those.
 
-SIMsalabim is currently used by multiple research groups in the solar cell community. Researchers interested in the modelling of semiconductors can use SIMsalabim for a combination features: flexible device architecture, time-resolved mobile ions, open-circuit voltage tracking, rigorous recombination treatment, high numerical stability in extreme cases, and scriptable high-performance-computing friendly design.
+SIMsalabim is currently used by multiple research groups in the solar cell community. Researchers interested in the modelling of semiconductors can use SIMsalabim for a combination features: flexible device architecture, fully transient ions/charge-carriers/trapping-detrapping, open-circuit voltage tracking, rigorous recombination treatment, high numerical stability in extreme cases, and scriptable high-performance-computing friendly design.
+
+As drift-diffusion modeling is a well established technique, there are more pieces of software that achieve similar modeling each with their own unique strengths and weaknesses. A few alternatives are: SCAPS[@BURGELMAN2000] (freeware), IonMonger[@Courtier2019] (open-source), SETFOS[@SETFOS] (proprietary), Driftfusion[@driftfusion] (open-source), and gpvdm[@gpvdm] (open-source).
 
 # Recent projects involving SIMsalabim (incomplete)
 - Identification of the dominant recombination process for perovskite solar cells based on machine learning [@LeCorre2021Feb]

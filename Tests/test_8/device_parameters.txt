@@ -1,7 +1,7 @@
 ** ZimT Device data
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'
-** version: 4.22
+** version: 4.25
 
 **General**************************************************************************
 T = 300              * K, absolute temperature
@@ -92,7 +92,7 @@ Tr_type_R = 1        * Trap type for the right interface: -1: acceptor, 0: neutr
 Tr_type_B = 1        * Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor
 
 **Numerical Parameters**************************************************************
-NP = 400             * integer, number of grid points, must be at least 5.
+NP = 200             * integer, number of grid points, must be at least 5.
 tolPois = 1e-4       * abs. tolerance of iterative Poisson solver
 maxDelV = 10         * maximum change (in Vt) of the potential per loop
 MaxItPois = 3e2      * max. number it. Poisson loop

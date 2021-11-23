@@ -7,30 +7,30 @@
 T = 300              * K, absolute temperature
 L = 400e-9           * m, device length
 eps_r = 4.0          * relative dielectric constant
-CB = 2.0             * eV, conduction band edge
-VB = 6.0             * eV, valence band edge
-Nc = 2.5e20          * m^-3, DOS of conduction and valence bands
+CB = 3.0             * eV, conduction band edge
+VB = 5.0             * eV, valence band edge
+Nc = 1e24            * m^-3, DOS of conduction and valence bands
 n_0 = 0              * m^-3, ionised n-doping
 p_0 = 0              * m^-3, ionised p-doping
 
 **Mobilities************************************************************************
-mun_0 = 1e-7         * m^2/Vs, zero field mobility
-mup_0 = 1e-8         * m^2/Vs, zero field mobility
+mun_0 = 1e-0         * m^2/Vs, zero field mobility
+mup_0 = 1e-0         * m^2/Vs, zero field mobility
 mob_n_dep = 0        * 0 : const. mob, 1 : field-dependent
 mob_p_dep = 0        * 0 : const. mob, 1 : field-dependent
 gamma_n = 0          * (m/V)^0.5, field dependence of mob, Poole-Frenkel form
 gamma_p = 0          * (m/V)^0.5, field dependence of mob, Poole-Frenkel form
 
 **Contacts**************************************************************************
-W_L = 4.0            * eV, work function left electrode (= cathode)
-W_R = 4              * eV, work function right electrode (= anode)
+W_L = 3.6            * eV, work function left electrode (= cathode)
+W_R = 4.4            * eV, work function right electrode (= anode)
 Sn_L = -1e-7         * m/s, surface recombination of electrons at the left electrode
 Sp_L = -1e-7         * m/s, surface recombination of holes at the left electrode
 Sn_R = -1e-7         * m/s, surface recombination of electrons at the right electrode
 Sp_R = -1e-7         * m/s, surface recombination of holes at the right electrode
                      * nb: use negative values if Sn/pR/L should be infinite
 Rshunt = -1e0        * Ohms m2, shunt resistance. Use negative value for infinite Rshunt
-Rseries = 5.65e-2    * Ohms m2, series resistance.
+Rseries = 0          * Ohms m2, series resistance.
 
 **Transport layers*******************************************************************
 L_LTL = 0e-9         * m, thickness left TL
@@ -47,7 +47,7 @@ nu_int_LTL = 1000    * m/s, interface transfer velocity, left TL
 nu_int_RTL = 1000    * m/s, interface transfer velocity, right TL
 eps_r_LTL = 3.0      * relative dielectric constant left TL
 eps_r_RTL = 3.0      * relative dielectric constant right TL
-CB_LTL = 3.5         * eV, conduction band left TL
+CB_LTL = 3.0         * eV, conduction band left TL
 CB_RTL = 3           * eV, conduction band right TL
 VB_LTL = 5.5         * eV, valence band left TL
 VB_RTL = 5           * eV, valence band right TL
@@ -70,13 +70,13 @@ ThermLengDist = 2    * distribution of a, 1 for delta function, 2 for Gaussian
                      * 3 for exponential and 4 for r^2 exponential 5 for r^4 Gaussian
 kf = 1e6             * 1/s, decay rate
 kdirect = 1e-20      * m3/s, direct (band-to-band, bimolecular) recombination rate
-Lang_pre = 0.1       * Langevin recombination prefactor
+Lang_pre = 1e-5      * Langevin recombination prefactor
 UseLangevin = 1      * (1) use Langevin to calc. recombination or not (<>1, kdirect is used)
 
 **Trapping**************************************************************************
 ** To select 'no trapping', put trap densities equal to zero
 ** Bulk traps
-Bulk_tr = 0e20       * m^-3, trap density (in bulk)
+Bulk_tr = 1e20       * m^-3, trap density (in bulk)
 ** Surface traps
 St_L = 0e11          * m^-2, left interface trap density
 St_R = 0e11          * m^-2, right interface trap density
@@ -84,15 +84,15 @@ St_R = 0e11          * m^-2, right interface trap density
 num_GBs = 0          * number of grain boundaries
 GB_tr = 0e16         * m^-2, grain boundary trap density per grain boundary
 ** trap coefficients
-Cn = 1e-12           * m^3/s, capture coefficient for electrons
-Cp = 1e-12           * m^3/s, capture coefficient for holes
-Etrap = 4.25         * eV, energy level of all traps
+Cn = 5.017e-15       * m^3/s, capture coefficient for electrons
+Cp = 0               * m^3/s, capture coefficient for holes
+Etrap = 3.50         * eV, energy level of all traps
 Tr_type_L = -1       * Trap type for the left interface: -1: acceptor, 0: neutral, 1: donor
 Tr_type_R = 1        * Trap type for the right interface: -1: acceptor, 0: neutral, 1: donor
-Tr_type_B = 1        * Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor
+Tr_type_B = -1       * Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor
 
 **Numerical Parameters**************************************************************
-NP = 400             * integer, number of grid points, must be at least 5.
+NP = 100             * integer, number of grid points, must be at least 5.
 tolPois = 1e-4       * abs. tolerance of iterative Poisson solver
 maxDelV = 10         * maximum change (in Vt) of the potential per loop
 MaxItPois = 3e2      * max. number it. Poisson loop
@@ -104,7 +104,7 @@ MinRelChange = 1e-8  * if change per loop smaller than this, then the loop conve
 MinAbsJDark = 0      * A/m2, if |Jint|<MinAbsJDark and Gehp=0 we simply stop and take Jint=0
 accDens = 0.9        * accelation parameter for density solver, 0 < accDens < 2
 IgnoreNegDens = 1    * whether(1) or not(<>1) to ignore negative densities
-FailureMode = 2      * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
+FailureMode = 1      * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
 grad = 1             * determines shape of exp. grid, increase grad for smaller h[1]
 TolRomb = 1e-2       * relative tolerance of Romberg integration, 1e-2 is a good
                      * starting point
@@ -114,7 +114,7 @@ LowerLimBraun = 0.01 * Lower limit of integration of distribution of a in terms 
 UpperLimBraun = 10   * Upper limit of integration of distribution of a in terms of a
                      * only relevant if ThermLengDist<>1 (delta function)
                      * 10 seems sufficient for Gaussian, but for r^2 exp., use 20
-TolVint = 1e-6       * V, tolerance internal voltage (Vint)
+TolVint = 1e-10      * V, tolerance internal voltage (Vint)
 
 **User interface********************************************************************
 Pause_at_end = 0     * pause at the end of the simulation yes(1) or no (0)

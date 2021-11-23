@@ -1,12 +1,21 @@
 
 # Introduction
 
-The literature on semiconductor physics provides many analytical expressions that hold in certain limits that can be reproduced by SIMsalabim/ZimT. These expressions therefore serve as highly suitable validation tests for the codebase. We chose the tests in such a way that most of the functionality is covered by the test cases. In this document, we describe the tests, while we provide the test results in graph form and the used simulation parameters in the test-specific folders. In all tests, we specify in what limits SIMsalabim/ZimT should produce the same results as the analytical expression it is tested against.
+The literature on semiconductor physics provides many analytical expressions that hold in certain limits that can be reproduced by SimSS/ZimT. These expressions therefore serve as highly suitable validation tests for the codebase. We chose the tests in such a way that most of the functionality is covered by the test cases. In this document, we describe the tests, while we provide the test results in graph form and the used simulation parameters in the test-specific folders. In all tests, we specify in what limits SimSS/ZimT should produce the same results as the analytical expression it is tested against.
 
 # How to run the tests
-Each folder contains the input files need to reproduce the test. Copy the input file(s) to either the SIMsalabim or ZimT folder. Note that ZimT needs an additional input file (tVG*.txt). Running the program generates output that can be compared with the sample output in the test folder. A graphical comparison of the latest version with the analytical results is also provided. 
+There is a script to automatically asses the SIMsalabim project that is located in the 'Tests' folder. These tests test the code against physics that apply in certain regimes of operation. For every test case there is a folder that contains the input parameters required for the test to run. In this folder, a plot showing the result of the test will be generated during the test.
 
-# SIMsalabim tests
+A Python 3 interpretor is installed by default on most operating systems, however on Windows it should first be installed (for example from the Microsoft Store).
+
+The test script also requires a few non-default python packages. To install these simply run the command `pip install numpy scipy matplotlib pandas` in the terminal on your computer. 
+
+The test script also requires the free Pascal compiler if not installed already. For details on how to install the free Pascal compiler see README.txt.
+
+To run the automated tests, run `python run_tests.py` in a terminal from the 'Tests' folder.
+
+
+# SimSS tests
 
 ## Test 1: Photoconductivity of an insulator
 
@@ -24,7 +33,7 @@ Test 4 is another test of the space-charge-limited regime. This time, the mobili
 At high voltages, the simulation should approach the Mott-Gruney law: This is indeed the case, despite the fact that the simulation includes a built-in voltage. At low voltages, the current is linear as a consequence of background charge density that stems from the contacts. This regime is described by the moving-electrode equation. The agreement in both limits is excellent.
 
 ## Test 5: Space-charge-limited-diode with trapping
-In this test, we assess the ability of SIMsalabim to simulate a diode with a single trap level (situated mid-gap). As a reference, we also show the simulated current-voltage curve without traps. To obtain the reference, either put Bulk_tr to zero in the parameter file, or run SIMsalabim with -Bulk_tr 0. The inclusion of traps, as expected, strongly reduces the current at low voltages. The trap-filled-limit (V<sub>TFL</sub>) is obtained as outlined in V.M. Le Corre, E.A. Duijnstee, O.  El Tambouli, J.M. Ball, H.J. Snaith, J. Lim, and L.J.A. Koster, ACS Energy Lett. **6**,  1087 (2021): two tangents are used (dashed lines in graph), one in the steepest part of the curve and one in the quadratic regime. They cross at 1.2 V, which agrees very nicely with the anticipated value for V<sub>TFL</sub> of 1 V which is based on the input parameters.
+In this test, we assess the ability of SimSS to simulate a diode with a single trap level (situated mid-gap). As a reference, we also show the simulated current-voltage curve without traps. To obtain the reference, either put Bulk_tr to zero in the parameter file, or run SimSS with -Bulk_tr 0. The inclusion of traps, as expected, strongly reduces the current at low voltages. The trap-filled-limit (V<sub>TFL</sub>) is obtained as outlined in V.M. Le Corre, E.A. Duijnstee, O.  El Tambouli, J.M. Ball, H.J. Snaith, J. Lim, and L.J.A. Koster, ACS Energy Lett. **6**,  1087 (2021): two tangents are used (dashed lines in graph), one in the steepest part of the curve and one in the quadratic regime. They cross at 1.2 V, which agrees very nicely with the anticipated value for V<sub>TFL</sub> of 1 V which is based on the input parameters.
 
 
 # ZimT tests
@@ -39,6 +48,15 @@ This tests ZimT by simulating an RC-circuit. The parameters define a capacitor w
 
 ## Test 8: Transient Photo-voltage (TPV)
 This test ZimT's ability to simulate the transient decay of the open-circuit voltage (Voc) upon a small change in the light intensity. We start at a generation rate of electron-hole pairs of Gehp = 1.2E26 m<sup>-3</sup>s<sup>-1</sup> at time zero, followed by a quick reduction to Gehp = 1.0E26 m<sup>-3</sup>s<sup>-1</sup>. The Voc will thus decay a little bit. The decay rate can be estimated based on A. Rahimi Chatri, S. Torabi, V.M. Le Corre, and L.J.A. Koster, ACS Appl. Mater. Interfaces **10**, 12013 (2018). Their formula (Eq. 9) predicts a decay time of 7.09 μs for the parameters used in this test. Fitting to the simulated data yield a decay time of 6.96 μs.
+
+## Test 9: Transient Photo-current with bulk traps (TPC)
+This test assesses ZimT's ability to simulate the emptying of bulk traps: The simulation starts with a solar cell at 0 V under illumination. Quickly, the light is switched off and free carriers are swept out of the device (the mobilities are very high). Trapped electrons will be slowly released from the traps and this is what generates the current in the ms-regime. The parameters are chosen such that the detrapping time should be 0.050 s. Fitting to ZimT's results indeed yields a decay time of the current of 0.050 s as expected.
+
+## Test 10: Transient Photo-current with interface traps at grain boundaries (TPC)
+This test assesses ZimT's ability to simulate the emptying of interface traps that sit at grain-boundaries (GBs). It is similar to Test 9, but not there are 10 GBs with interface traps that trap and de-trap holes. The input parameters are chosen such that de-trapping should have a lifetime of 25 ms. Fitting to ZimT's result indeed yields a lifetime of 0.025 s as expected.
+
+
+
 
 
 
