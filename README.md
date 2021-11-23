@@ -29,7 +29,8 @@ The project folder is structured as follows:
 There are two ways to get SimSS or ZimT running on your machine:
 1. [Use pre compiled binaries](#Pre-compiled-binaries)
 2. [Compile SIMsalabim](#Compiling-SIMsalabim)
-While using the pre-compiled binaries is easiest, they will not work on every machine. If they do not work follow the instructions for [Compiling SIMsalabim](#Compiling SIMsalabim).
+
+While using the pre-compiled binaries is easiest, they will not work on every machine. If they do not work follow the instructions for compiling SIMsalabim.
 
 ### Pre-compiled binaries
 
