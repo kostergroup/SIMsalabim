@@ -1,0 +1,26 @@
+# Exclude all files without an extension (Linux binaries)
+*
+!/**/
+!*.*
+
+# Exclude all .exe files (Windows binaries)
+*.exe
+
+# Exclude all fpc-related files
+*.ppu
+*.o
+
+# Exclude all log files
+log.txt
+
+# Exclude SIMsalabim output
+*.dat
+
+# Re-include all dat files in Tests (we want them in the repository)
+!/Tests/**/*.dat
+
+# Some people use Origin, to make their lives easier we ignore origin projects
+*.opj
+
+# Ignore python cache
+**/__pycache__
