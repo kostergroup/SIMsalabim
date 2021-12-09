@@ -1,7 +1,7 @@
 ** SimSS Device data:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.26
+** version: 4.27
 
 **General**************************************************************************
 T = 295                  * K, absolute temperature

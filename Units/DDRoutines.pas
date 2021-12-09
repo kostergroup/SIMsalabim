@@ -43,7 +43,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.26'; {version of this unit}
+CONST DDRoutinesVersion = '4.27'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -1475,7 +1475,7 @@ BEGIN
 			f_tb_inv_denom := 1 / (par.Cn*(n[i]+stv.nt0[i]) + par.Cp*(p[i]+stv.pt0[i]));
 			lin.f_tb_m[i] := par.Cn * n[i+1] * f_tb_inv_denom;
 			lin.f_tb_m[i] := lin.f_tb_m[i] - (par.Cn * n[i] - par.Cp * p[i]) * f_tb_numer * SQR(f_tb_inv_denom);
-			lin.f_tb_m[i] := ABS(par.Tr_type_B)*(stv.cwe_b - lin.f_tb_m[i]) * stv.Ntb[i];
+			lin.f_tb_m[i] := par.Tr_type_B*(stv.cwe_b - lin.f_tb_m[i]) * stv.Ntb[i];
 		END
     ELSE
 		lin.f_tb_m:= zeros;

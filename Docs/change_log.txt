@@ -1,4 +1,9 @@
-Version 4.26, 24 Nov, LJAK
+Version 4.27, 9 Dec 2021, MK
+Fixed a bug in the linearization of bulk traps in the Poisson equation. For acceptor type traps, the linearization had the wrong sign and made the Poisson equation unstable at high trap densities.
+
+
+
+Version 4.26, 24 Nov 2021, LJAK
 I have added a check to the function MaxValueMyReal in DDRoutines to check if the extended float type is available. Turns out that on some systems this is not the case (example: raspberry pi with ARM processor): you can put myReal = extended (in TypesAndConstants) but even then MaxExtended does not exist so version 425 would not compile.
 
 
