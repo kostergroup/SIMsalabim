@@ -37,6 +37,8 @@ const
     Max_NP = 2000;     {max number of grid points except contacts}
 
 type myReal = EXTENDED; 
+	{note: you can put myReal = single, double, or extended. However, extended may not be available in which case the compiler
+	 will simply take double. The size of the real type is saved in the log file, so you can check}
 	 vector = ARRAY[0..Max_NP + 1] OF myReal;
      ShortIntVector = ARRAY[0..Max_NP + 1] OF ShortInt;
      Row = ARRAY OF myReal; 

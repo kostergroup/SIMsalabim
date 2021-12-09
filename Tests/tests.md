@@ -1,5 +1,4 @@
-
-# Introduction
+# SIMsalabim Tests
 
 The literature on semiconductor physics provides many analytical expressions that hold in certain limits that can be reproduced by SimSS/ZimT. These expressions therefore serve as highly suitable validation tests for the codebase. We chose the tests in such a way that most of the functionality is covered by the test cases. In this document, we describe the tests, while we provide the test results in graph form and the used simulation parameters in the test-specific folders. In all tests, we specify in what limits SimSS/ZimT should produce the same results as the analytical expression it is tested against.
 

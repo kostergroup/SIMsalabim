@@ -14,11 +14,11 @@ SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, sola
 
 ## Introduction
 
-SimSS and ZimT can be used to simulate current-voltage (JV) characteristics of semiconductor devices. This includes the effects of generation, recombination and trapping of electrons and holes, the effect of ions and dopants, and self-consistently solves the electric field that results from all charged species. It is up to the user to make sure that the physical model that underlies SIMsalabim is applicable (see Reference Manual for more details).
+SimSS and ZimT can be used to simulate current-voltage (JV) characteristics of semiconductor devices. This includes the effects of generation, recombination and trapping of electrons and holes, the effect of ions and dopants, and self-consistently solves the electric field that results from all charged species. It is up to the user to make sure that the physical model that underlies SIMsalabim is applicable (see Manual for more details).
 
 The routines that make up this project are used in two different guises: SimSS and ZimT. The former is a steady-state version and is the 'main' code. The latter, ZimT, can be used to simulate transients. 
 The project folder is structured as follows:
-- Docs: this folder contains a reference manual, developer guidelines, and a log of all changes to the code
+- Docs: this folder contains a manual, developer guidelines, and a log of all changes to the code
 - SimSS: contains the steady-state version of this software
 - Tests: contains a number of tests to assess the functioning of the codes (SimSS and ZimT)
 - Units: this is where the heart of the code resides. These units are shared between SimSS and ZimT

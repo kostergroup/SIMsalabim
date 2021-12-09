@@ -43,7 +43,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.25'; {version of this unit}
+CONST DDRoutinesVersion = '4.26'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -306,12 +306,24 @@ depends on how myReal was defined. It should be a single, doulbe or extended.}
 VAR dummy : EXTENDED;
 BEGIN
 	dummy:=0;
+
+	{we assume that singles and doubles are available}
 	IF TypeInfo(myReal) = TypeInfo(single) THEN dummy:=MaxSingle;
 	IF TypeInfo(myReal) = TypeInfo(double) THEN dummy:=MaxDouble;
+
+	{however, extended reals might not be available, so we check:}
+{$IFDEF FPC_HAS_TYPE_EXTENDED}
 	IF TypeInfo(myReal) = TypeInfo(extended) THEN dummy:=MaxExtended;
-	
+{$ENDIF}
+
 	{at this point: if dummy is still zero, then myReal was not the right type!}
+
+{$IFDEF FPC_HAS_TYPE_EXTENDED}
 	IF dummy=0 THEN Stop_Prog('Error in function MaxValueMyReal. myReal should be single, double, or extended.');
+{$ELSE}
+	{we're assuming that we do have singles and doubles}
+	IF dummy=0 THEN Stop_Prog('Error in function MaxValueMyReal. myReal should be single or double.');
+{$ENDIF}	
 	
 	{OK, now we can be sure that myReal is of the right type}
 	MaxValueMyReal:=dummy;

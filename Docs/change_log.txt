@@ -1,3 +1,7 @@
+Version 4.26, 24 Nov, LJAK
+I have added a check to the function MaxValueMyReal in DDRoutines to check if the extended float type is available. Turns out that on some systems this is not the case (example: raspberry pi with ARM processor): you can put myReal = extended (in TypesAndConstants) but even then MaxExtended does not exist so version 425 would not compile.
+
+
 Version 4.25, 17 Nov 2021, LJAK, MK
 
 In order to make it a little bit more clear how the SIMsalabim project can be compiled to give 2 different programs, we have renamed the SIMsalabim code 'SimSS'.SimSS simulates steady-states and, thus, is the steady-state equivalent of ZimT. SIMsalabim remains the name of the overall project.
