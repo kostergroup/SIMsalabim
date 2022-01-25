@@ -1,6 +1,29 @@
-Version 4.27, 9 Dec 2021, MK
-Fixed a bug in the linearization of bulk traps in the Poisson equation. For acceptor type traps, the linearization had the wrong sign and made the Poisson equation unstable at high trap densities.
+Version 4.29, 25 Jan 2022, MK, LJAK
 
+BUG fixed:  In same cases, the minority carrier density at the electrode was given an incorrect value in Cont_Eq_holes/elec. In order to correct this and to simplify the expressions, we have removed static vars Egap, phi_left and phi_right.
+
+
+Version 4.28, 25 Jan 2022, MK, LJAK
+Added the option to select a distribution of traps in energy, that can differ between bulk and interface traps. The files that contain bulk and interface trap and energy distributions give the energy levels and relative trap density, while the total trap density per unit area or volume is still given by Bulk_tr, GB_tr, and St_L/R.
+So, one can specify multiple trap levels at different energies (for bulk and for interface traps). Note, grain boundary traps are considered interface traps: if one specifies a number of grain boundaries (num_GBs <> 0 AND GB_tr <> 0) and IntTrapFile is not none (i.e. we're specifying a file) then the grain boundary trap energies are taken from the file. The trap energies need to be physical. For example: if there are only traps in the bulk (so not in the TLs), then their energies must be between CB and VB (excluding the limits). 
+
+Implementation:
+- Added parameters BulkTrapFile and IntTrapFile to device_parameters.txt.
+- Introduced the index 'e', which is the trap level index. This index is now passed to trap related parameters that need a 2D array to describe multiple trap levels.
+- Introduced procedure Init_Bulk_Traps_From_File and Init_Int_Traps_From_File, to read trap distributions from file.
+- Previous trapping related functions now have a postfix _Single_Level to their function name. This is because we need to iterate over the different trap levels and calculate for each level independently now.
+- The energies of all traps (also if not from file) are now performed in proc Init_Trap_Distribution.
+- The Var_file also lists the occupancy of the different bulk & interface trap levels. Each trap level has its own column.
+
+Other stuff:
+1) We now calculate recombination from traps (proc Calc_Recombination_n/p_Single_Level) in the transient case by integrating the differential equation for the trap filling. This gives us more precise results, which are required for retaining a constant total current (Jtot) through the device. 
+2) removed all routines from the interface part of DDRoutines that are not used outside (i.e. in SimSS or ZimT) the unit itself.
+3) Tidied up the naming of routines to make it more like pascal case combined with snake-case: Calc_Elec_Mob, for example.
+4) In the Var_file we now list the filler---occupancy---(f_tb,i) of the traps, not their charge. 
+
+
+Version 4.27, 9 Dec 2021, MK
+Fixed a bug in the linearisation of bulk traps in the Poisson equation. For acceptor type traps, the linearization had the wrong sign and made the Poisson equation unstable at high trap densities.
 
 
 Version 4.26, 24 Nov 2021, LJAK

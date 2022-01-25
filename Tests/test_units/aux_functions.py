@@ -1,11 +1,16 @@
-from shutil import copy2
-import matplotlib.pyplot as plt
-import pandas as pd
-from scipy.interpolate import interp1d
-from scipy.optimize import curve_fit
+import sys
 from os.path import normpath as path
-import numpy as np
-from scipy.special import exp10
+from shutil import copy2
+try:
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    from scipy.interpolate import interp1d
+    from scipy.optimize import curve_fit
+    import numpy as np
+    from scipy.special import exp10
+except ModuleNotFoundError:
+    print('Error loading required Python packages, this script requires: Numpy, Scipy, Pandas, and Matplotlib.\nSee tests.md for details.')
+    sys.exit(1)
 from test_units.Data import Data
 import test_units.plot_settings
 
@@ -25,6 +30,13 @@ def fit_exp(dat_sim, p_guess=None):
     dat_fit = Data(dat_sim.x, exp(dat_sim.x, coeffs[0], coeffs[1], coeffs[2]))
     return coeffs, dat_fit
     
+def fit_exp_no_offset(dat_sim, p_guess=None, x_offset=0):
+    def exp(x, Tau, f0):
+        return f0*np.exp(-(x-x_offset)/Tau) + 0
+    coeffs, pcov = curve_fit(exp, dat_sim.x, dat_sim.y, p0=p_guess)
+
+    dat_fit = Data(dat_sim.x, exp(dat_sim.x, coeffs[0], coeffs[1]))
+    return coeffs, dat_fit
 
 
 def calc_rmse(y_sim, y_test):
@@ -83,6 +95,11 @@ def calc_selected_rmse(dat_sim, dat_test, log_x=False, log_y=False,x_min=None, x
 
 def get_data_from_sim(simulation, test_idx, x='Vext', y='Jext', output_file='jv'):
     test_dev_par_path = 'test_{:n}/device_parameters.txt'.format(test_idx)
+    test_trap_path = 'test_{:n}/traps.txt'.format(test_idx)
+    try:
+        copy2(path(test_trap_path), path(simulation.work_dir))
+    except FileNotFoundError:
+        pass
     copy2(path(test_dev_par_path), path(simulation.work_dir))
     if simulation.code_name.lower() == 'zimt':
         test_tvg_path = 'test_{:n}/tVG.txt'.format(test_idx)

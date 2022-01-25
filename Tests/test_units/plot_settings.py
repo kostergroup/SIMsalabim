@@ -1,6 +1,11 @@
-import matplotlib as mpl
-import matplotlib.pyplot as plt 
-
+import sys
+try:
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt 
+except ModuleNotFoundError:
+    print('Error loading required Python packages, this script requires: Numpy, Scipy, Pandas, and Matplotlib.\nSee tests.md for details.')
+    sys.exit(1)
+    
 fig_size_cm = [10, 7]
 mpl.rcParams['savefig.dpi'] = 600
 

@@ -1,7 +1,7 @@
 ** ZimT Device data
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'
-** version: 4.27
+** version: 4.29
 
 **General**************************************************************************
 T = 300              * K, absolute temperature
@@ -87,6 +87,8 @@ GB_tr = 0e16         * m^-2, grain boundary trap density per grain boundary
 Cn = 1e-12           * m^3/s, capture coefficient for electrons
 Cp = 1e-12           * m^3/s, capture coefficient for holes
 Etrap = 4.25         * eV, energy level of all traps
+BulkTrapFile = none  * name of file with bulk trap energy profile (or 'none'). If specified, overrides EtrapSingle
+IntTrapFile = none   * name of file with interface trap energy profile (or 'none'). If specified, overrides EtrapSingle
 Tr_type_L = -1       * Trap type for the left interface: -1: acceptor, 0: neutral, 1: donor
 Tr_type_R = 1        * Trap type for the right interface: -1: acceptor, 0: neutral, 1: donor
 Tr_type_B = 1        * Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor

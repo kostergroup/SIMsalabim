@@ -54,6 +54,12 @@ This test assesses ZimT's ability to simulate the emptying of bulk traps: The si
 ## Test 10: Transient Photo-current with interface traps at grain boundaries (TPC)
 This test assesses ZimT's ability to simulate the emptying of interface traps that sit at grain-boundaries (GBs). It is similar to Test 9, but not there are 10 GBs with interface traps that trap and de-trap holes. The input parameters are chosen such that de-trapping should have a lifetime of 25 ms. Fitting to ZimT's result indeed yields a lifetime of 0.025 s as expected.
 
+## Test 11: Transient Photo-current for estimating Urbach energy
+This tests ZimT's ability to simulate detrapping of charges from bulk traps that are distributed exponentially from the conduction band defined by an Urbach energy of 100 meV. The Urbach energy can be fitted by transforming time and current output as described in MacKenzie, et al., J. Phys. Chem. C **117 (24)**, 12407-12414 (2013). First we run the steady state solver under illumination, effectively filling the traps present. Then we switch off the light and track detrapping charges through the current. We then manipulate the current and time values to estimate the DOS(E) and fit the Urbach energy, which yields 95 meV, sufficiently close to the input value.
+
+## Test 12: Transient Photo-current for estimating Urbach energy
+This tests ZimT's ability to simulate detrapping of charges from interface traps that are distributed exponentially from the valence band, defined by an Urbach of 70 meV. We use 10 grain boundaries for this purpose. The Urbach energy can be fitted by transforming time and current output as described in MacKenzie, et al., J. Phys. Chem. C **117 (24)**, 12407-12414 (2013). First we run the steady state solver under illumination, effectively filling the traps present. Then we switch off the light and track detrapping charges through the current. We then manipulate the current and time values to estimate the DOS(E) and fit the Urbach energy, which yields 63 meV, i.e. sufficiently close to the input value.
+
 
 
 

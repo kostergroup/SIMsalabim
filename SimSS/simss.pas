@@ -2,7 +2,7 @@ PROGRAM SimSS;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
+Copyright (c) 2020, 2021, 2022 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '4.27';   {version, 1.00 = 10-03-2004}
+    version = '4.29';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -251,7 +251,7 @@ BEGIN
 		SimType:=1; {1 means that this is steady-state, not open-circuit}
 		Vint:=Vapp; {set applied voltage}
 		Gehp:=par.Gehp*par.Gfrac; {set Gehp equal to the value in parameter file.}
-		UpdateGenerationProfile(stv.orgGm, Gm, par.Gehp*par.Gfrac, stv, par); {Set current Gm array to correct value}
+		Update_Generation_Profile(stv.orgGm, Gm, par.Gehp*par.Gfrac, stv, par); {Set current Gm array to correct value}
 		Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, Vint, stv, par); {init. (generalised) potentials and densities}
 	END;
 	
@@ -605,27 +605,27 @@ BEGIN {main program}
 	Print_Welcome_Message(ProgName, version);
 
     {if '-h' or '-H' option is given then display some help and exit:}
-    IF hasCLoption('-h') THEN DisplayHelpExit;
-    IF hasCLoption('-tidy') THEN Tidy_up_parameter_file(TRUE); {tidy up file and exit}
-    IF NOT Correct_version_parameter_file(ProgName, version) THEN Stop_Prog('Version of SIMsalabim and '+parameter_file+' do not match.');
+    IF hasCLoption('-h') THEN Display_Help_Exit;
+    IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(TRUE); {tidy up file and exit}
+    IF NOT Correct_Version_Parameter_File(ProgName, version) THEN Stop_Prog('Version of SIMsalabim and '+parameter_file+' do not match.');
 
     {Initialisation:}
     Read_Parameters(MsgStr, par, stv, ProgName); {Read parameters from input file}
     Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
-    IF par.AutoTidy THEN Tidy_up_parameter_file(FALSE); {clean up file but don't exit!}
+    IF par.AutoTidy THEN Tidy_Up_Parameter_File(FALSE); {clean up file but don't exit!}
 
     Make_Grid(stv.h, stv.x, stv.i1, stv.i2, par); {Initialize the grid}
-    DefineLayers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
-    Init_nt0_and_pt0(stv, par); {inits nt0 and pt0 arrays needed for SRH recombination}
-	Init_Trap_Distribution(stv, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
+    Define_Layers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
+	Init_Trap_Distribution(log, stv, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
+    Init_nt0_And_pt0(stv, par); {inits nt0b and pt0 arrays needed for SRH recombination}
 	
     Init_Voltages_and_Tasks(JVSim, JVExp, VCount, log, stv, par);
     Init_Generation_Profile(stv, log, par); {init. the stv.orgGm array. This is the SHAPE of the profile}
 	Init_States(curr, new, JVSim[VCount].Vint, stv, par); {inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new}
 
     Prepare_tJV_File(uitv, par.JV_file, FALSE);   {create the JV-file}
-    IF par.StoreVarFile THEN Prepare_Var_File(par, FALSE); {Create a new var_file with appropriate heading if required}
+    IF par.StoreVarFile THEN Prepare_Var_File(stv, par, FALSE); {Create a new var_file with appropriate heading if required}
 
     quit_Voc:=FALSE;
 
@@ -655,7 +655,7 @@ BEGIN {main program}
 			WRITELN('At Vint=', new.Vint:4:3,' converged in',MainIt:4,' loop(s), Jint=',new.Jint:7:4,' convIndex: ',new.convIndex);
 
 			{we only write the point to the JV_file if Conv_Main and if Store:}
-			IF JVSim[VCount].Store THEN Write_to_tJV_File(uitv, new, stv, par, FALSE);						
+			IF JVSim[VCount].Store THEN Write_To_tJV_File(uitv, new, stv, par, FALSE);						
 		END
 		ELSE BEGIN {o dear, now what?}
 			{tell user of failed convergence:}
@@ -681,7 +681,7 @@ BEGIN {main program}
 		{should we store the internal variables?}
 		IF par.StoreVarFile THEN {FIRST check if it should be stored as we cannot compute (Vcount MOD OutputRatio) if OutputRatio=0!}
 			IF (Vcount MOD par.OutputRatio = 0) AND acceptNewSolution 
-				THEN WriteVariablesToFile(curr, stv, par, FALSE);	
+				THEN Write_Variables_To_File(curr, stv, par, FALSE);	
 			
         quit_Voc:=(JVSim[VCount].Jext>0) AND par.until_Voc AND (par.Gehp<>0); {only stop past Voc if there is light!}
 

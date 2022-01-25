@@ -3,7 +3,7 @@ unit InputOutputUtils;
 
 {
 SIMsalabim: a 1D drift-diffusion simulator 
-Copyright (c) 2020 Dr T.S. Sherkar, V.M. Le Corre, M. Koopmans,
+Copyright (c) 2020, 2021 Dr T.S. Sherkar, V.M. Le Corre, M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 

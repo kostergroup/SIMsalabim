@@ -229,6 +229,86 @@ test_results.append({'passed' : passed, 'test nr' : test_idx})
 plot_test_results(test_idx, dat_sim, labels, dat_tests=[(fit_label.format(tau), dat_fit)], log_x=log_x, log_y=log_y)
 
 
+# Run test 11
+test_idx = 11
+x_sim = 't'
+y_sim = 'Jext'
+x_test = 'E'
+y_test = 'traps'
+label_test = 'fit $E_U$ {:.0f} meV'
+plot_x = 'E [eV]'
+plot_y = 'DOS [a.u.]'
+start_fit = 0.1 #eV
+end_fit = 0.4 #eV
+
+log_x = False
+log_y = True
+
+labels = {'x' : plot_x, 'y' : plot_y}
+
+
+labels = {'x' : plot_x, 'y' : plot_y}
+dat_sim = get_data_from_sim(ZimT, test_idx, x=x_sim, y=y_sim, output_file='tj')
+DOS = -1e15*np.multiply(dat_sim.x, dat_sim.y)
+Ex = 0.02586 * np.log(1e7*dat_sim.x)
+dat_sim_trans = Data(Ex, DOS)
+Ex_min_diff = np.absolute(Ex-start_fit)
+Ex_max_diff = np.absolute(Ex-end_fit)
+idx_start = Ex_min_diff.argmin()
+idx_end = Ex_max_diff.argmin()
+
+dat_sim_fit = Data(dat_sim_trans.x[idx_start:idx_end], abs(dat_sim_trans.y[idx_start:idx_end]))
+
+coeffs, dat_fit = fit_exp_no_offset(dat_sim_fit, p_guess=(0.02,1e1), x_offset=0)
+E_urbach = coeffs[0]*1e3
+
+passed = abs(E_urbach - 100) < 10
+
+test_results.append({'passed' : passed, 'test nr' : test_idx})
+plot_test_results(test_idx, dat_sim_trans, labels, dat_tests=[(label_test.format(E_urbach), dat_fit)], log_x=log_x, log_y=log_y)
+
+
+# Run test 12
+test_idx = 12
+x_sim = 't'
+y_sim = 'Jext'
+x_test = 'E'
+y_test = 'traps'
+label_test = 'fit $E_U$ {:.0f} meV'
+plot_x = 'E [eV]'
+plot_y = 'DOS [a.u.]'
+start_fit = 0.05 #eV
+end_fit = 0.25 #eV
+
+log_x = False
+log_y = True
+
+labels = {'x' : plot_x, 'y' : plot_y}
+
+
+labels = {'x' : plot_x, 'y' : plot_y}
+dat_sim = get_data_from_sim(ZimT, test_idx, x=x_sim, y=y_sim, output_file='tj')
+DOS = -1e15*np.multiply(dat_sim.x, dat_sim.y)
+Ex = 0.02586 * np.log(1e7*dat_sim.x)
+dat_sim_trans = Data(Ex, DOS)
+Ex_min_diff = np.absolute(Ex-start_fit)
+Ex_max_diff = np.absolute(Ex-end_fit)
+idx_start = Ex_min_diff.argmin()
+idx_end = Ex_max_diff.argmin()
+
+dat_sim_fit = Data(dat_sim_trans.x[idx_start:idx_end], abs(dat_sim_trans.y[idx_start:idx_end]))
+
+coeffs, dat_fit = fit_exp_no_offset(dat_sim_fit, p_guess=(0.1,1e3), x_offset=0)
+E_urbach = coeffs[0]*1e3
+
+passed = abs(E_urbach - 70) < 10
+
+
+test_results.append({'passed' : passed, 'test nr' : test_idx})
+plot_test_results(test_idx, dat_sim_trans, labels, dat_tests=[(label_test.format(E_urbach), dat_fit)], log_x=log_x, log_y=log_y)
+
+
+
 # Print all results
 print('\nResult:')
 print_test_results(test_results)

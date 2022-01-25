@@ -1,5 +1,10 @@
+import sys
+try:
+    import numpy as np
+except ModuleNotFoundError:
+    print('Error loading required Python packages, this script requires: Numpy, Scipy, Pandas, and Matplotlib.\nSee tests.md for details.')
+    sys.exit(1)
 
-import numpy as np
 
 class Data:
     def __init__(self, x_arr, y_arr):

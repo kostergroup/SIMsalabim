@@ -4,7 +4,7 @@
 
 {
 ZimT:a transient 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
+Copyright (c) 2020, 2021, 2022 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
 F. Wobben, and Prof. Dr L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.27';  
+    version = '4.29';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -130,8 +130,8 @@ BEGIN
 				{therefore, for all simtypes, we simply set Vext=Vint for new:} 		
 				Vint:=Vext; 
 				{check if V is not too large or small:}
-				IF Vext*stv.Vti < -1.95 * LN(MaxValueMyReal) THEN Stop_Prog('V is too small.');
-				IF Vext*stv.Vti > 1.95 * LN(MaxValueMyReal) THEN Stop_Prog('V is too large.');
+				IF Vext*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog('V is too small.');
+				IF Vext*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('V is too large.');
 			END;
 			parstr:=Copy2SpaceDel(varline); {contains the third parameter}
 
@@ -249,20 +249,20 @@ BEGIN {main program}
 	Print_Welcome_Message(ProgName, version); {Welcomes the user, and shows the name and version of the program and the authors}
 
     {if '-h' or '-H' option is given then display some help and exit:}
-    IF hasCLoption('-h') THEN DisplayHelpExit;
-    IF hasCLoption('-tidy') THEN Tidy_up_parameter_file(TRUE); {tidy up file and exit}
-    IF NOT Correct_version_parameter_file(ProgName, version) THEN Stop_Prog('Version of ZimT and '+parameter_file+' do not match.');
+    IF hasCLoption('-h') THEN Display_Help_Exit;
+    IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(TRUE); {tidy up file and exit}
+    IF NOT Correct_Version_Parameter_File(ProgName, version) THEN Stop_Prog('Version of ZimT and '+parameter_file+' do not match.');
     
 {Initialisation:}
     Read_Parameters(MsgStr, par, stv, ProgName); {Read parameters from input file}
     Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
-    IF par.AutoTidy THEN Tidy_up_parameter_file(FALSE); {clean up file but don't exit!}
+    IF par.AutoTidy THEN Tidy_Up_Parameter_File(FALSE); {clean up file but don't exit!}
     
     Make_Grid(stv.h, stv.x, stv.i1, stv.i2, par); {Initialize the grid}
-    DefineLayers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
-    Init_nt0_and_pt0(stv, par); {inits nt0 and pt0 arrays needed for SRH recombination}
-	Init_Trap_Distribution(stv, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
+    Define_Layers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
+	Init_Trap_Distribution(log, stv, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
+    Init_nt0_And_pt0(stv, par); {inits nt0b and pt0 arrays needed for SRH recombination}
 
 	Open_and_Read_tVG_file(inv, new, par); {open tVG file, read header and first time/voltage/Gehp}
 
@@ -272,13 +272,13 @@ BEGIN {main program}
 	prev:=curr;
 
 	Prepare_tJV_File(uitv, par.tJ_file, TRUE);   {create the tJV-file}
-	IF par.StoreVarFile THEN Prepare_Var_File(par, TRUE); {create a new var_file with appropriate heading}
+	IF par.StoreVarFile THEN Prepare_Var_File(stv, par, TRUE); {create a new var_file with appropriate heading}
 
 	WRITELN('The calculation has started, please wait.');
 
     {Init all parameters and start solving for steady-state (tijd=0)}
 	Init_Generation_Profile(stv, log, par); {init. the stv.orgGm array. This is the SHAPE of the profile}
-	UpdateGenerationProfile(stv.orgGm, new.Gm, new.Gehp, stv, par); {update current Gm array to correct value}
+	Update_Generation_Profile(stv.orgGm, new.Gm, new.Gehp, stv, par); {update current Gm array to correct value}
 	CountNotConv:=0; {counts the number of times the transient Poisson/cont. eq. solver failed to converge}
 	CounttVGPoints:=0; {count number of transient (t,V,G) points}
 	countStatic:=0;
@@ -287,7 +287,7 @@ BEGIN {main program}
 
 	WHILE keepGoing DO
 	BEGIN {main loop over times and t,V,G from input file:}
-		UpdateGenerationProfile(stv.orgGm, new.Gm, new.Gehp, stv, par); {update current Gm array to correct value}
+		Update_Generation_Profile(stv.orgGm, new.Gm, new.Gehp, stv, par); {update current Gm array to correct value}
 		prev:=curr;
 		
 		IF new.SimType = 1 
@@ -329,7 +329,7 @@ BEGIN {main program}
 		THEN BEGIN
 			curr:=new;
 			{output:}
-			Write_to_tJV_File(uitv, curr, stv, par, TRUE);
+			Write_To_tJV_File(uitv, curr, stv, par, TRUE);
 		END
 		ELSE BEGIN 
 			WRITELN(log, 'Skipping (t,Vext,Gehp) point at time ',FloatToStrF(new.tijd, ffGeneral,10,0)); 
@@ -340,7 +340,7 @@ BEGIN {main program}
         BEGIN
 			IF NOT Conv THEN TextColor(LightRed) ELSE TextColor(LightGray); {Reset to default font colour: it's not white, it's light grey!}
 			WITH new DO WRITELN('Time:',tijd:12,' Vext: ',Vext:6:4,' Gehp:',Gehp:11,' Jext:',Jext  :8:3,' convIndex: ',convIndex);
-			IF par.StoreVarFile AND acceptNewSolution THEN WriteVariablesToFile(curr, stv, par, TRUE)
+			IF par.StoreVarFile AND acceptNewSolution THEN Write_Variables_To_File(curr, stv, par, TRUE)
         END;
 	
 		INC(CounttVGPoints);

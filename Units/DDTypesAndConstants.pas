@@ -3,7 +3,7 @@ unit DDTypesAndConstants;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
+Copyright (c) 2021, 2022 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.27'; {version of this unit}
+    DDTypesAndConstantsVersion = '4.29'; {version of this unit}
     parameter_file = 'device_parameters.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -60,7 +60,7 @@ CONST
 	MinCountStatic = 5; {number of time steps we consider to be static}
 	MinCountChangeSmall = 3; {IN: determine_convergence, used if loop hardly changes.}
 	MinCountJSmall = 3; {IN: determine_convergence, used if we're simulating really small currents.}
-    
+
 TYPE 
     TProgram = (ZimT, SimSS); {which program are we using?}
     
@@ -73,7 +73,7 @@ TYPE
     TRec = RECORD {for storing the linearization of f_ti and f_tb at a grid point}
                         direct, bulk, int, {direct (band to band), bulk SRH, interface SRH recombination respectively}
                         {the rest are auxiliary variables:}
-                        old_Rint, m_srhi, lo_srhi, up_srhi, rhs_srhi,
+                        old_Rint,
 						dir_cont_rhs, dir_cont_m, bulk_cont_rhs, bulk_cont_m,
 						int_cont_lo, int_cont_up, int_cont_m, int_cont_rhs : vector;        
             END;	
@@ -85,8 +85,8 @@ TYPE
 				    V, Vgn, Vgp, n, p, nion, pion, Gm, 
 				    Jn, Jp, Jnion, Jpion, JD, mun, mup,
 				    gen, Lang, SRH, diss_prob, 
-				    Ntb_charge, Nti_charge, {charge density of bulk/interface trap}
-				    f_tb, f_ti : vector; {f_tb/i: occupancy of bulk/interface trap}
+				    Ntb_charge, Nti_charge : vector; {charge density of bulk/interface trap}
+				    f_tb, f_ti : TrapArray; {f_tb/i: occupancy of bulk/interface trap}
 				    Rn, Rp : TRec;
 			  END;
 
@@ -94,12 +94,14 @@ TYPE
 
 	
 	TStaticVars = RECORD {stores all parameters that are calculated from input, but don't change during the simulation}
-					NcLoc, ni, eps, h, x, nid, pid, E_CB, E_VB, nt0, pt0, Ntb, Nti, orgGm : vector;
-					Egap, epsi, phi_left, phi_right, V0, VL, Vt, Vti					  : myReal;
-					i1, i2, cwe_b, NJV													  : INTEGER;
-					cwe_i, q_tr_igb														  : vector;
-					Traps, Traps_int, Traps_int_poisson									  : BOOLEAN;
-				  END;
+					NcLoc, ni, eps, h, x, nid, pid, E_CB, E_VB, orgGm : vector;
+					nt0b, nt0i, pt0b, pt0i, Ntb, Nti				  : TrapArray;
+					ETrapBulk, ETrapInt, BulkTrapDist, IntTrapDist    : TrapEnArray;
+					epsi, V0, VL, Vt, Vti  							  : myReal;
+					i1, i2, N_Etr, cwe_b, NJV						  : INTEGER;
+					cwe_i, q_tr_igb									  : vector;
+					Traps, Traps_int, Traps_int_poisson				  : BOOLEAN;
+				  END;												  
 
 	TInputParameters =  RECORD {all input parameters and ones that are directly derived from the input (e.g. booleans)}
 							{order of variables: same as in input file, but grouped by type}
@@ -115,7 +117,7 @@ TYPE
 							Gehp, Gfrac, P0, a, 
 							kf, Lang_pre, kdirect,
 							Bulk_tr, St_L, St_r, GB_tr, 
-							Cn, Cp, Etrap, tolPois, maxDelV,
+							Cn, Cp, ETrapSingle, tolPois, maxDelV,
 							tolJ, MinRelChange, accDens, grad, TolRomb, 
 							LowerLimBraun, UpperLimBraun,
 							TolVint,
@@ -130,13 +132,15 @@ TYPE
 							{derived booleans:}
 							Field_dep_G, negIonsMove, posIonsMove, TLsAbsorb,
 							IonsInTLs, TLsTrap, Use_gen_profile, UseLangevin, 
+							BulkTrapFromFile, IntTrapFromFile, 
 							IgnoreNegDens, AutoTidy, StoreVarFile, 
 							PreCond, until_Voc, UseExpData, AutoStop : BOOLEAN;
 							{filenames and other strings:}
-							Gen_profile, log_file, tVG_file, Var_file, tj_file, ExpJV, JV_file, scPars_file : ANSISTRING;
-							{Misc:}
-							rms_mode : Tfitmode;	
-						END;
+							Gen_profile, BulkTrapFile, IntTrapFile, log_file, tVG_file, 
+							Var_file, tj_file, ExpJV, JV_file, scPars_file	: ANSISTRING;
+							{Misc																			: }
+							rms_mode : Tfitmode;
+						END;																				
 	
 	TSCPar = RECORD {for storing solar cell parameters}
 				Jsc, Vmpp, MPP, FF, Voc, ErrJsc, ErrVmpp, ErrMPP, ErrFF, ErrVoc : myReal;

@@ -1,7 +1,7 @@
 ** SimSS Device data:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.27
+** version: 4.29
 
 **General**************************************************************************
 T = 295                  * K, absolute temperature
@@ -90,6 +90,8 @@ GB_tr = 1e13             * m^-2, grain boundary trap density per grain boundary
 Cn = 1e-13               * m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)
 Cp = 1e-13               * m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)
 Etrap = 4.0              * eV, energy level of all traps
+BulkTrapFile = none      * name of file with bulk trap energy profile (or 'none'). If specified, overrides EtrapSingle
+IntTrapFile = none       * name of file with interface trap energy profile (or 'none'). If specified, overrides EtrapSingle
 Tr_type_L = -1           * Trap type for the left interface: -1: acceptor, 0: neutral, 1: donor
 Tr_type_R = 1            * Trap type for the right interface: -1: acceptor, 0: neutral, 1: donor
 Tr_type_B = -1           * Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor
@@ -123,11 +125,11 @@ PreCond = 0              * pre-conditioning, yes(1)/no(0)
 Vpre = 0.0               * V, pre-conditioned voltage
 Vscan = 1                * integer, 1 for forward sweep direction, -1 for reverse sweep
 Vmin = 0.01              * V
-Vmax = 100               * V
+Vmax = 10                * V
 Vstep = 0.1              * V
 Vacc = 0                 * V, point of accumulation of row of V's, note: Vacc should be
                          * slightly larger than Vmax or slightly lower than Vmin
-NJV = 100                * number of JV points in logarithmic distribution
+NJV = 20                 * number of JV points in logarithmic distribution
 until_Voc = 0            * if 1 then SimSS will stop at Voc
 
 **User interface********************************************************************
@@ -139,6 +141,6 @@ rms_mode = lin           * lin or log: use J or log(J) in calc. of rms error
 rms_threshold = 0.8      * threshold of fraction converged points in calc. rms error
 JV_file = JV.dat         * name of the file with simulated JV characteristics
 Var_file = Var.dat       * name of the file with (x,V,n,p,Jn,Jp,etc.) at V=Vmax
-OutputRatio = 100        * Output to Var_file every OutputRatio voltages
+OutputRatio = 10         * Output to Var_file every OutputRatio voltages
 scPars_file = scPars.dat * name of file with solar cell parameters
 log_file = log.txt       * name of log file

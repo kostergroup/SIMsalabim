@@ -6,11 +6,15 @@ creating output files in order to save my ssd (to my knowledge).
 Created by: Marten Koopmans
 """
 import subprocess
-import pandas as pd
-import time
 import copy
 import os
+import sys
 
+try:
+    import pandas as pd
+except ModuleNotFoundError:
+    print('Error loading required Python packages, this script requires: Numpy, Scipy, Pandas, and Matplotlib.\nSee tests.md for details.')
+    sys.exit(1)
 
 class SIMsalabim():
     """Runs simsalabim from input dictionary, gathers output and returns
@@ -81,21 +85,19 @@ class SIMsalabim():
             subprocess.check_call(['fpc', self.code_name.lower()], encoding='utf8', stdout=output_direct, cwd=self.work_dir, shell=self.windows)
         except subprocess.CalledProcessError:
             print(self.work_dir)
-            raise ChildProcessError
+            print('Code \'{}\' failed to compile!'.format(self.code_name))
+            sys.exit(1)
 
 
         
     def run(self):
         """runs simulation..."""
-        if self.show_term_output == True:
-            output_direct = None
-        else:
-            output_direct = subprocess.DEVNULL
+        output = None
         try:
-            subprocess.check_call(self.cmd_list, encoding='utf8', stdout=output_direct, cwd=self.work_dir, shell=self.windows)
-        except subprocess.CalledProcessError:
-            raise ChildProcessError
-
+            output = subprocess.run(self.cmd_list, encoding='utf8', capture_output=True, cwd=self.work_dir, shell=self.windows)
+        except subprocess.CalledProcessError as err:
+            print('{} exited with non-zero status.'.format(self.code_name))
+            sys.exit(1)
 
     def set_work_dir(self, working_directory, output_subdir):
         work_path = os.path.dirname(working_directory)
