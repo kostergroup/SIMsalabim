@@ -153,12 +153,11 @@ Example: change of thickness (L) and JV output file (JV_file):
 
 ## How to cite
 
-The essentials of this code have been outlined in several publications. 
-The original paper showing how this code can be used for organic solar cells is: 
-- L.J.A. Koster, E. C. P. Smits, V. D. Mihailetchi, and P. W. M. Blom, Device model for the operation of polymer/fullerene bulk heterojunction solar cells, Phys. Rev. B **72**, 085205 (2005).
+The open-source version of the code has been published as:
 
-For the use of perovskite solar cells, the following paper offers a detailed description of the modelling assumptions:
-- T.S. Sherkar, C. Momblona, L. Gil-Escrig, J. Ávila, M. Sessolo, H. Bolink, and L.J.A. Koster, Recombination in Perovskite Solar Cells: Significance of Grain Boundaries, Interface Traps and Defect Ions, ACS Energy Lett. **2**, 1214 (2017).
+M. Koopmans, V.M. Le Corre, and L.J.A. Koster, SIMsalabim: An open-source drift-diffusion simulator for semiconductor devices, J. Open Source Softw. **7**, 3727 (2022).
+
+[The paper can be downloaded here.![DOI](https://joss.theoj.org/papers/10.21105/joss.03727/status.svg)](https://doi.org/10.21105/joss.03727)
 
 
 ## Copyright and license
