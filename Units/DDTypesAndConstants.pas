@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.29'; {version of this unit}
+    DDTypesAndConstantsVersion = '4.33'; {version of this unit}
     parameter_file = 'device_parameters.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -73,7 +73,6 @@ TYPE
     TRec = RECORD {for storing the linearization of f_ti and f_tb at a grid point}
                         direct, bulk, int, {direct (band to band), bulk SRH, interface SRH recombination respectively}
                         {the rest are auxiliary variables:}
-                        old_Rint,
 						dir_cont_rhs, dir_cont_m, bulk_cont_rhs, bulk_cont_m,
 						int_cont_lo, int_cont_up, int_cont_m, int_cont_rhs : vector;        
             END;	

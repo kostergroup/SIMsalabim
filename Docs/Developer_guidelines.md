@@ -22,6 +22,7 @@ In case of bug reports we will need the exact configuration of the 'device_param
 - Describe changes in file change_log.txt: Briefly describe the changes to the code, but this is not the main point (as one can easily figure them out using a difference viewer). More importantly, motivate and/or explain why the change was made.
 - Run the tests as outlined in the folder 'Tests'. These are just a few tests to assess the basic functionality so additional testing is required.
 - Magic numbers used in the code are, mostly, listed as constants in DDTypesAndConstants. Here we also indicate where&mdash;in which routine&mdash;the magic number is used and what it does.
+-Try to limit local variables in and parameters passed to subroutines to 32K as this is the limit of some processors. 
 
 ## Notation within the codes
 - Use Linux line-endings

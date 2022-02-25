@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.29';  
+    version = '4.33';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -329,7 +329,7 @@ BEGIN {main program}
 		THEN BEGIN
 			curr:=new;
 			{output:}
-			Write_To_tJV_File(uitv, curr, stv, par, TRUE);
+			Write_To_tJV_File(uitv, curr, prev, stv, par, TRUE);
 		END
 		ELSE BEGIN 
 			WRITELN(log, 'Skipping (t,Vext,Gehp) point at time ',FloatToStrF(new.tijd, ffGeneral,10,0)); 

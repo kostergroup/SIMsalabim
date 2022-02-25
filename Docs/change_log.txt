@@ -1,3 +1,33 @@
+Version 4.33, 25 Feb 2022, LJAK
+
+Improved the data in ZimT's tVG_file (less relevant to SimSS as that's steady-state):
+
+1) In transient simulations, the SRH (bulk or interface) recombination rate of holes and electrons need not be equal. So, just like in the Var_file, I have split these rates (i.e. their equivalent current densities) into two seperate values for electrons and holes.
+
+2) I have added two additional columns (Jdndt and Jdpdt) to ZimT's tVG_file output: the currents due to changes in the electron and hole densities in time, so dn/dt and dp/dt. Thus, neglecting changes in the ion densities, the total current (Jext) should be equil to the sum of the individual generation/recombination terms, the minority currents at the contacts, the ionic currents, and the displacement current, provided that Jdndt and Jdpdt are included.
+To implement this, I have addded another variable (PrevState : TState) that is passed on to Write_To_tJV_File and renamed the astate to CurrState. So, Write_To_tJV_File has access to both the current state (CurrState) and the one in the previous time step (PrevState).
+
+
+Version 4.32, 24 Feb 2022, LJAK, MK
+We have extended the use of the integral form of computing the current (introduced in version 4.17) to the ionic currents. To do this, we simply set the net recombination (RecDum) to zero as ions do not undergo generation nor recombination (for now, at least).
+
+
+Version 4.31, 24 Feb 2022, LJAK
+BUGs fixed: 
+1)In routines Calc_All_Currents, Calc_Recombination_n, and Calc_Recombination_p, we used a local variable (like Rec) of type TRec. This type has become quite large after the introduction of multipe trap levels (version 4.28). Too large, in fact, to function properly. This is not always obvious: when using myReal = EXTENDED this would cause the program to crash is using CurrDiffInt = 2 as some of the fields of this record appeared not to be initialised => NAN. This is a nice feature of EXTENDED reals, as using such a NAN value will crash the program. DOUBLE reals will not and will simply have 0 value, if things go well. So, I have introduced a global variable RecDum : TRec in the DDRoutines unit (right below IMPLEMENTATION) to serve as a dummy variable that the above mentioned routines use. I have also added a note in the developer guidelines.
+
+
+2) DDRoutines: Variables Ntb_charge and Nti_charge were passed by value to routine Solve_Poisson even though these were updated inside this procedure by passing them onto other routines as VAR variables (passed by reference). So, I have made them VAR variables in Solve_Poisson's heading as well.
+
+Small stuff:
+DDTypesAndConstants type TRec contained a field (Old_Rint) that had been redundant for several version, so I removed it.
+
+
+
+Version 4.30, 22 Feb 2022, LJAK
+BUG fixed in Calc_Curr_Int. This was not functioning correctly if there were interface traps because of a missing begin ... end.
+
+
 Version 4.29, 25 Jan 2022, MK, LJAK
 
 BUG fixed:  In same cases, the minority carrier density at the electrode was given an incorrect value in Cont_Eq_holes/elec. In order to correct this and to simplify the expressions, we have removed static vars Egap, phi_left and phi_right.

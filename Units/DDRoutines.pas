@@ -43,7 +43,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.29'; {version of this unit}
+CONST DDRoutinesVersion = '4.33'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -105,14 +105,14 @@ PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLE
 {create a new tJV_file with appropriate heading
 after running this, the TEXT file 'uitv' is still open and ready for writing}
 
-PROCEDURE Write_To_tJV_File(VAR uitv : TEXT; CONSTREF astate : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
+PROCEDURE Write_To_tJV_File(VAR uitv : TEXT; CONSTREF CurrState, PrevState : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
 {before running this proc, uitv must be open (by running Prepare_tJV_File). It must be closed in the main code.
 This proc writes the (time), voltage, currents, recombination currents to a file that contains the JV-curve}
 
 PROCEDURE Prepare_Var_File(CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN); 
 {create a new var_file with appropriate heading}
 
-PROCEDURE Write_Variables_To_File(VAR astate : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
+PROCEDURE Write_Variables_To_File(VAR CurrState : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
 {writes the internal variables (astate) to file par.Var_file. It assumes the file has a header produced by Prepare_Var_File}
 
 PROCEDURE Tidy_Up_Parameter_File(QuitWhenDone : BOOLEAN);
@@ -120,6 +120,9 @@ PROCEDURE Tidy_Up_Parameter_File(QuitWhenDone : BOOLEAN);
 unit or other description/comment and left-aligns any line that starts with **.}
 
 IMPLEMENTATION
+
+VAR RecDum : TRec; {global dummy variable that will be used in Calc_All_Currents, Calc_Recombination_n, and Calc_Recombination_p}
+{using a local variable in those functions will cause problems (unpredictable behaviour) as this var is pretty large.}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -1635,7 +1638,7 @@ BEGIN
 	END;
 END;
 
-PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion	: vector; VAR f_tb, f_ti : TrapArray; Ntb_charge, Nti_charge : vector; CONSTREF Old_f_tb, Old_f_ti : TrapArray;
+PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion	: vector; VAR f_tb, f_ti : TrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF Old_f_tb, Old_f_ti : TrapArray;
 						VAR conv, coupleIonsPoisson	: BOOLEAN; VAR PoissMsg : STRING; dti : myReal;
 						CONSTREF stv				: TStaticVars; CONSTREF par : TInputParameters);
 {Solves the Poisson equation, can be used in steady-state and transient simulations}
@@ -2225,91 +2228,90 @@ BEGIN
 		END {transient}
 END;
 
-
 PROCEDURE Calc_Recombination_n(VAR Rn : TRec; dti : myReal; CONSTREF n, p, dp, Lan : vector; f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculate all recombination processes and their contribution to the continuity equation for electrons. 
 For a derivation see the doc files.}
-VAR e		  : INTEGER;
-	Rn_single : TRec;
+VAR e : INTEGER;
 BEGIN
 	FOR e:=1 TO stv.N_Etr DO
 	BEGIN
-		Calc_Recombination_n_Single_Level(Rn_single, dti, e, n, p, dp, Lan, f_tb, f_ti, stv, par);
+		{Note: we use global variable RecDum : TRec as a dummy variable. It is too larger to be a local variable.}
+		
+		Calc_Recombination_n_Single_Level(RecDum, dti, e, n, p, dp, Lan, f_tb, f_ti, stv, par);
 		IF e=1 THEN
 			FOR i:=1 TO par.NP DO
 			BEGIN
-				Rn.direct[i]:= Rn_single.direct[i];
-				Rn.bulk[i]:= Rn_single.bulk[i];
-				Rn.int[i] := Rn_single.int[i];
-				Rn.dir_cont_rhs[i]:= Rn_single.dir_cont_rhs[i];
-				Rn.dir_cont_m[i]:= Rn_single.dir_cont_m[i];
-				Rn.bulk_cont_rhs[i]:= Rn_single.bulk_cont_rhs[i];
-				Rn.bulk_cont_m[i]:= Rn_single.bulk_cont_m[i];
-				Rn.int_cont_lo[i]:= Rn_single.int_cont_lo[i];
-				Rn.int_cont_up[i]:= Rn_single.int_cont_up[i];
-				Rn.int_cont_m[i]:= Rn_single.int_cont_m[i];
-				Rn.int_cont_rhs[i]:= Rn_single.int_cont_rhs[i];
+				Rn.direct[i]:= RecDum.direct[i];
+				Rn.bulk[i]:= RecDum.bulk[i];
+				Rn.int[i] := RecDum.int[i];
+				Rn.dir_cont_rhs[i]:= RecDum.dir_cont_rhs[i];
+				Rn.dir_cont_m[i]:= RecDum.dir_cont_m[i];
+				Rn.bulk_cont_rhs[i]:= RecDum.bulk_cont_rhs[i];
+				Rn.bulk_cont_m[i]:= RecDum.bulk_cont_m[i];
+				Rn.int_cont_lo[i]:= RecDum.int_cont_lo[i];
+				Rn.int_cont_up[i]:= RecDum.int_cont_up[i];
+				Rn.int_cont_m[i]:= RecDum.int_cont_m[i];
+				Rn.int_cont_rhs[i]:= RecDum.int_cont_rhs[i];
 			END
 		ELSE
 		BEGIN
 			FOR i:=1 TO par.NP DO
 			BEGIN			
-				Rn.direct[i]:= Rn.direct[i] + Rn_single.direct[i];
-				Rn.bulk[i]:= Rn.bulk[i] + Rn_single.bulk[i];
-				Rn.int[i] := Rn.int[i] + Rn_single.int[i];
-				Rn.dir_cont_rhs[i]:= Rn.dir_cont_rhs[i] + Rn_single.dir_cont_rhs[i];
-				Rn.dir_cont_m[i]:= Rn.dir_cont_m[i] + Rn_single.dir_cont_m[i];
-				Rn.bulk_cont_rhs[i]:= Rn.bulk_cont_rhs[i] + Rn_single.bulk_cont_rhs[i];
-				Rn.bulk_cont_m[i]:= Rn.bulk_cont_m[i] + Rn_single.bulk_cont_m[i];
-				Rn.int_cont_lo[i]:= Rn.int_cont_lo[i] + Rn_single.int_cont_lo[i];
-				Rn.int_cont_up[i]:= Rn.int_cont_up[i] + Rn_single.int_cont_up[i];
-				Rn.int_cont_m[i]:= Rn.int_cont_m[i] + Rn_single.int_cont_m[i];
-				Rn.int_cont_rhs[i]:= Rn.int_cont_rhs[i] + Rn_single.int_cont_rhs[i];
+				Rn.direct[i]:= Rn.direct[i] + RecDum.direct[i];
+				Rn.bulk[i]:= Rn.bulk[i] + RecDum.bulk[i];
+				Rn.int[i] := Rn.int[i] + RecDum.int[i];
+				Rn.dir_cont_rhs[i]:= Rn.dir_cont_rhs[i] + RecDum.dir_cont_rhs[i];
+				Rn.dir_cont_m[i]:= Rn.dir_cont_m[i] + RecDum.dir_cont_m[i];
+				Rn.bulk_cont_rhs[i]:= Rn.bulk_cont_rhs[i] + RecDum.bulk_cont_rhs[i];
+				Rn.bulk_cont_m[i]:= Rn.bulk_cont_m[i] + RecDum.bulk_cont_m[i];
+				Rn.int_cont_lo[i]:= Rn.int_cont_lo[i] + RecDum.int_cont_lo[i];
+				Rn.int_cont_up[i]:= Rn.int_cont_up[i] + RecDum.int_cont_up[i];
+				Rn.int_cont_m[i]:= Rn.int_cont_m[i] + RecDum.int_cont_m[i];
+				Rn.int_cont_rhs[i]:= Rn.int_cont_rhs[i] + RecDum.int_cont_rhs[i];
 			END
 		END;
 	END;
 END;
 
-
 PROCEDURE Calc_Recombination_p(VAR Rp : TRec; dti : myReal; CONSTREF n, p, dp, Lan : vector; f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculate all recombination processes and their contribution to the continuity equation for electrons. 
 For a derivation see the doc files.}
-VAR e		  : INTEGER;
-	Rp_single : TRec;
+VAR e : INTEGER;
 BEGIN
 	FOR e:=1 TO stv.N_Etr DO
 	BEGIN
-		Calc_Recombination_p_Single_Level(Rp_single, dti, e, n, p, dp, Lan, f_tb, f_ti, stv, par);
+		{Note: we use global variable RecDum : TRec as a dummy variable. It is too larger to be a local variable.}
+		Calc_Recombination_p_Single_Level(RecDum, dti, e, n, p, dp, Lan, f_tb, f_ti, stv, par);
 		IF e=1 THEN
 			FOR i:=1 TO par.NP DO
 			BEGIN
-				Rp.direct[i]:= Rp_single.direct[i];
-				Rp.bulk[i]:= Rp_single.bulk[i];
-				Rp.int[i] := Rp_single.int[i];
-				Rp.dir_cont_rhs[i]:= Rp_single.dir_cont_rhs[i];
-				Rp.dir_cont_m[i]:= Rp_single.dir_cont_m[i];
-				Rp.bulk_cont_rhs[i]:= Rp_single.bulk_cont_rhs[i];
-				Rp.bulk_cont_m[i]:= Rp_single.bulk_cont_m[i];
-				Rp.int_cont_lo[i]:= Rp_single.int_cont_lo[i];
-				Rp.int_cont_up[i]:= Rp_single.int_cont_up[i];
-				Rp.int_cont_m[i]:= Rp_single.int_cont_m[i];
-				Rp.int_cont_rhs[i]:= Rp_single.int_cont_rhs[i];
+				Rp.direct[i]:= RecDum.direct[i];
+				Rp.bulk[i]:= RecDum.bulk[i];
+				Rp.int[i] := RecDum.int[i];
+				Rp.dir_cont_rhs[i]:= RecDum.dir_cont_rhs[i];
+				Rp.dir_cont_m[i]:= RecDum.dir_cont_m[i];
+				Rp.bulk_cont_rhs[i]:= RecDum.bulk_cont_rhs[i];
+				Rp.bulk_cont_m[i]:= RecDum.bulk_cont_m[i];
+				Rp.int_cont_lo[i]:= RecDum.int_cont_lo[i];
+				Rp.int_cont_up[i]:= RecDum.int_cont_up[i];
+				Rp.int_cont_m[i]:= RecDum.int_cont_m[i];
+				Rp.int_cont_rhs[i]:= RecDum.int_cont_rhs[i];
 			END
 		ELSE
 		BEGIN
 			FOR i:=1 TO par.NP DO
 			BEGIN			
-				Rp.direct[i]:= Rp.direct[i] + Rp_single.direct[i];
-				Rp.bulk[i]:= Rp.bulk[i] + Rp_single.bulk[i];
-				Rp.int[i] := Rp.int[i] + Rp_single.int[i];
-				Rp.dir_cont_rhs[i]:= Rp.dir_cont_rhs[i] + Rp_single.dir_cont_rhs[i];
-				Rp.dir_cont_m[i]:= Rp.dir_cont_m[i] + Rp_single.dir_cont_m[i];
-				Rp.bulk_cont_rhs[i]:= Rp.bulk_cont_rhs[i] + Rp_single.bulk_cont_rhs[i];
-				Rp.bulk_cont_m[i]:= Rp.bulk_cont_m[i] + Rp_single.bulk_cont_m[i];
-				Rp.int_cont_lo[i]:= Rp.int_cont_lo[i] + Rp_single.int_cont_lo[i];
-				Rp.int_cont_up[i]:= Rp.int_cont_up[i] + Rp_single.int_cont_up[i];
-				Rp.int_cont_m[i]:= Rp.int_cont_m[i] + Rp_single.int_cont_m[i];
-				Rp.int_cont_rhs[i]:= Rp.int_cont_rhs[i] + Rp_single.int_cont_rhs[i];
+				Rp.direct[i]:= Rp.direct[i] + RecDum.direct[i];
+				Rp.bulk[i]:= Rp.bulk[i] + RecDum.bulk[i];
+				Rp.int[i] := Rp.int[i] + RecDum.int[i];
+				Rp.dir_cont_rhs[i]:= Rp.dir_cont_rhs[i] + RecDum.dir_cont_rhs[i];
+				Rp.dir_cont_m[i]:= Rp.dir_cont_m[i] + RecDum.dir_cont_m[i];
+				Rp.bulk_cont_rhs[i]:= Rp.bulk_cont_rhs[i] + RecDum.bulk_cont_rhs[i];
+				Rp.bulk_cont_m[i]:= Rp.bulk_cont_m[i] + RecDum.bulk_cont_m[i];
+				Rp.int_cont_lo[i]:= Rp.int_cont_lo[i] + RecDum.int_cont_lo[i];
+				Rp.int_cont_up[i]:= Rp.int_cont_up[i] + RecDum.int_cont_up[i];
+				Rp.int_cont_m[i]:= Rp.int_cont_m[i] + RecDum.int_cont_m[i];
+				Rp.int_cont_rhs[i]:= Rp.int_cont_rhs[i] + RecDum.int_cont_rhs[i];
 			END
 		END;
 	END;
@@ -2594,37 +2596,41 @@ BEGIN
         J[i]:=J[i-1] + sn*q*par.L*stv.h[i]*U[i];
 	
 	{now correct for interface recombination. This represents the current THROUGH the interface traps.}
-	FOR i:=1 TO par.NP+1 DO
+	FOR i:=1 TO par.NP+1 DO 
+	BEGIN
 		int_traps := FALSE;
 		FOR e:=1 TO stv.N_Etr DO
 			IF (stv.Nti[i,e] <> 0) AND (stv.Nti[i+1,e] <> 0) THEN int_traps:= TRUE;
 		IF int_traps THEN
-			J[i]:=J[i-1] + sn*0.5*q*par.L*stv.h[i]*(Rec.int[i] + Rec.int[i+1]);
-
+			J[i]:=J[i-1] + sn*0.5*q*par.L*stv.h[i]*(Rec.int[i] + Rec.int[i+1])
+	END;
+	
     J[par.NP+1]:=J[par.NP]; {doesn't have a physical meaning: J[NP+1] is current between NP+1 and NP+2}
 END;
 
 PROCEDURE Calc_All_Currents(VAR new : TState; CONSTREF curr : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
 {calculates all the currents for state new}
-VAR Rec : TRec; {temp variable that will store the electron, hole, ion recombination}
-	mob : vector;
+VAR mob : vector;
 	i, istart, ifinish : INTEGER;
 BEGIN
 	WITH new DO 
 	BEGIN
+		{Note: we use global variable RecDum : TRec as a dummy variable. It is too larger to be a local variable.}
+		
 		{first do the electrons}
-		Calc_Recombination_n(Rec, dti, n, p, diss_prob, Lang, curr.f_tb, curr.f_ti, stv, par); {calc net recombination of electrons}
+		Calc_Recombination_n(RecDum, dti, n, p, diss_prob, Lang, curr.f_tb, curr.f_ti, stv, par); {calc net recombination of electrons}
 
 		CASE par.CurrDiffInt OF
-			1 : Calc_Curr_Diff(-1, 0, par.NP, Jn, Vgn, n, mun, Rec.int, stv, par); {only needs part of Rec with interface recombination}
-			2 : Calc_Curr_Int(-1, 0, par.NP, dti, Jn, Vgn, n, curr.n, mun, gen, Rec, stv, par); {needs full Rec and curr.n}
+			1 : Calc_Curr_Diff(-1, 0, par.NP, Jn, Vgn, n, mun, RecDum.int, stv, par); {only needs part of RecDum with interface recombination}
+			2 : Calc_Curr_Int(-1, 0, par.NP, dti, Jn, Vgn, n, curr.n, mun, gen, RecDum, stv, par); {needs full RecDum and curr.n}
 		END;	
 
 		{now do the holes}
-		Calc_Recombination_p(Rec, dti, n, p, diss_prob, Lang, curr.f_tb, curr.f_ti, stv, par); {calc net recombination of holes}
+		Calc_Recombination_p(RecDum, dti, n, p, diss_prob, Lang, curr.f_tb, curr.f_ti, stv, par); {calc net recombination of holes}
+
 		CASE par.CurrDiffInt OF
-			1 : Calc_Curr_Diff(1, 0, par.NP, Jp, Vgp, p, mup, Rec.int, stv, par);{only needs part of Rec with interface recombination}
-			2 : Calc_Curr_Int(1, 0, par.NP, dti, Jp, Vgp, p, curr.p, mup, gen, Rec, stv, par); {needs full Rec and curr.p}
+			1 : Calc_Curr_Diff(1, 0, par.NP, Jp, Vgp, p, mup, RecDum.int, stv, par);{only needs part of RecDum with interface recombination}
+			2 : Calc_Curr_Int(1, 0, par.NP, dti, Jp, Vgp, p, curr.p, mup, gen, RecDum, stv, par); {needs full RecDum and curr.p}
 		END;	
 
 		{ions can be limited to the middle layer (which can take up the whole device i=0...NP+1.}
@@ -2632,18 +2638,26 @@ BEGIN
 		IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN istart:=stv.i1+1 ELSE istart:=0;
 		IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN ifinish:=stv.i2-2 ELSE ifinish:=par.NP;
 
+		FILLCHAR(RecDum, SIZEOF(RecDum), 0); {set all fields of RecDum to zero as ions don't have generation/recombination}
+
 		{for the ions, we always take the diff form as this appears to work best, also in transient simulations}
 		IF par.negIonsMove AND (dti<>0) THEN {dti=0, then we're in steady-state => ionic currents are zero!}
 		BEGIN 
 			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobnion;
-			Calc_Curr_Diff(-1, istart, ifinish, Jnion, V, nion, mob, Rec.int, stv, par);			
+			CASE par.CurrDiffInt OF
+				1 : Calc_Curr_Diff(-1, istart, ifinish, Jnion, V, nion, mob, RecDum.int, stv, par);		
+				2 : Calc_Curr_Int(-1, istart, ifinish, dti, Jnion, V, nion, curr.nion, mob, gen, RecDum, stv, par);
+			END	
 		END
 		ELSE FILLCHAR(Jnion, SIZEOF(Jnion), 0); {set ionic current to zero}
 	
 		IF par.posIonsMove AND (dti<>0) THEN {dti=0, then we're in steady-state => ionic currents are zero!}
 		BEGIN 
 			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobpion;
-			Calc_Curr_Diff(1, istart, ifinish, Jpion, V, pion, mob, Rec.int, stv, par);
+			CASE par.CurrDiffInt OF
+				1 : Calc_Curr_Diff(1, istart, ifinish, Jpion, V, pion, mob, RecDum.int, stv, par);
+				2 : Calc_Curr_Int(1, istart, ifinish, dti, Jpion, V, pion, curr.pion, mob, gen, RecDum, stv, par);
+			END
 		END
 		ELSE FILLCHAR(Jpion, SIZEOF(Jpion), 0); {set ionic current to zero}
 		
@@ -2864,11 +2878,11 @@ BEGIN
 	REWRITE(uitv); {rewrite old file (if any) or create new one}
     {write header, in the simulation we'll simply output the variables, but not change this header:}
 	IF transient THEN WRITE(uitv,' t');
-	WRITE(uitv,' Vext Jext convIndex P Jphoto Jdir JBulkSRH JIntSRH JminLeft JminRight JShunt'); 
-	IF transient THEN WRITELN(uitv,' Jnion Jpion JD') ELSE WRITELN(uitv);
+	WRITE(uitv,' Vext Jext convIndex P Jphoto Jdir JBulkSRHn JBulkSRHp JIntSRHn JIntSRHp JminLeft JminRight JShunt'); 
+	IF transient THEN WRITELN(uitv,' Jdndt Jdpdt Jnion Jpion JD') ELSE WRITELN(uitv);
 END;
 
-PROCEDURE Write_To_tJV_File(VAR uitv : TEXT; CONSTREF astate : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
+PROCEDURE Write_To_tJV_File(VAR uitv : TEXT; CONSTREF CurrState, PrevState : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
 {before running this proc, uitv must be open (by running Prepare_tJV_File). It must be closed in the main code.
 This proc writes the (time), voltage, currents, recombination currents to a file that contains the JV-curve}
 VAR JminLeft, JminRight : myReal;
@@ -2888,7 +2902,7 @@ VAR JminLeft, JminRight : myReal;
 	END;
 	
 BEGIN
-    WITH astate DO 
+    WITH CurrState DO 
     BEGIN
         IF transient THEN WRITE(uitv,tijd:nd,' ');  
 
@@ -2898,13 +2912,12 @@ BEGIN
 		IF n[NP+1]<p[NP+1] THEN JminRight:=Jn[NP+1] ELSE JminRight:=Jp[NP+1];   
         
         WRITE(uitv,Vext:nd,' ',Jext:nd,' ',convIndex,' ',Ave(diss_prob):nd,' ',EquiCurr(gen):nd,' ',
-			EquiCurr(Rn.direct):nd,' ',EquiCurr(Rn.bulk):nd,' ',EquiCurr(Rn.int):nd,' ', 
+			EquiCurr(Rn.direct):nd,' ',EquiCurr(Rn.bulk):nd,' ',EquiCurr(Rp.bulk):nd,' ',
+			EquiCurr(Rn.int):nd,' ',EquiCurr(Rp.int):nd,' ', 
 			JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);
 
-		{Note on Rn: integrated over the device, the rates for holes are the same, so we don't need those!}
-
         IF transient 
-			THEN WRITELN(uitv,' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
+			THEN WRITELN(uitv,' ',q*par.L*dti*(Ave(n)-Ave(PrevState.n)),' ',q*par.L*dti*(Ave(p)-Ave(PrevState.p)),' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
 			ELSE WRITELN(uitv);
     END; {with astate}
     FLUSH(uitv);
@@ -2931,7 +2944,7 @@ BEGIN
     CLOSE(uitv);
 END;
 
-PROCEDURE Write_Variables_To_File(VAR astate : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
+PROCEDURE Write_Variables_To_File(VAR CurrState : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
 {writes the internal variables (astate) to file par.Var_file. It assumes the file has a header produced by Prepare_Var_File}
 VAR i, e : INTEGER;
 	uitv : TEXT;
@@ -2941,7 +2954,7 @@ BEGIN
     APPEND(uitv);
 	
     FOR i:=0 TO par.NP+1 DO
-    WITH astate DO BEGIN
+    WITH CurrState DO BEGIN
 		Evac:=V[0] - V[i]; {the vacuum level. We take it zero at x=0}
 		{use the generalised potentials to take care of the band-offsets}
 		{but we need to correct for the effect of the DOS on Vgn/p:}

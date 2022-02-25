@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '4.29';   {version, 1.00 = 10-03-2004}
+    version = '4.33';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -655,7 +655,7 @@ BEGIN {main program}
 			WRITELN('At Vint=', new.Vint:4:3,' converged in',MainIt:4,' loop(s), Jint=',new.Jint:7:4,' convIndex: ',new.convIndex);
 
 			{we only write the point to the JV_file if Conv_Main and if Store:}
-			IF JVSim[VCount].Store THEN Write_To_tJV_File(uitv, new, stv, par, FALSE);						
+			IF JVSim[VCount].Store THEN Write_To_tJV_File(uitv, new, curr, stv, par, FALSE);						
 		END
 		ELSE BEGIN {o dear, now what?}
 			{tell user of failed convergence:}
