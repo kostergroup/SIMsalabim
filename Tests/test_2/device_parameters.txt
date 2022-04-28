@@ -89,7 +89,7 @@ GB_tr = 1e13             * m^-2, grain boundary trap density per grain boundary
 ** trap coefficients
 Cn = 1e-14               * m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)
 Cp = 1e-14               * m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)
-Etrap = 4.7              * eV, energy level of all traps
+ETrapSingle = 4.7        * eV, energy level of all traps
 BulkTrapFile = none      * name of file with bulk trap energy profile (or 'none'). If specified, overrides EtrapSingle
 IntTrapFile = none       * name of file with interface trap energy profile (or 'none'). If specified, overrides EtrapSingle
 Tr_type_L = -1           * Trap type for the left interface: -1: acceptor, 0: neutral, 1: donor
