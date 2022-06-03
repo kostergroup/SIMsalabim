@@ -1,11 +1,29 @@
+Version 4.35, 3 June 2022, LJAK
+
+1) BUG fix (SimSS only!): In the process of merging ZimT and SimSS (formerly known as SIMsalabim), the functionality of SimSS parameter ion_red_rate was lost. Within SimSS's main code, the parameter (TJVList.UpdateIons) was set and stored in the log_file, but it was never used in the main code. So, if fixing the ions, for example, by setting ion_red_rate = 0, the ion distributions would still be computed at every voltage. 
+To fix this, I have added a field (UpdateIons) to TState. So, per state (curr, new) that is being solved, we need to specify whether we should update the ion distributions are whether to (artificially!) keep them fixed. In SimSS, we simply copy this value from the list of voltages and tasks that SimSS should do (variable JVSim.UpdateIons). In ZimT, this field is always TRUE as we don't allow for artificially fixing the ions. 
+
+2) Refined the help message (proc Display_Help_Exit) in that it now shows the name of the program.
+
+3) In the Poisson solver (proc Solve_Poisson), we have a bit of code that changes the carrier densities (n and p) to reflect any changes to the potential. So, the Poisson and continuity equations are coupled. This helps (quite a lot) in finding a solution, but so far we have limited this to steady-state (dti=0) only. From now on, we also use it in transient cases. In order to improve the stability of the code, I have set a limit to this coupling (parameter couplePC). This defines by how much the densities can change per loop. Setting couplePC = 0 means that the densities are not changed by the Poisson solver. Positive values allow for some change per loop.
+
+4) In order to keep the number of numerical parameters to a manageable number, I have moved TolRomb, MaxRombIt, LowerLimBraun, and UpperLimBraun to DDTypesAndConstants (see block with magic numbers).
+
+5) Change in unit InputOutputUtils: Routines getStringfromCL and getRealfromCL would print an error message when an exception was raised, but they would not stop the program. So, for example if running ./zimt -L -Cp 1E-10, then ZimT would show an error message "-Cp" is an invalid float. In other words, it would not stop but run ZimT with whatever thickness L (and capture coefficient Cp) were in the device_parameter file.
+
+Version 4.34, 17 May 2022, LJAK
+
+In order to make it easier to quantify how many charge carriers are lost at internal interfaces (like transport layer/perovskite), I have changed some of the columns in the tj_file/JV_file: JIntSRHn JIntSRHp are now split into left and right. In steady-state (SimSS), the interfacial recombination currents are now called JIntLeft and JIntRight. In ZimT, these currents can be different for electrons and holes, so we have four such columns: JIntLeftn, JIntLeftp, JIntRightn, and JintRightp.
+
+
 Version 4.33, 25 Feb 2022, LJAK
 
 Improved the data in ZimT's tVG_file (less relevant to SimSS as that's steady-state):
 
-1) In transient simulations, the SRH (bulk or interface) recombination rate of holes and electrons need not be equal. So, just like in the Var_file, I have split these rates (i.e. their equivalent current densities) into two seperate values for electrons and holes.
+1) In transient simulations, the SRH (bulk or interface) recombination rate of holes and electrons need not be equal. So, just like in the Var_file, I have split these rates (i.e. their equivalent current densities) into two separate values for electrons and holes.
 
-2) I have added two additional columns (Jdndt and Jdpdt) to ZimT's tVG_file output: the currents due to changes in the electron and hole densities in time, so dn/dt and dp/dt. Thus, neglecting changes in the ion densities, the total current (Jext) should be equil to the sum of the individual generation/recombination terms, the minority currents at the contacts, the ionic currents, and the displacement current, provided that Jdndt and Jdpdt are included.
-To implement this, I have addded another variable (PrevState : TState) that is passed on to Write_To_tJV_File and renamed the astate to CurrState. So, Write_To_tJV_File has access to both the current state (CurrState) and the one in the previous time step (PrevState).
+2) I have added two additional columns (Jdndt and Jdpdt) to ZimT's tVG_file output: the currents due to changes in the electron and hole densities in time, so dn/dt and dp/dt. Thus, neglecting changes in the ion densities, the total current (Jext) should be equal to the sum of the individual generation/recombination terms, the minority currents at the contacts, the ionic currents, and the displacement current, provided that Jdndt and Jdpdt are included.
+To implement this, I have added another variable (PrevState : TState) that is passed on to Write_To_tJV_File and renamed the astate to CurrState. So, Write_To_tJV_File has access to both the current state (CurrState) and the one in the previous time step (PrevState).
 
 
 Version 4.32, 24 Feb 2022, LJAK, MK

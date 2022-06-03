@@ -178,7 +178,7 @@ begin
                   foundit:=true;
                except {note that if an exception occurs foundit stays false}
                      On val : Exception do
-                     Writeln('Exception when reading from command line : ',val.Message);
+                     Stop_Prog('Exception when reading from command line : '+val.Message);
                end;
           end;
           i:=i+1;
@@ -203,7 +203,7 @@ begin
                   foundit:=true;
                except {note that if an exception occurs foundit stays false}
                      On val : Exception do
-                     Writeln('Exception when reading from command line : ',val.Message);
+                     Stop_Prog('Exception when reading from command line : '+val.Message);
                end;
           end;
           i:=i+1;

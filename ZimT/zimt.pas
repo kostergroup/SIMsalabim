@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.33';  
+    version = '4.35';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -249,7 +249,7 @@ BEGIN {main program}
 	Print_Welcome_Message(ProgName, version); {Welcomes the user, and shows the name and version of the program and the authors}
 
     {if '-h' or '-H' option is given then display some help and exit:}
-    IF hasCLoption('-h') THEN Display_Help_Exit;
+    IF hasCLoption('-h') THEN Display_Help_Exit(ProgName);
     IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(TRUE); {tidy up file and exit}
     IF NOT Correct_Version_Parameter_File(ProgName, version) THEN Stop_Prog('Version of ZimT and '+parameter_file+' do not match.');
     
@@ -267,6 +267,7 @@ BEGIN {main program}
 	Open_and_Read_tVG_file(inv, new, par); {open tVG file, read header and first time/voltage/Gehp}
 
 	WITH new DO Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, Vint, stv, par); {init. (generalised) potentials and densities}
+	new.UpdateIons:=TRUE; {in ZimT this is always true as we don't artificially fix the ions like we can in SimSS}
 	{just to make sure these are initialised!}
 	curr:=new;
 	prev:=curr;

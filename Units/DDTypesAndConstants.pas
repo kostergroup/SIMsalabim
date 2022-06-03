@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.33'; {version of this unit}
+    DDTypesAndConstantsVersion = '4.35'; {version of this unit}
     parameter_file = 'device_parameters.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -60,11 +60,16 @@ CONST
 	MinCountStatic = 5; {number of time steps we consider to be static}
 	MinCountChangeSmall = 3; {IN: determine_convergence, used if loop hardly changes.}
 	MinCountJSmall = 3; {IN: determine_convergence, used if we're simulating really small currents.}
+	TolRomb = 0.01; {IN Calc_Dissociation, sets relative tolerance of Romberg integration}
+	MaxRombIt = 15; {IN Calc_Dissociation, max. # of iterations in Romberg integration}
+	LowerLimBraun = 0.01; {IN Calc_Dissociation, lower limit of integration in Braun model, should be non-zero}
+	UpperLimBraun = 20; {IN Calc_Dissociation, upper limit of integration in Braun model }
+
 
 TYPE 
     TProgram = (ZimT, SimSS); {which program are we using?}
     
-    TJVList = ARRAY OF RECORD {for storing the JV curve}
+    TJVList = ARRAY OF RECORD {for storing the JV curve in SimSS}
                         Vint, Vext : myReal;
                         Jint, Jext : myReal;
                         UpdateIons, Store, Use : BOOLEAN
@@ -87,9 +92,10 @@ TYPE
 				    Ntb_charge, Nti_charge : vector; {charge density of bulk/interface trap}
 				    f_tb, f_ti : TrapArray; {f_tb/i: occupancy of bulk/interface trap}
 				    Rn, Rp : TRec;
+				    UpdateIons : BOOLEAN;
 			  END;
 
-    Tfitmode = (linear, logarithmic);
+    TFitMode = (linear, logarithmic);
 
 	
 	TStaticVars = RECORD {stores all parameters that are calculated from input, but don't change during the simulation}
@@ -117,9 +123,7 @@ TYPE
 							kf, Lang_pre, kdirect,
 							Bulk_tr, St_L, St_r, GB_tr, 
 							Cn, Cp, ETrapSingle, tolPois, maxDelV,
-							tolJ, MinRelChange, accDens, grad, TolRomb, 
-							LowerLimBraun, UpperLimBraun,
-							TolVint,
+							tolJ, MinRelChange, couplePC, accDens, grad, TolVint,
 							MinAbsJDark, Vpre, Vmin, Vmax, Vstep, Vacc, rms_threshold : myReal; 
 							{integers:}		
 							MaxItPois, MaxRombIt, 
@@ -138,7 +142,7 @@ TYPE
 							Gen_profile, BulkTrapFile, IntTrapFile, log_file, tVG_file, 
 							Var_file, tj_file, ExpJV, JV_file, scPars_file	: ANSISTRING;
 							{Misc																			: }
-							rms_mode : Tfitmode;
+							rms_mode : TFitMode;
 						END;																				
 	
 	TSCPar = RECORD {for storing solar cell parameters}

@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '4.33';   {version, 1.00 = 10-03-2004}
+    version = '4.35';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -605,7 +605,7 @@ BEGIN {main program}
 	Print_Welcome_Message(ProgName, version);
 
     {if '-h' or '-H' option is given then display some help and exit:}
-    IF hasCLoption('-h') THEN Display_Help_Exit;
+    IF hasCLoption('-h') THEN Display_Help_Exit(ProgName);
     IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(TRUE); {tidy up file and exit}
     IF NOT Correct_Version_Parameter_File(ProgName, version) THEN Stop_Prog('Version of SIMsalabim and '+parameter_file+' do not match.');
 
@@ -632,6 +632,7 @@ BEGIN {main program}
     WHILE (Vcount<=stv.NJV) AND (NOT quit_Voc) DO  {loop over voltages}
     BEGIN
 		new.Vint:=JVSim[VCount].Vint; 
+		new.UpdateIons:=JVSim[VCount].UpdateIons;
 		
 		{now use Main_Solver to iterative solve the Poisson eq and continuity equations:}
 		Main_Solver(curr, new, MainIt, Conv_Main, StatusStr, stv, par);

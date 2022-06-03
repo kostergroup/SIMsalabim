@@ -1,7 +1,7 @@
 ** ZimT Device data
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.33
+** version: 4.35
 
 **General**************************************************************************
 T = 300                  * K, absolute temperature
@@ -104,18 +104,11 @@ CurrDiffInt = 1          * Calc. current from differential (1) or integral (2) e
 tolJ = 1e-2              * tolerance of current in main loop, 1% OK.
 MinRelChange = 1e-8      * if change per loop smaller than this, then the loop converges
 MinAbsJDark = 1e-20      * A/m2, if |Jint|<MinAbsRangeJ and Gehp=0 we simply stop and take Jint=0
+couplePC = 4             * >= 0, coupling between Poisson equation and continuity equations
 accDens = 0.3            * accelation parameter for density solver, 0 < accDens < 2
 IgnoreNegDens = 1        * whether(1) or not(<>1) to ignore negative densities
 FailureMode = 1          * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
 grad = 0                 * determines shape of exp. grid, increase grad for smaller h[1]
-TolRomb = 1e-2           * relative tolerance of Romberg integration, 1e-2 is a good
-                         * starting point
-MaxRombIt = 15           * max. # of iterations in Romberg integration, 10 is sufficient
-LowerLimBraun = 0.01     * Lower limit of integration of distribution of a in terms of a
-                         * should be non-zero (otherwise division by zero)!
-UpperLimBraun = 10       * Upper limit of integration of distribution of a in terms of a
-                         * only relevant if ThermLengDist<>1 (delta function)
-                         * 10 seems sufficient for Gaussian, but for r^2 exp., use 20
 TolVint = 1e-10          * V, tolerance internal voltage (Vint)
 
 **User interface********************************************************************

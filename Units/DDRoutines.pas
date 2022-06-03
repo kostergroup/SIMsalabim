@@ -43,12 +43,12 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.33'; {version of this unit}
+CONST DDRoutinesVersion = '4.35'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
 
-PROCEDURE Display_Help_Exit;
+PROCEDURE Display_Help_Exit(ProgName : TProgram); 
 {displays a short help message and exits}
 
 FUNCTION Max_Value_myReal : EXTENDED;
@@ -135,14 +135,17 @@ BEGIN
     WRITELN;
 END;
 
-PROCEDURE Display_Help_Exit;
+PROCEDURE Display_Help_Exit(ProgName : TProgram); 
 {displays a short help message and exits}
+VAR strprogname : STRING;
 BEGIN
+    Str(ProgName, strprogname); {convert variable ProgName to a string}
+    strprogname:=LOWERCASE(strprogname); {ensure it's lower case}
     WRITELN('This program can be used with the following options:');
     WRITELN;
     WRITELN('All parameters can be set via ',parameter_file);
     WRITELN('or via the command line, which overrides the values in the file.');
-    WRITELN('Example: ./simss -T 400 -Var_file Var.dat');
+    WRITELN('Example: ./',strprogname,' -T 400 -Var_file Var.dat');
     WRITELN;
     WRITELN('To tidy-up the parameter file, use ''-tidy''');
     WRITELN;
@@ -385,7 +388,7 @@ BEGIN
 		Use_gen_profile:= lowercase(Trim(Gen_profile))<>'none'; {use the profile if Gen_profile isn't 'none'}
 		Get_Integer(inv, msg, 'Field_dep_G', dumint);  {field-dependent G, true or false}
 		Field_dep_G:=(ROUND(dumint) = 1);
-    	Get_Float(inv, msg, 'P0', P0); {0<=P0<1, fraction of quenched excitons that direcltly yield free carriers}
+    	Get_Float(inv, msg, 'P0', P0); {0<=P0<1, fraction of quenched excitons that directly yield free carriers}
 		Get_Float(inv, msg, 'a', a); {thermalization length, Braun model used, m}
 		Get_Integer(inv, msg, 'ThermLengDist', ThermLengDist);
 		Get_Float(inv, msg, 'kf', kf); {decay rate of CT state, 1/s}
@@ -429,15 +432,12 @@ BEGIN
 		Get_Float(inv, msg, 'tolJ', tolJ); {tolerance of current density in main loop}
 		Get_Float(inv, msg, 'MinRelChange', MinRelChange); {if change per loop smaller than this, then loop converges}	
 		Get_Float(inv, msg, 'MinAbsJDark', MinAbsJDark); {A/m2, if |Jint|<MinAbsJDark we simply stop and take Jint=0}		
+		Get_Float(inv, msg, 'couplePC', couplePC); {>= 0, coupling between Poisson equation and continuity equations}
 		Get_Float(inv, msg, 'accDens', accDens); {accelation for densities, 0 < accDens < 2}
 		Get_Integer(inv, msg, 'IgnoreNegDens', dumint);
 		IgnoreNegDens:= dumint=1; {whether(1) or not(<>1) to ignore negative densities}
 		Get_Integer(inv, msg, 'FailureMode', FailureMode); {how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip}
 		Get_Float(inv, msg, 'grad', grad); {gradient of grid, increase grad for smaller h[1]}
-		Get_Float(inv, msg, 'TolRomb', TolRomb); {rel. tolerance of Romberg integration}
-		Get_Integer(inv, msg, 'MaxRombIt', MaxRombIt); {max. # Romberg iterations}
-		Get_Float(inv, msg, 'LowerLimBraun', LowerLimBraun); {lower limit of integration over distribution Braun}
-		Get_Float(inv, msg, 'UpperLimBraun', UpperLimBraun); {upper limit}
 		IF ZimT THEN Get_Float(inv, msg, 'TolVint', TolVint); {V, tolerance in internal voltage (Vint)}
 
 {**Voltage range of simulation*******************************************************}
@@ -577,6 +577,7 @@ BEGIN
 		IF (CurrDiffInt <> 1) AND (CurrDiffInt <> 2) THEN Stop_Prog('CurrDiffInt can only be 1 or 2.');
 		IF maxDelV<=0 THEN Stop_Prog('maxDelV should be positive.');
 		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog('maxDelV*Vt should be (much) larger than tolPois.');
+		IF couplePC < 0 THEN Stop_Prog('couplePC must be non-negative.');
 		{check if value of accDens makes any sense:}
 		IF (accDens>=2) OR (accDens<=0) THEN Stop_Prog('Invalid value of accDens selected.');  
 		IF NOT (FailureMode IN [0,1,2]) THEN Stop_Prog('Invalid FailureMode selected.');
@@ -1646,7 +1647,7 @@ PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion	: vector; VAR f_tb, f_ti : TrapA
 VAR it, i : INTEGER;
 	sumPre, sumPost, NormDelV : myReal;
     delV, rhs, lower, upper, main : vector;
-    fac_m, fac_u, fac_l, fac2, fac3 : myReal;
+    fac_m, fac_u, fac_l, fac2, fac3, val, lnr : myReal;
     IonsOK : BOOLEAN;
 	lin	  : TLinFt; {this type (a record) stores the linearisation of the trapping terms.}
 BEGIN
@@ -1656,6 +1657,7 @@ BEGIN
     it:=0;
     conv:=FALSE;
 	PoissMsg:='Poisson solver status:' + LineEnding; {message string}
+	lnr:=LN(1 + par.couplePC);
 
 	{if needed, check the total number of ions in volume}
 	IF (par.negIonsMove OR par.posIonsMove) AND coupleIonsPoisson THEN
@@ -1693,16 +1695,15 @@ BEGIN
         BEGIN
 			delV[i]:=SIGN(delV[i])*MIN(par.maxDelV*stv.Vt, ABS(delV[i])); {limit delV to a pre-set max}
             V[i]:=V[i] + delV[i];  {and add delV to V}
-			IF dti=0 THEN {only do this in steady-state}
-			BEGIN {this couples the Poisson to the cont. eqs. and makes convergence a lot easier!}
-				fac2:=EXP(delV[i]*stv.Vti);
-				fac3:=1/fac2;
-				n[i]:=n[i]*fac2; {now update the densities: we have to do this}
-				p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
-				{we also apply this to the ions. If IonsInTLs = 0 then we can still do this even though it's redundant for i<i1 and i>i2}
-				IF par.negIonsMove AND coupleIonsPoisson THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
-				IF par.posIonsMove AND coupleIonsPoisson THEN pion[i]:=pion[i]*fac3 
-			END;
+			{Couple the Poisson to the cont. eqs. and makes convergence a lot easier!}
+			val:=SIGN(delV[i]) * MIN(lnr, ABS(delV[i])*stv.Vti);
+			fac2:=EXP(val);
+			fac3:=1/fac2;
+			n[i]:=n[i]*fac2; {now update the densities: we have to do this}
+			p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
+			{we also apply this to the ions. If IonsInTLs = 0 then we can still do this even though it's redundant for i<i1 and i>i2}
+			IF par.negIonsMove AND coupleIonsPoisson THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
+			IF par.posIonsMove AND coupleIonsPoisson THEN pion[i]:=pion[i]*fac3
 		END; {for loop}
 
         it:=it+1;
@@ -2822,11 +2823,14 @@ BEGIN
 		Cont_Eq_Elec(n, curr.n, Vgn, Jn, p, mun, gen, Lang, diss_prob, curr.f_tb, curr.f_ti, Rn, stv, par, dti); {calc. new elec. density}
 		Cont_Eq_Holes(p, curr.p, Vgp, Jp, n, mup, gen, Lang, diss_prob, curr.f_tb, curr.f_ti, Rp, stv, par, dti); {calc. new hole density}
 		{note: transient ion solvers cannot (as yet) do steady-state, as that yields all densities=0!}
-		IF dti=0 {dti=0 => steady-date}
-			THEN Calc_Ion_Distribution_Steady_State(nion, pion, V, stv, par) {use steady-state proc for ions}
-		ELSE BEGIN {use transient versions:}
-			IF par.negIonsMove THEN Solve_Neg_Ions(nion, curr.nion, V, dti, stv, par); {update neg ions}
-			IF par.posIonsMove THEN Solve_Pos_Ions(pion, curr.pion, V, dti, stv, par) {update neg ions}
+		IF UpdateIons THEN 
+		BEGIN
+			IF dti=0 {dti=0 => steady-state}
+				THEN Calc_Ion_Distribution_Steady_State(nion, pion, V, stv, par) {use steady-state proc for ions}
+			ELSE BEGIN {use transient versions:}
+				IF par.negIonsMove THEN Solve_Neg_Ions(nion, curr.nion, V, dti, stv, par); {update neg ions}
+				IF par.posIonsMove THEN Solve_Pos_Ions(pion, curr.pion, V, dti, stv, par) {update neg ions}
+			END
 		END;
 
 		{now use SUR to get updated densities:}
@@ -2878,16 +2882,19 @@ BEGIN
 	REWRITE(uitv); {rewrite old file (if any) or create new one}
     {write header, in the simulation we'll simply output the variables, but not change this header:}
 	IF transient THEN WRITE(uitv,' t');
-	WRITE(uitv,' Vext Jext convIndex P Jphoto Jdir JBulkSRHn JBulkSRHp JIntSRHn JIntSRHp JminLeft JminRight JShunt'); 
+	WRITE(uitv,' Vext Jext convIndex P Jphoto Jdir ');
+	IF transient THEN WRITE(uitv, 'JBulkSRHn JBulkSHRp JIntLeftn JIntLeftp JIntRightn JintRightp ') 
+		ELSE WRITE(uitv, 'JBulkSRH JIntLeft JIntRight ');
+	WRITE(uitv,'JminLeft JminRight JShunt'); 
 	IF transient THEN WRITELN(uitv,' Jdndt Jdpdt Jnion Jpion JD') ELSE WRITELN(uitv);
 END;
 
 PROCEDURE Write_To_tJV_File(VAR uitv : TEXT; CONSTREF CurrState, PrevState : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
 {before running this proc, uitv must be open (by running Prepare_tJV_File). It must be closed in the main code.
 This proc writes the (time), voltage, currents, recombination currents to a file that contains the JV-curve}
-VAR JminLeft, JminRight : myReal;
+VAR JminLeft, JminRight, J1, J2 : myReal;
 	NP : INTEGER;
-	
+
 	{first: 2 short functions that will aid in compact notation:}
 	FUNCTION Ave(Vec : vector) : myReal;
 	{local version of Average to calc the average over the full interval 0..NP+1 without having to specify the bounds}
@@ -2912,9 +2919,34 @@ BEGIN
 		IF n[NP+1]<p[NP+1] THEN JminRight:=Jn[NP+1] ELSE JminRight:=Jp[NP+1];   
         
         WRITE(uitv,Vext:nd,' ',Jext:nd,' ',convIndex,' ',Ave(diss_prob):nd,' ',EquiCurr(gen):nd,' ',
-			EquiCurr(Rn.direct):nd,' ',EquiCurr(Rn.bulk):nd,' ',EquiCurr(Rp.bulk):nd,' ',
-			EquiCurr(Rn.int):nd,' ',EquiCurr(Rp.int):nd,' ', 
-			JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);
+			EquiCurr(Rn.direct):nd,' ',EquiCurr(Rn.bulk):nd);
+		IF transient THEN WRITE(uitv,' ',EquiCurr(Rp.bulk):nd); {transient => SRH Bulk n and p might be different!}
+
+		{LEFT interface recombination currents:}
+		IF stv.i1>0 THEN {interface rec at left interface for electrons}
+			J1:=q*Average(Rn.int, stv.h, stv.i1, stv.i1+1)*par.L
+		ELSE J1:=0; 
+		WRITE(uitv,' ',J1:nd); {in steady-state J1 is equal to J2}
+		IF transient THEN BEGIN
+			IF stv.i1>0 THEN 
+				J2:=q*Average(Rp.int, stv.h, stv.i1, stv.i1+1)*par.L
+			ELSE J2:=0; {for transient, we also need the interface rec for holes}
+			WRITE(uitv,' ',J2:nd);
+		END;
+			
+		{RIGHT interface recombination currents:}
+		IF stv.i2<par.NP+1 THEN {interface rec at right interface for electrons}
+			J1:=q*Average(Rn.int, stv.h, stv.i2-1, stv.i2)*par.L 
+		ELSE J1:=0; 
+		WRITE(uitv,' ',J1:nd); {in steady-state J1 is equal to J2}
+		IF transient THEN BEGIN
+			IF stv.i2<par.NP+1 THEN 
+				J2:=q*Average(Rp.int, stv.h, stv.i2-1, stv.i2)*par.L 
+			ELSE J2:=0; {for transient, we also need the interface rec for holes}
+			WRITE(uitv,' ',J2:nd);
+		END;
+	
+		WRITE(uitv,' ',JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);
 
         IF transient 
 			THEN WRITELN(uitv,' ',q*par.L*dti*(Ave(n)-Ave(PrevState.n)),' ',q*par.L*dti*(Ave(p)-Ave(PrevState.p)),' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
