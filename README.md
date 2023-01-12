@@ -120,7 +120,7 @@ Please note that at the time of recording SimSS was called SIMsalabim, so the pr
 
 
 ## Running SimSS or ZimT
-- all parameters are specified in device_parameters.txt (in ZimT an additional time-voltage-generation (tVG) file is present to indicate what time, generation, and voltage at every simulation step).
+- all parameters are specified in separate file (by default: device_parameters.txt) (in ZimT an additional time-voltage-generation (tVG) file is present to indicate what time, generation, and voltage at every simulation step).
 - on Linux run SimSS/ZimT by entering in the terminal from the folder where the compiled program is located and run using
 <pre><code>
 ./simss
@@ -178,6 +178,16 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 ## Scientific publications based on the SIMsalabim project
 
 List of publications (not complete):
+
+- M. Koopmans and L.J.A. Koster, Voltage deficit in wide band gap perovskite solar cells: the role of traps, band energies, and effective density of states, Sol. RRL, 2200560 (2022).
+
+M. Koopmans, V.M. Le Corre, and L.J.A. Koster, SIMsalabim: An open-source drift-diffusion simulator for semiconductor devices, J. Open Source Softw. 7, 3727 (2022).
+
+- A. Rahimichatri, J. Liu, F. Jahani, L. Qiu, R.C. Chiechi, J.C. Hummelen, and L.J.A. Koster, A method for identifying the cause of inefficient salt-doping in organic semiconductors, J. Mater. Chem. C 10, 13093 (2022).
+
+- K. Zhang, K. Forberich, L. Lüer, J. Garcia Cerrillo, W. Meng, X. Du, V.M. Le Corre, Y. Zhao, T. Niu, Q. Xue, L.J.A. Koster, N. Li, and C.J. Brabec, Understanding the limitations of charge transporting layers in mixed lead-tin halide perovskite solar cells, Adv. Energy Sustainability Res. 2100156 (2021).
+
+- V.M. Le Corre, E.A. Duijnstee, O.  El Tambouli, J.M. Ball, H.J. Snaith, J. Lim, and L.J.A. Koster, Revealing Charge Carrier Mobility and Defect Densities in Metal Halide Perovskites via Space-Charge-Limited Current Measurements, ACS Energy Lett. 6, 1087 (2021).
 
 - V.M. Le Corre, T.S. Sherkar, M. Koopmans, and L.J.A. Koster, Identification of the Dominant Recombination Process for Perovskite Solar Cells Based on Machine Learning, Cell Rep. Phys. Sci. 2, 100346 (2021).
 

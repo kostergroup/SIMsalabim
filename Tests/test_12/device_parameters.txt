@@ -1,11 +1,11 @@
 ** ZimT Device data
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.35
+** version: 4.45
 
 **General**************************************************************************
 T = 300                  * K, absolute temperature
-L = 400e-9               * m, device length
+L = 400e-9               * m, device length/thickness
 eps_r = 4.0              * relative dielectric constant
 CB = 3.0                 * eV, conduction band edge
 VB = 5.0                 * eV, valence band edge
@@ -107,7 +107,7 @@ MinAbsJDark = 1e-20      * A/m2, if |Jint|<MinAbsRangeJ and Gehp=0 we simply sto
 couplePC = 4             * >= 0, coupling between Poisson equation and continuity equations
 accDens = 0.3            * accelation parameter for density solver, 0 < accDens < 2
 IgnoreNegDens = 1        * whether(1) or not(<>1) to ignore negative densities
-FailureMode = 1          * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
+FailureMode = 0          * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
 grad = 0                 * determines shape of exp. grid, increase grad for smaller h[1]
 TolVint = 1e-10          * V, tolerance internal voltage (Vint)
 

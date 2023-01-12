@@ -2,7 +2,7 @@ PROGRAM SimSS;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2022 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
+Copyright (c) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '4.35';   {version, 1.00 = 10-03-2004}
+    version = '4.45';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -70,8 +70,9 @@ CONST
 {$ENDIF}
 
 
-VAR 
-	curr, new : TState; {store the previous point in time, the current one and the new}
+VAR parameterFile : ShortString;
+
+	prev, curr, new : TState; {store the previous point in time, the current one and the new}
 	{curr: solved, stored, done, 1 time step ago
 	new: to be solved, latest time that was read}
 
@@ -79,7 +80,7 @@ VAR
 
 	par : TInputParameters; {all input parameters}
 
-	VCount, MainIt : INTEGER; 
+	VCount, MainIt, CountAcceptedSolutions : INTEGER; 
 
 	quit_Voc, Conv_Main, acceptNewSolution : BOOLEAN;
 
@@ -127,7 +128,7 @@ VAR i : INTEGER;
     dumstr : STRING;
     V, J : ARRAY[1..maxExpData] OF myReal;
 BEGIN
-    IF NOT FileExists(par.ExpJV) THEN Stop_Prog('Could not find file '+par.ExpJV, FALSE);
+    IF NOT FileExists(par.ExpJV) THEN Stop_Prog('Could not find file '+par.ExpJV, EC_FileNotFound, FALSE);
     ASSIGN(inp, par.ExpJV);
     RESET(inp);
     
@@ -135,7 +136,7 @@ BEGIN
     TRY 
 		READLN(inp, dumstr);
     EXCEPT
-		Stop_Prog('Cannot read a header from '+par.ExpJV+', is it empty?', FALSE);
+		Stop_Prog('Cannot read a header from '+par.ExpJV+', is it empty?', EC_InvalidInput, FALSE);
     END;
 
     i:=0;
@@ -145,7 +146,7 @@ BEGIN
         TRY
             READLN(inp, V[i], J[i]);
         EXCEPT
-            Stop_Prog('The experimental JV curve in '+par.ExpJV+' can only contain voltage and current density, etc.', FALSE);
+            Stop_Prog('The experimental JV curve in '+par.ExpJV+' can only contain voltage and current density, etc.', EC_InvalidInput, FALSE);
         END
     END;
 
@@ -153,8 +154,8 @@ BEGIN
 
     {now check a number of things:}
     stv.NJV:=i; {this overrides NJV calculated from Vmin,Vmax,Vstep, or from direct input}
-    IF stv.NJV < minExpData THEN Stop_Prog('Not enough experimental data points.', FALSE);
-    IF stv.NJV = maxExpData THEN Stop_Prog('It looks like the experimental JV file contains more points than I can handle.', FALSE);
+    IF stv.NJV < minExpData THEN Stop_Prog('Not enough experimental data points.', EC_InvalidInput, FALSE);
+    IF stv.NJV = maxExpData THEN Stop_Prog('It looks like the experimental JV file contains more points than I can handle.', EC_InvalidInput, FALSE);
 
     {now we can copy the arrays V and J into ExpJV}
     SetLength(JVExp, stv.NJV+1); {the regular voltages start at 1}
@@ -174,7 +175,7 @@ BEGIN
     {now document what happened and write to log file:}
     WRITELN(log);
     WRITELN(log, 'Read experiment JV curve from ', par.ExpJV,'.');
-    WRITELN(log, 'This overrides the voltage distribution that is in ',parameter_file);
+    WRITELN(log, 'This overrides the voltage distribution that is in the parameter file');
     WRITELN(log, 'and any voltage parameters passed via the command line.');
     WRITELN(log, 'Vmin: ',par.Vmin:6:4,' Vmax: ',par.Vmax:6:4);
     WRITELN(log);
@@ -241,8 +242,8 @@ BEGIN
     FLUSH(log);	
 END;
 
-PROCEDURE Init_States(VAR curr, new : TState; Vapp : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
-{inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new}
+PROCEDURE Init_States(VAR prev, curr, new : TState; Vapp : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
+{inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new and prev:=curr}
 BEGIN
     WITH new DO 
     BEGIN
@@ -256,6 +257,7 @@ BEGIN
 	END;
 	
 	curr:=new;{just to make sure curr is initialised!}
+	prev:=curr; {just to make sure prev is initialised!}
 END;
 
 
@@ -606,14 +608,15 @@ BEGIN {main program}
 
     {if '-h' or '-H' option is given then display some help and exit:}
     IF hasCLoption('-h') THEN Display_Help_Exit(ProgName);
-    IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(TRUE); {tidy up file and exit}
-    IF NOT Correct_Version_Parameter_File(ProgName, version) THEN Stop_Prog('Version of SIMsalabim and '+parameter_file+' do not match.');
+    Determine_Name_Parameter_File(parameterFile); {either default or user-specified file with all the parameters}
+    IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(parameterFile, TRUE); {tidy up file and exit}
+    IF NOT Correct_Version_Parameter_File(ProgName, parameterFile, version) THEN Stop_Prog('Version of SIMsalabim and '+parameterFile+' do not match.', EC_DevParCorrupt);
 
     {Initialisation:}
-    Read_Parameters(MsgStr, par, stv, ProgName); {Read parameters from input file}
+    Read_Parameters(parameterFile, MsgStr, par, stv, ProgName); {Read parameters from input file}
     Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
-    IF par.AutoTidy THEN Tidy_Up_Parameter_File(FALSE); {clean up file but don't exit!}
+    IF par.AutoTidy THEN Tidy_Up_Parameter_File(parameterFile, FALSE); {clean up file but don't exit!}
 
     Make_Grid(stv.h, stv.x, stv.i1, stv.i2, par); {Initialize the grid}
     Define_Layers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
@@ -622,11 +625,12 @@ BEGIN {main program}
 	
     Init_Voltages_and_Tasks(JVSim, JVExp, VCount, log, stv, par);
     Init_Generation_Profile(stv, log, par); {init. the stv.orgGm array. This is the SHAPE of the profile}
-	Init_States(curr, new, JVSim[VCount].Vint, stv, par); {inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new}
-
+	Init_States(prev, curr, new, JVSim[VCount].Vint, stv, par); {inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new and prev:=curr}
+	
     Prepare_tJV_File(uitv, par.JV_file, FALSE);   {create the JV-file}
     IF par.StoreVarFile THEN Prepare_Var_File(stv, par, FALSE); {Create a new var_file with appropriate heading if required}
 
+    CountAcceptedSolutions:=0; {counts how many voltages converged or were accepted without really converging}
     quit_Voc:=FALSE;
 
     WHILE (Vcount<=stv.NJV) AND (NOT quit_Voc) DO  {loop over voltages}
@@ -634,6 +638,9 @@ BEGIN {main program}
 		new.Vint:=JVSim[VCount].Vint; 
 		new.UpdateIons:=JVSim[VCount].UpdateIons;
 		
+		{try to get a guess for new based on prev and curr:}
+		Extrapolate_Solution(prev, curr, new, CountAcceptedSolutions, stv, par);
+	
 		{now use Main_Solver to iterative solve the Poisson eq and continuity equations:}
 		Main_Solver(curr, new, MainIt, Conv_Main, StatusStr, stv, par);
 
@@ -668,15 +675,20 @@ BEGIN {main program}
 			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
 			CASE par.FailureMode OF
-				0 : Stop_Prog('Convergence failed at voltage = ' + FloatToStrF(new.Vint, ffGeneral,5,0)+ '. Maybe try smaller voltage steps?');
+				0 : Stop_Prog('Convergence failed at voltage = ' + FloatToStrF(new.Vint, ffGeneral,5,0)+ '. Maybe try smaller voltage steps?', EC_ConverenceFailedHalt);
 				1 : acceptNewSolution:=TRUE;
 				2 : acceptNewSolution:=(new.dti=0) {is true if steady-state, false otherwise}
 			END;
-			
+			{if we get here, then conv=false, but we did not halt the program, so set the ExitCode:}
+			ExitCode:=EC_ConverenceFailedNotHalt
 		END;
 		
 		IF acceptNewSolution {OK, new solution is good (even if conv_main might be FALSE)}
-			THEN curr:=new {we keep the newest solution}
+			THEN BEGIN 
+				INC(CountAcceptedSolutions); {increase the counter}
+				prev:=curr; {we move the current solution to the previous one}
+				curr:=new {and we keep the newest solution}
+			END
 			ELSE WRITELN(log, 'Skipping (J,V) point at voltage ',new.Vint); 
 		  
 		{should we store the internal variables?}
@@ -697,8 +709,9 @@ BEGIN {main program}
 
     WRITELN('The JV characteristic is written in ', par.JV_file,'.');
 	IF par.OutputRatio>0 THEN WRITELN('Stored internal variables in ', par.Var_file,'.');
-
+	
+	Finalize_Log_File(log, ''); {writes final comments, date, time, run time and closes log file.}
+	
 	WRITELN('Finished, press enter to exit');
-    IF par.Pause_at_end = 1 THEN READLN; {pause at the end of the program}
-    CLOSE(log);
+    IF par.Pause_at_end = 1 THEN READLN {pause at the end of the program}
 END.

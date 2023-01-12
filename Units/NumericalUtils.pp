@@ -2,7 +2,7 @@ unit NumericalUtils;
 
 {
 SIMsalabim: a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021 Dr T.S. Sherkar, V.M. Le Corre, M. Koopmans,
+Copyright (c) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -92,13 +92,6 @@ FUNCTION BilinearInterpolation(x1, x2 : myReal; VAR x1a, x2a : row; m, n : INTEG
 { j=1,..,m, k=1,..,n}
 { x1a and x2a need to be ascending!}
 
-{use an approximation to the Bernoulli function, much (~ 3x) faster!}
-FUNCTION B(x : myReal) : myReal; {The Bernoulli function, an approximation}
-{we use several approximations to the Bernoulli function:
- close to 0: 1st order, then 2nd order, then 4th order. Finally, for large (pos.) x B=0 and for
- x << 0 we have B=-x}
-
-
 FUNCTION Bessel(x : myReal) : myReal;
 {calculates the Bessel function of order 1, with some scaling}
 
@@ -166,7 +159,7 @@ BEGIN
     END;
     IF (diffnew < TolRomb) AND (diffold < TolRomb) {did we converge?}
         THEN RombergIntegration:=Rom[1, i-1]
-        ELSE Stop_Prog('Romberg integration did not converge, increase MaxRombIt or decrease TolRomb.', wait_if_faulty)
+        ELSE Stop_Prog('Romberg integration did not converge, increase MaxRombIt or decrease TolRomb.',EC_NumericalFailure, wait_if_faulty)
         {no convergence, then stop routine}
 END;
 
@@ -180,18 +173,21 @@ VAR i, j, k, m : INTEGER;
     l, h, sum, diffnew, diffold : myReal;
     Rom : ARRAY OF ARRAY OF myReal;
 BEGIN
-    RombergIntegrationValues:=0; {define return value of qRomb}
+    RombergIntegrationValues:=0; {define return value of RombergIntegrationValues}
     SetLength(Rom, 2, MaxIt);
-    {This sets the length of Rom as array[0..1, 0..MaxRombIt-1] of myReal}
+    {This sets the length of Rom as array[0..1, 0..MaxIt-1] of myReal}
+
     h:=b-a;
     Rom[0,0] := (f(a, vals) + f(b, vals))/2 * h;
     i:=1;
     diffnew:=1; {difference between two successive answers determines convergence}
     diffold:=1;
+
 {   To guard against the possibility that two consecutive row elements agree with
     each other but not with the value of the integral being approximated, it is
     common to genarate approximations until not only |Rn-1,n-1 - Rn,n| (diffnew)
     is within the tolerance, but also |Rn-2,n-2 - Rn-1,n-1| (diffold). }
+
     WHILE ((diffnew > TolRomb) OR (diffold > TolRomb)) AND (i < MaxIt) DO
     BEGIN
         diffold:=diffnew;
@@ -217,10 +213,12 @@ BEGIN
 {       update row 1 of R                                       }
         FOR j:=0 TO i-1 DO Rom[0,j] := Rom[1,j]
     END;
+
     IF (diffnew < TolRomb) AND (diffold < TolRomb) {did we converge?}
         THEN RombergIntegrationValues:=Rom[1, i-1]
-        ELSE Stop_Prog('Romberg integration did not converge, increase MaxRombIt or decrease TolRomb.', wait_if_faulty)
+        ELSE Stop_Prog('Romberg integration did not converge, increase MaxRombIt or decrease TolRomb.', EC_NumericalFailure, wait_if_faulty)
         {no convergence, then stop routine}
+        
 END;
 
 
@@ -310,10 +308,10 @@ VAR i, j : INTEGER;
 	p : ARRAY OF ARRAY OF myReal;
 BEGIN
 	{first check if inputs make sense:}
-	IF Length(x_pts) <> Length(y_pts) THEN Stop_Prog('Error in Neville routine: x_pts and y_pts not of same length.');
-	IF n>=Length(x_pts) THEN Stop_Prog('Error in Neville routine: n cannot be equal or larger than number of points.');
+	IF Length(x_pts) <> Length(y_pts) THEN Stop_Prog('Error in Neville routine: x_pts and y_pts not of same length.', EC_ProgrammingError);
+	IF n>=Length(x_pts) THEN Stop_Prog('Error in Neville routine: n cannot be equal or larger than number of points.', EC_ProgrammingError);
 	FOR i:=1 TO Length(x_pts)-2 DO
-		IF SameValue(x_pts[i],x_pts[i+1]) THEN Stop_Prog('Error in Neville routine: 2 consecutive x-values are equal.');
+		IF SameValue(x_pts[i],x_pts[i+1]) THEN Stop_Prog('Error in Neville routine: 2 consecutive x-values are equal.', EC_ProgrammingError);
 
 	SetLength(p, n+1, n+1); {our matrix for storing the intermediate results}
 	{copy original y-values into the first column of the matrix:}
@@ -352,7 +350,7 @@ VAR i1, N, istart, ifin : INTEGER;
 	BEGIN
 		{check if x is descending or ascending:}
 		r:=SIGN(x[imax]-x[imin]); {so r=1 if ascending, r=-1 if descending}
-		IF r=0 THEN Stop_Prog('Error in Locate: row x is constant?');
+		IF r=0 THEN Stop_Prog('Error in Locate: row x is constant?', EC_ProgrammingError);
 
 		i:=imin; {first init i!}
 		{Check if x0 sits beyond the interval, either left or right:}
@@ -378,8 +376,8 @@ BEGIN
 	
 	{check input}
 	N:=LENGTH(x)-1; {max index in our arrays that run from 1...N}
-	IF Order>=N THEN Stop_Prog('Error in InterExtraPol: Not enough points for interpolation order.');
-	IF Order<1 THEN Stop_Prog('Error in InterExtraPol: Order should be at least 1.');
+	IF Order>=N THEN Stop_Prog('Error in InterExtraPol: Not enough points for interpolation order.', EC_ProgrammingError);
+	IF Order<1 THEN Stop_Prog('Error in InterExtraPol: Order should be at least 1.', EC_ProgrammingError);
 
 	{does the interval bracket x0?}
 	x0Bracketed:=(x[1]-x0)*(x[N]-x0)<=0; {note: we include the 0 as x0 might be exactly equal to either point}
@@ -450,7 +448,7 @@ BEGIN
     {first find the grid square in which the point (x1, x2) falls}
     {we're looking for j and k such that: x1,2a[j,k] <= x1,2 <= x1,2a[j,k+1]}
 
-    IF (m<2) OR (n<2) THEN Stop_Prog('Not enough points to do BilinearInterpolation');
+    IF (m<2) OR (n<2) THEN Stop_Prog('Not enough points to do BilinearInterpolation', EC_ProgrammingError);
 
     {in the following two while loops, use the if-statement (and remove the and (j<m-1) in while condition)
     to ensure actual interpolation, the routine as is will extrapolate if necessary!}
@@ -476,37 +474,6 @@ BEGIN
         ELSE u:=(x2-x2a[k])/(x2a[k+1]-x2a[k]);
 
     BilinearInterpolation:=(1-t)*(1-u)*y1+t*(1-u)*y2 + t*u*y3 + (1-t)*u*y4;
-END;
-
-
-{use an approximation to the Bernoulli function, much (~ 3x) faster!}
-FUNCTION B(x : myReal) : myReal; {The Bernoulli function, an approximation}
-{we use several approximations to the Bernoulli function:
- close to 0: 1st order, then 2nd order, then 4th order. Finally, for large (pos.) x B=0 and for
- x << 0 we have B=-x}
-CONST C1 = 0.083333333333; {1/12}
-	  C2 = 1.388888889e-3; {1/720}
-	  C3 = 0.25; {cut-off}
-	  C4 = 1.2; {another cut-off}
-	  C5 = 3.9; {3rd cut-off}
-VAR absx : myReal;
-BEGIN
-    absx:=ABS(x);
-    IF absx < C3 {if x close to zero (=most common case!)}
-		THEN B:=1 - 0.5*x {then use 1st order Taylor}
-		ELSE
-		BEGIN {absx >= C3}
-			IF absx < C4 THEN B:=1 - x*(0.5 - C1 * x) {use 2nd order}
-			ELSE
-			BEGIN {absx >= C4}
-				IF absx < C5 THEN B:=1 + x*(-0.5 + x*(C1 - x*x*C2)) {use 4th order Taylor}
-				ELSE BEGIN
-					IF x < -C5 
-						THEN B:=-x {x < -C5}
-						ELSE B:=x/(EXP(x)-1); {x > C5, will be a very small value}
-				END; {absx >= C5}
-			END {absx >= C4}
-		END; {absx >= C3}
 END;
 
 FUNCTION Bessel(x : myReal) : myReal;

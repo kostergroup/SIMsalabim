@@ -4,7 +4,7 @@
 
 {
 ZimT:a transient 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2022 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
+Copyright (c) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -58,7 +58,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.35';  
+    version = '4.45';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -71,7 +71,9 @@ CONST
 {$ENDIF}
 
 
-VAR MainIt, ItVint, MaxItVint, CountNotConv, CounttVGPoints, CountStatic : INTEGER;
+VAR parameterFile : ShortString;
+
+	MainIt, ItVint, MaxItVint, CountAcceptedSolutions, CounttVGPoints, CountStatic : INTEGER;
 
 	prev, curr, new : TState; {store the previous point in time, the current one and the new}
 	{prev: solved, stored, done, 2 time steps ago
@@ -115,7 +117,7 @@ BEGIN
 			IF old_tijd<>astate.tijd
 				THEN astate.dti:=1/(astate.tijd-old_tijd) {dti: inverse of time step}
 				ELSE astate.dti:=0; {old_tijd=tijd, so we're looking at steady-state, so infinite time step}
-			IF astate.dti<0 THEN Stop_Prog('Negative time steps are not allowed');
+			IF astate.dti<0 THEN Stop_Prog('Negative time steps are not allowed', EC_InvalidInput);
 			parstr:=Copy2SpaceDel(varline); {contains the second parameter}
 			IF LowerCase(parstr)='oc' {now check if we should simulate at open-circuit, or just at some specific value}
 			THEN SimOC:=TRUE
@@ -130,8 +132,8 @@ BEGIN
 				{therefore, for all simtypes, we simply set Vext=Vint for new:} 		
 				Vint:=Vext; 
 				{check if V is not too large or small:}
-				IF Vext*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog('V is too small.');
-				IF Vext*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('V is too large.');
+				IF Vext*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog('V is too small.', EC_InvalidInput);
+				IF Vext*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('V is too large.', EC_InvalidInput);
 			END;
 			parstr:=Copy2SpaceDel(varline); {contains the third parameter}
 
@@ -148,7 +150,7 @@ BEGIN
 		WRITELN('Error while reading from file ',par.tVG_file);
 		WRITELN('Offending line: ');
 		WRITELN(orgline);
-		Stop_Prog('See Reference Manual for details.');
+		Stop_Prog('See Reference Manual for details.', EC_InvalidInput);
 	END 
 END;
 
@@ -158,7 +160,7 @@ VAR foundHeader : BOOLEAN;
 BEGIN
 	{open input file with times, voltage and generation rate}
 	IF NOT FileExists(par.tVG_file) {the file with input par. is not found}
-        THEN Stop_Prog('Could not find file '+par.tVG_file);
+        THEN Stop_Prog('Could not find file '+par.tVG_file, EC_FileNotFound);
 	ASSIGN(inv, par.tVG_file);
 	RESET(inv);
 	
@@ -169,11 +171,11 @@ BEGIN
 		foundHeader:=LeftStr(DelWhite(dumstr),9) ='tVextGehp'; {cut relevant part of string}
 	UNTIL foundHeader OR EOF(inv);
 	
-	IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext Gehp'' in ' + par.tVG_file + '.');
+	IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext Gehp'' in ' + par.tVG_file + '.', EC_InvalidInput);
 	
 	{DelWhite removes all white spaces (incl. tabs, etc.) from a string, see myUtils}
 	Read_tVG(new, 0, inv, foundtVG); {try to read a line of t, Va, Gehp}
-	IF NOT(foundtVG) OR (new.tijd<>0) THEN Stop_Prog('tVG_file did not specify steady-state (t=0)');
+	IF NOT(foundtVG) OR (new.tijd<>0) THEN Stop_Prog('tVG_file did not specify steady-state (t=0)', EC_InvalidInput);
 	IF new.SimType=2 THEN new.SimType:=3; {both 2 and 3 are open-circuit, but 2 = S-S and 3 = transient. that doesn't matter and we take 3}
 END;
 
@@ -200,7 +202,7 @@ BEGIN
 					Residual_Current_Voltage:=new.Vext - VextTarget;	{what we should be calculating is the difference between the target Vext and the realised one}
 					new.Vext:=VextTarget; {restore Vext in state new}
 				END
-		ELSE Stop_Prog('Invalid case in function ResCurr');
+		ELSE Stop_Prog('Invalid case in function ResCurr', EC_ProgrammingError);
 	END; {case}
 END;
 
@@ -242,7 +244,7 @@ BEGIN
 		success:=ResJmin*ResJmax < 0
 	END;
 
-	IF NOT success THEN Stop_Prog('Could not find bracketing values for Vint at time ' + FloatToStrF(new.tijd, ffGeneral,10,0));
+	IF NOT success THEN Stop_Prog('Could not find bracketing values for Vint at time ' + FloatToStrF(new.tijd, ffGeneral,10,0), EC_NumericalFailure);
 END;
 
 BEGIN {main program}
@@ -250,14 +252,15 @@ BEGIN {main program}
 
     {if '-h' or '-H' option is given then display some help and exit:}
     IF hasCLoption('-h') THEN Display_Help_Exit(ProgName);
-    IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(TRUE); {tidy up file and exit}
-    IF NOT Correct_Version_Parameter_File(ProgName, version) THEN Stop_Prog('Version of ZimT and '+parameter_file+' do not match.');
+    Determine_Name_Parameter_File(parameterFile); {either default or user-specified file with all the parameters}
+    IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(parameterFile, TRUE); {tidy up file and exit}
+    IF NOT Correct_Version_Parameter_File(ProgName, parameterFile, version) THEN Stop_Prog('Version of ZimT and '+parameterFile+' do not match.', EC_DevParCorrupt);
     
 {Initialisation:}
-    Read_Parameters(MsgStr, par, stv, ProgName); {Read parameters from input file}
+    Read_Parameters(parameterFile, MsgStr, par, stv, ProgName); {Read parameters from input file}
     Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
-    IF par.AutoTidy THEN Tidy_Up_Parameter_File(FALSE); {clean up file but don't exit!}
+    IF par.AutoTidy THEN Tidy_Up_Parameter_File(parameterFile, FALSE); {clean up file but don't exit!}
     
     Make_Grid(stv.h, stv.x, stv.i1, stv.i2, par); {Initialize the grid}
     Define_Layers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
@@ -280,7 +283,7 @@ BEGIN {main program}
     {Init all parameters and start solving for steady-state (tijd=0)}
 	Init_Generation_Profile(stv, log, par); {init. the stv.orgGm array. This is the SHAPE of the profile}
 	Update_Generation_Profile(stv.orgGm, new.Gm, new.Gehp, stv, par); {update current Gm array to correct value}
-	CountNotConv:=0; {counts the number of times the transient Poisson/cont. eq. solver failed to converge}
+	CountAcceptedSolutions:=0; {counts the number of solutions that were accepted}
 	CounttVGPoints:=0; {count number of transient (t,V,G) points}
 	countStatic:=0;
 	conv:=FALSE;
@@ -289,8 +292,8 @@ BEGIN {main program}
 	WHILE keepGoing DO
 	BEGIN {main loop over times and t,V,G from input file:}
 		Update_Generation_Profile(stv.orgGm, new.Gm, new.Gehp, stv, par); {update current Gm array to correct value}
-		prev:=curr;
-		
+		Extrapolate_Solution(prev, curr, new, CountAcceptedSolutions, stv, par);
+	
 		IF new.SimType = 1 
 		THEN Main_Solver(curr, new, MainIt, conv, StatusStr, stv, par) {easy: Vint = Vext, Vext is in input tVG_file}
 		ELSE BEGIN {SimType > 1: Voc or Rseries <> 0: in both cases, we don't know Vint}
@@ -309,10 +312,11 @@ BEGIN {main program}
 			new.Vint:=0.5*(Vmn+Vmx);
 		END; {SimType > 1}
 
-		IF conv 
-		THEN acceptNewSolution:=TRUE
+		IF conv THEN BEGIN
+			INC(CountAcceptedSolutions);
+			acceptNewSolution:=TRUE
+		END
 		ELSE BEGIN {o dear, now what?}
-			INC(CountNotConv);
 			{put error messages in log file:}
 			WRITELN(log);
 			WRITELN(log, 'Messages from main solver at time = ',FloatToStrF(new.tijd, ffGeneral,10,0),':');
@@ -320,17 +324,20 @@ BEGIN {main program}
 			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
 			CASE par.FailureMode OF
-				0 : Stop_Prog('Convergence failed at time = ' + FloatToStrF(new.tijd, ffGeneral,10,0)+ '. Maybe try smaller time steps.');
+				0 : Stop_Prog('Convergence failed at time = ' + FloatToStrF(new.tijd, ffGeneral,10,0)+ '. Maybe try smaller time steps.', EC_ConverenceFailedHalt);
 				1 : acceptNewSolution:=TRUE;
 				2 : acceptNewSolution:=(new.dti=0) {is true if steady-state, false otherwise}
 			END;
+			{if we get here, then conv=false, but we did not halt the program, so set the ExitCode:}
+			ExitCode:=EC_ConverenceFailedNotHalt
 		END;
 
 		IF acceptNewSolution {OK, new solution is good (even if conv might be FALSE)}
 		THEN BEGIN
-			curr:=new;
+			prev:=curr; {we move the current solution to the previous one}
+			curr:=new; {and we keep the newest solution}
 			{output:}
-			Write_To_tJV_File(uitv, curr, prev, stv, par, TRUE);
+			Write_To_tJV_File(uitv, curr, prev, stv, par, TRUE)
 		END
 		ELSE BEGIN 
 			WRITELN(log, 'Skipping (t,Vext,Gehp) point at time ',FloatToStrF(new.tijd, ffGeneral,10,0)); 
@@ -370,13 +377,15 @@ BEGIN {main program}
     CLOSE(uitv);
 
 	WRITELN(CounttVGPoints,' (t,V,G)-points');
-	IF CountNotConv > 0 THEN WRITELN(CountNotConv,' did not converge.');
+	IF CountAcceptedSolutions < CounttVGPoints THEN
+		WRITELN(CounttVGPoints-CountAcceptedSolutions,' did not converge.');
 
     WRITE('Output written in file(s) ', par.tj_file);
 	IF par.StoreVarFile THEN WRITE(' and ',par.Var_file);
 	WRITELN('.');
-	WRITELN(log,CountNotConv,' did not converge.');
-	CLOSE(log);
+
+	MsgStr:=IntToStr(CounttVGPoints-CountAcceptedSolutions) + ' did not converge.' + LineEnding;
+	Finalize_Log_File(log, MsgStr); {writes final comments, date, time, run time and closes log file.}
 
     WRITELN('Finished, press enter to exit');
     IF par.Pause_at_end = 1 THEN READLN {pause at the end of the program}

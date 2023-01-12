@@ -3,7 +3,7 @@ unit InputOutputUtils;
 
 {
 SIMsalabim: a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021 Dr T.S. Sherkar, V.M. Le Corre, M. Koopmans,
+Copyright (c) 2020, 2021, 2023 Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -55,7 +55,7 @@ procedure getStringfromCL(ch : String; var foundit : boolean; var r : string; Ca
 function hasCLoption(ch : String; CaseSensitive : boolean = false) : boolean;
 {checks if program was started with option ch in command line}
 
-procedure Stop_Prog(msg : STRING; wait_for_user : boolean = false);
+procedure Stop_Prog(msg : STRING; exitCode : INTEGER; wait_for_user : boolean = false);
 {displays message (msg), waits for a hard return if wait_for_user and halts the program}
 
 procedure WarnUser(msg : STRING; wait_for_user : boolean = false);
@@ -178,7 +178,7 @@ begin
                   foundit:=true;
                except {note that if an exception occurs foundit stays false}
                      On val : Exception do
-                     Stop_Prog('Exception when reading from command line : '+val.Message);
+                     Stop_Prog('Exception when reading from command line : '+val.Message, EC_InvalidCLInput);
                end;
           end;
           i:=i+1;
@@ -203,7 +203,7 @@ begin
                   foundit:=true;
                except {note that if an exception occurs foundit stays false}
                      On val : Exception do
-                     Stop_Prog('Exception when reading from command line : '+val.Message);
+                     Stop_Prog('Exception when reading from command line : '+val.Message, EC_InvalidCLInput);
                end;
           end;
           i:=i+1;
@@ -225,13 +225,17 @@ begin
      hasCLoption:=foundit;
 end;
 
-PROCEDURE Stop_Prog(msg : STRING; wait_for_user : boolean);
+PROCEDURE Stop_Prog(msg : STRING; exitCode : INTEGER; wait_for_user : boolean);
 {Prints a message (msg) and stops the program}
 BEGIN
+    WRITELN('Program will be terminated.');
     WRITELN(msg);
-    WRITELN('Program will be terminated, press enter.');
-    if wait_for_user then READLN;
-    HALT(3) {This terminates the program and returns exit code 3 so the outside world knows there was an error.}
+    IF wait_for_user THEN
+    BEGIN
+		WRITELN('Please press enter.');
+		READLN
+	END;
+    HALT(exitCode) {This terminates the program and returns the exit code so the outside world knows there was an error.}
 END;
 
 procedure WarnUser(msg : STRING; wait_for_user : boolean = false);
@@ -239,7 +243,11 @@ procedure WarnUser(msg : STRING; wait_for_user : boolean = false);
 BEGIN
     WRITELN('WARNING:');
     WRITELN(msg);
-    if wait_for_user then READLN;
+    IF wait_for_user THEN
+    BEGIN
+		WRITELN('Please press enter.');
+		READLN
+	END
 END;
 
 function FindFile(key : string) : string;
@@ -290,7 +298,7 @@ BEGIN
          END
     ELSE r:=0;  {reading of number is unsuccessful}
     IF NOT okay THEN {reading or conversion to real value is unsuccessful}
-        Stop_Prog('SOMETHING IS WRONG WITH THE PARAMETER FILE.')
+        Stop_Prog('Parameter file is corrupted.', EC_DevParCorrupt)
 
 END;
 
@@ -308,7 +316,7 @@ BEGIN
 		{otherwise i indicates position of 1st character of var_name in line}
 	UNTIL EOF(inv) OR (i>0);
 	{if i=0 var_name not found, terminate program:}
-	IF i=0 THEN Stop_Prog('Could not find variable ' + var_name + ' in input file.');
+	IF i=0 THEN Stop_Prog('Could not find variable ' + var_name + ' in input file.',EC_DevParCorrupt);
 
 	{now get the part we're interested in:}
 	i:=Length(line) - FindPart('=', line); {first get position of '=' sign, counting from the right}
@@ -321,7 +329,7 @@ BEGIN
 	{we should be done now, check result:}
 	IF Length(line) > 0
 		THEN file_name:=line
-		ELSE Stop_Prog('Could not find correct file name for ' + var_name);
+		ELSE Stop_Prog('Could not find correct file name for ' + var_name, EC_DevParCorrupt);
 
 END;
 
@@ -339,7 +347,7 @@ BEGIN
 		{otherwise i indicates position of 1st character of var_name in line}
 	UNTIL EOF(inv) OR (i>0);
 	{if i=0 var_name not found, terminate program:}
-	IF i=0 THEN Stop_Prog('Could not find variable ' + var_name + ' in input file.');
+	IF i=0 THEN Stop_Prog('Could not find variable ' + var_name + ' in input file.',EC_DevParCorrupt);
 
 	{now get the part we're interested in:}
 	i:=Length(line) - FindPart('=', line); {first get position of '=' sign, counting from the right}
@@ -352,7 +360,7 @@ BEGIN
 	{we should be done now, check result:}
 	IF Length(line) > 0
 		THEN file_name:=line
-		ELSE Stop_Prog('Could not find correct file name for ' + var_name);
+		ELSE Stop_Prog('Could not find correct file name for ' + var_name, EC_DevParCorrupt);
 
 END;
 

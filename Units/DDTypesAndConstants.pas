@@ -3,7 +3,7 @@ unit DDTypesAndConstants;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
+Copyright (c) 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -36,8 +36,8 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.35'; {version of this unit}
-    parameter_file = 'device_parameters.txt'; {name of file with parameters}
+    DDTypesAndConstantsVersion = '4.45'; {version of this unit}
+    defaultParameterFile = 'device_parameters.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
     eps_0 = 8.8542e-12; {F/m} {dielectric constant of vacuum}
@@ -50,9 +50,9 @@ CONST
     {Name                    Where                        What does it do?}
     threshold_err = 0.1; {IN: Find_Solar_Cell_Parameters, defines max relative error when displaying solar cell parameters}
     MaxInterpolationOrder = 3; {IN: Find_Solar_Cell_Parameters, maximum interpolation order in estimating Jsc, Voc}
-    temp_file = '.temp.txt';{IN: Tidy_up_parameter_file_Exit, a temporary file used to store the device parameters}
-    myDelims = [#0..' ', ';', '/', '\', '''', '"', '`', '*', '=']; {IN Tidy_up_parameter_file_Exit, note: not a decimal point or comma!}
-    nd = 20; {IN: main, it limits the number of digits to this value to prevent unnecessarily large output files}
+    temp_file = '.temp.txt';{IN: Tidy_up_parameterFile_Exit, a temporary file used to store the device parameters}
+    myDelims = [#0..' ', ';', '/', '\', '''', '"', '`', '*', '=']; {IN Tidy_up_parameterFile_Exit, note: not a decimal point or comma!}
+    nd = 30; {IN: main, it limits the number of digits to this value to prevent unnecessarily large output files}
     minErr = 1E-4; {IN: Calc_and_Output_Soalr_Cell_Parameters, lower bound to error in parameters}
     tab1 = 6; {IN: Calc_and_Output_Solar_Cell_Parameters, 1st position of tab in table with solar cell parameters}
     tab2 = 28; {IN: Calc_and_Output_Solar_Cell_Parameters, 2nd position of tab in table with solar cell parameters}
@@ -126,7 +126,7 @@ TYPE
 							tolJ, MinRelChange, couplePC, accDens, grad, TolVint,
 							MinAbsJDark, Vpre, Vmin, Vmax, Vstep, Vacc, rms_threshold : myReal; 
 							{integers:}		
-							MaxItPois, MaxRombIt, 
+							MaxItPois, 
 							mob_n_dep, mob_p_dep,
 							ThermLengDist, ion_red_rate, num_GBs, Tr_type_L, Tr_type_R, Tr_type_B, 
 							NP, CurrDiffInt, MaxItSS, MaxItTrans, 

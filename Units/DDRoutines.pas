@@ -3,7 +3,7 @@ unit DDRoutines;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans,
+Copyright (c) 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -31,11 +31,11 @@ Nijenborgh 4, 9747 AG Groningen, the Netherlands
 
 {$MODE OBJFPC} {force OBJFPC mode}
 
-
 INTERFACE
 
 USES sysutils, 
 	 typinfo,
+	 DateUtils,
 	 Math, 
 	 TypesAndConstants,
 	 InputOutputUtils, 
@@ -43,7 +43,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.35'; {version of this unit}
+CONST DDRoutinesVersion = '4.45'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -55,13 +55,19 @@ FUNCTION Max_Value_myReal : EXTENDED;
 {Determines the largest value that can be stored in myReal. The result, thus,
 depends on how myReal was defined. It should be a single, doulbe or extended.}
 
-FUNCTION Correct_Version_Parameter_File(ProgName : TProgram; version : STRING) : BOOLEAN;
+PROCEDURE Determine_Name_Parameter_File(VAR parameterFile : STRING);
+{Determines which parameter file should be used}
+
+FUNCTION Correct_Version_Parameter_File(ProgName : TProgram; parameterFile, version : STRING) : BOOLEAN;
 {checks if the version and name of the program and the parameter file match. Stops program if not!}
 
 PROCEDURE Prepare_Log_File(VAR log : TEXT; MsgStr : ANSISTRING; CONSTREF par : TInputParameters; version : STRING);
-{opens a log_file for later use and writes MsgStr to the log file.}
+{opens a log_file for later use and writes date/time and MsgStr to the log file.}
 
-PROCEDURE Read_Parameters(VAR msg : ANSISTRING; VAR par : TInputParameters; VAR stv : TStaticVars; ProgName : TProgram);
+PROCEDURE Finalize_Log_File(VAR log : TEXT; MsgStr : ANSISTRING);
+{writes final comments, date, time, run time and closes log file.}
+
+PROCEDURE Read_Parameters(parameterFile : STRING; VAR msg : ANSISTRING; VAR par : TInputParameters; VAR stv : TStaticVars; ProgName : TProgram);
 {Reads-in all the parameters. Some bits are specific to either ZimT or SimSS}
 
 PROCEDURE Check_Parameters(CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; ProgName : TProgram);
@@ -96,6 +102,9 @@ PROCEDURE Init_nt0_And_pt0(VAR stv : TStaticVars; CONSTREF par : TInputParameter
 {inits nt0 and pt0 arrays needed for SRH recombination}
 {note: stv are changed here (nt0 and pt0), so they are VAR parameters}
 
+PROCEDURE Extrapolate_Solution(CONSTREF prev, curr : TState; VAR new : TState; AccSols : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Obtains a guess for state new based on an extrapolation of states prev and curr}
+
 PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLEAN; VAR StatusStr : ANSISTRING; 
 					  CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
@@ -115,7 +124,7 @@ PROCEDURE Prepare_Var_File(CONSTREF stv : TStaticVars; CONSTREF par : TInputPara
 PROCEDURE Write_Variables_To_File(VAR CurrState : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
 {writes the internal variables (astate) to file par.Var_file. It assumes the file has a header produced by Prepare_Var_File}
 
-PROCEDURE Tidy_Up_Parameter_File(QuitWhenDone : BOOLEAN);
+PROCEDURE Tidy_Up_Parameter_File(parameterFile : STRING; QuitWhenDone : BOOLEAN);
 {This procedure cleans up the parameter file: it makes sure that all the * are aligned, that every parameter has a 
 unit or other description/comment and left-aligns any line that starts with **.}
 
@@ -124,14 +133,16 @@ IMPLEMENTATION
 VAR RecDum : TRec; {global dummy variable that will be used in Calc_All_Currents, Calc_Recombination_n, and Calc_Recombination_p}
 {using a local variable in those functions will cause problems (unpredictable behaviour) as this var is pretty large.}
 
+VAR TimeStart : TDateTime; {stores the date/time at the start of the sim. Used in Prepare_Log_File and Finalize_Log_File}
+
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
 VAR strprogname : STRING;
 BEGIN
     Str(ProgName, strprogname); {convert variable ProgName to a string}
     WRITELN('Welcome to ',strprogname,' version ',version,'.');
-    WRITELN('Copyright (C) 2020, 2021, 2022 Dr T.S. Sherkar, Dr V.M. Le Corre, M. Koopmans');
-    WRITELN('F. Wobben, and Prof L.J.A. Koster, University of Groningen.');
+    WRITELN('Copyright (C) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre,'); 
+    WRITELN('Dr M. Koopmans, F. Wobben, and Prof L.J.A. Koster, University of Groningen.');
     WRITELN;
 END;
 
@@ -143,13 +154,13 @@ BEGIN
     strprogname:=LOWERCASE(strprogname); {ensure it's lower case}
     WRITELN('This program can be used with the following options:');
     WRITELN;
-    WRITELN('All parameters can be set via ',parameter_file);
+    WRITELN('All parameters can be defined in a parameter file');
     WRITELN('or via the command line, which overrides the values in the file.');
     WRITELN('Example: ./',strprogname,' -T 400 -Var_file Var.dat');
     WRITELN;
     WRITELN('To tidy-up the parameter file, use ''-tidy''');
     WRITELN;
-    Stop_Prog('''-h''     : displays this help message');
+    Stop_Prog('''-h''     : displays this help message', EC_Warning);
 END;
 
 FUNCTION B(x : myReal) : myReal; {The Bernoulli function, an approximation}
@@ -176,22 +187,6 @@ BEGIN
 				ELSE B:=x/(EXP(x)-1); {x > C3, will be a very small value}
 			END {absx >= C2}
 		END; {absx >= C1}
-END;
-
-FUNCTION Bessel(x : myReal) : myReal;
-{calculates the Bessel function of order 1, with some scaling}
-CONST a1 =1/3;
-	  a2 = 1/6;
-	  a3 = 1/10;
-	  a4 = 1/15;
-	  a5 = 1/21;
-	  a6 = 1/28;
-	  a7 = 1/36;
-	  a8 = 1/45;
-	  a9 = 1/55;
-	  a10= 1/66;
-BEGIN
-   Bessel:=1 + x*(1+a1*x*(1+a2*x*(1+a3*x*(1+a4*x*(1+a5*x*(1+a6*x*(1+a7*x*(1+a8*x*(1+a9*x*(1+a10*x))))))))))
 END;
 
 FUNCTION Average(Vec, h : Vector; istart, ifinish : INTEGER) : myReal;
@@ -225,17 +220,31 @@ BEGIN
 	{at this point: if dummy is still zero, then myReal was not the right type!}
 
 {$IFDEF FPC_HAS_TYPE_EXTENDED}
-	IF dummy=0 THEN Stop_Prog('Error in function Max_Value_myReal. myReal should be single, double, or extended.');
+	IF dummy=0 THEN Stop_Prog('Error in function Max_Value_myReal. myReal should be single, double, or extended.', EC_ProgrammingError);
 {$ELSE}
 	{we're assuming that we do have singles and doubles}
-	IF dummy=0 THEN Stop_Prog('Error in function Max_Value_myReal. myReal should be single or double.');
+	IF dummy=0 THEN Stop_Prog('Error in function Max_Value_myReal. myReal should be single or double.', EC_ProgrammingError);
 {$ENDIF}	
 	
 	{OK, now we can be sure that myReal is of the right type}
 	Max_Value_myReal:=dummy;
 END;
 
-FUNCTION Correct_Version_Parameter_File(ProgName : TProgram; version : STRING) : BOOLEAN;
+PROCEDURE Determine_Name_Parameter_File(VAR parameterFile : STRING);
+{Determines which parameter file should be used}
+VAR key : STRING;
+BEGIN
+	{copy first parameter (after prog name!) from command line, this works even if there aren't any!}
+	key:=TRIM(ParamStr(1));
+
+	{now take default file if the first character is a '-' (=> variable name is coming!) or there parameters at all!}
+	IF StartsStr('-', key) OR (ParamCount=0) THEN
+		parameterFile:=defaultParameterFile
+	ELSE {only in this do we take the name of the parameter file from the command line}
+		parameterFile:=key
+END;
+
+FUNCTION Correct_Version_Parameter_File(ProgName : TProgram; parameterFile, version : STRING) : BOOLEAN;
 {checks if the version and name of the program and the parameter file match. Stops program if not!}
 {check for programe name: we take the variable ProgName and convert this to a lower-case string strprogname. This
 will be either 'zimt' or 'simsalabim'. Then we check if either 'zimt' or 'simsalabim' appears (at least once) in the 
@@ -248,9 +257,9 @@ VAR inp : TEXT;
     found_version, found_progname : BOOLEAN;
     line, strprogname : STRING;
 BEGIN
-    IF NOT FileExists(parameter_file) {the file with input par. is not found}
-        THEN Stop_Prog('Could not find file '+parameter_file+'.');
-    ASSIGN(inp, parameter_file);
+    IF NOT FileExists(parameterFile) {the file with input par. is not found}
+        THEN Stop_Prog('Could not find file '+parameterFile+'.', EC_FileNotFound);
+    ASSIGN(inp, parameterFile);
     RESET(inp);
     
     Str(ProgName, strprogname); {convert variable ProgName to a string}
@@ -274,12 +283,14 @@ BEGIN
 END;
 
 PROCEDURE Prepare_Log_File(VAR log : TEXT; MsgStr : ANSISTRING; CONSTREF par : TInputParameters; version : STRING);
+{opens a log_file for later use and writes date/time and MsgStr to the log file.}
 BEGIN
     ASSIGN(log, par.log_file); 
-
     REWRITE(log);
     WRITELN(log,'Version ', version);
     WRITELN(log,'Size of reals used in simulation: ',SizeOf(myReal),' bytes');
+    TimeStart:=NOW; {this is a global variable that will also be used in Finalize_Log_File}
+    WRITELN(log,'Timestamp at start: ',DateTimeToStr(TimeStart));
     
     {Read_Parameters may have added something to MsgStr (values from the command line):}
     IF Length(MsgStr) > 0 THEN
@@ -290,7 +301,21 @@ BEGIN
     FLUSH(log);
 END;
 
-PROCEDURE Read_Parameters(VAR msg : ANSISTRING; VAR par : TInputParameters; VAR stv : TStaticVars; ProgName : TProgram);
+PROCEDURE Finalize_Log_File(VAR log : TEXT; MsgStr : ANSISTRING);
+{writes final comments, date, time, run time and closes log file.}
+VAR TimeEnd : TDateTime;
+BEGIN
+	{first write any messages:}
+	IF Length(MsgStr) > 0 THEN WRITE(log, MsgStr); 
+	
+	{note: TimeStart is a global variable in this unit and gets its value in Prepare_Log_File}
+	TimeEnd:=NOW;
+	WRITELN(log,'Timestamp at end: ',DateTimeToStr(TimeEnd));
+	WRITELN(log,'Total run time: ',SecondSpan(TimeEnd, TimeStart):6:3,' seconds.');
+	CLOSE(log)
+END;
+
+PROCEDURE Read_Parameters(parameterFile : STRING; VAR msg : ANSISTRING; VAR par : TInputParameters; VAR stv : TStaticVars; ProgName : TProgram);
 {Reads-in all the parameters. Some bits are specific to either ZimT or SimSS}
 VAR 
     dumint : INTEGER; {a dummy integer variable}
@@ -302,9 +327,9 @@ BEGIN
     ZimT:= (ProgName=TProgram.ZimT);
     SimSS:= (ProgName=TProgram.SimSS);
     
-    IF NOT FileExists(parameter_file) {the file with input par. is not found}
-		THEN Stop_Prog('Could not find file '+parameter_file+'.');
-    ASSIGN(inv, parameter_file);
+    IF NOT FileExists(parameterFile) {the file with input par. is not found}
+		THEN Stop_Prog('Could not find file '+parameterFile+'.', EC_FileNotFound);
+    ASSIGN(inv, parameterFile);
     RESET(inv);
 
 	WITH par DO BEGIN
@@ -472,7 +497,7 @@ BEGIN
 			Get_String(inv, msg, 'ExpJV', ExpJV); {name of file with experimental JV points}
 			Get_String(inv, msg, 'rms_mode', dumstr); {lin or log: use J or log(J) in calc. of rms error}
 			dumstr:=lowercase(dumstr);
-			IF NOT ((dumstr='lin') OR (dumstr='log')) THEN Stop_Prog('rms_mode has to be either lin or log.');
+			IF NOT ((dumstr='lin') OR (dumstr='log')) THEN Stop_Prog('rms_mode has to be either lin or log.', EC_InvalidInput);
 			IF dumstr='lin' THEN rms_mode:=linear ELSE rms_mode:=logarithmic;
 			Get_Float(inv, msg, 'rms_threshold', rms_threshold); {threshold of fraction converged points in calc. rms error}
 		END;		
@@ -493,6 +518,8 @@ BEGIN
     END; {WITH par statement}
  
     CLOSE(inv);
+    WRITELN('Read parameters from ',parameterFile);
+    msg:=msg + 'Read parameters from ' + parameterFile + LineEnding
 END;
 
 PROCEDURE Check_Parameters(CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; ProgName : TProgram);
@@ -506,106 +533,106 @@ BEGIN
   
     {when adding new check, please keep the order in line with the device_parameter file}
     {Check first if stv.Vt has been initialised. This should have happened in Read_Parameters}
-    IF (stv.Vt=0) THEN Stop_Prog('stv.Vt needs to be initialised before calling Check_Parameters.');
+    IF (stv.Vt=0) THEN Stop_Prog('stv.Vt needs to be initialised before calling Check_Parameters.', EC_ProgrammingError);
 
 	WITH par DO BEGIN
 {checks on general parameters:}
-		IF CB >= VB THEN Stop_Prog('CB should be smaller than VB.');
-		IF (CB<0) OR (VB<0) THEN Stop_Prog('CB and VB should be positive.');
+		IF CB >= VB THEN Stop_Prog('CB should be smaller than VB.', EC_InvalidInput);
+		IF (CB<0) OR (VB<0) THEN Stop_Prog('CB and VB should be positive.', EC_InvalidInput);
 
 {checks on mobilities:}
-		IF NOT (mob_n_dep IN [0, 1]) THEN Stop_Prog('Invalid mob_dep_n selected.');
-		IF NOT (mob_p_dep IN [0, 1]) THEN Stop_Prog('Invalid mob_dep_p selected.');
+		IF NOT (mob_n_dep IN [0, 1]) THEN Stop_Prog('Invalid mob_dep_n selected.', EC_InvalidInput);
+		IF NOT (mob_p_dep IN [0, 1]) THEN Stop_Prog('Invalid mob_dep_p selected.', EC_InvalidInput);
 {checks on contacts:}
 		{part of this can only be done after checking the TLs!}
-		IF Rseries<0 THEN Stop_Prog('Rseries cannot be negative.');
-		IF SimSS AND (Rshunt=0) THEN Stop_Prog('Rshunt cannot be zero, use positive (negative) value for finite (infinite) shunt resistance.');
+		IF Rseries<0 THEN Stop_Prog('Rseries cannot be negative.', EC_InvalidInput);
+		IF SimSS AND (Rshunt=0) THEN Stop_Prog('Rshunt cannot be zero, use positive (negative) value for finite (infinite) shunt resistance.', EC_InvalidInput);
 {checks on transport layers:}
-		IF L_LTL+L_RTL>=L THEN Stop_Prog('Sum of L_LTL and L_RTL (transport layers) should be less than total thickness L.');
+		IF L_LTL+L_RTL>=L THEN Stop_Prog('Sum of L_LTL and L_RTL (transport layers) should be less than total thickness L.', EC_InvalidInput);
 		{more checks on the energy levels of the TLs:}
 		{first check left:}
 		IF L_LTL>0 THEN
 		BEGIN
-			IF W_L<CB_LTL THEN Stop_Prog('W_L cannot be smaller than CB_LTL.');
-			IF W_L>VB_LTL THEN Stop_Prog('W_L cannot be larger than VB_LTL.');
-			IF CB_LTL>= VB_LTL THEN Stop_Prog('CB_LTL must be smaller than VB_LTL');
+			IF W_L<CB_LTL THEN Stop_Prog('W_L cannot be smaller than CB_LTL.', EC_InvalidInput);
+			IF W_L>VB_LTL THEN Stop_Prog('W_L cannot be larger than VB_LTL.', EC_InvalidInput);
+			IF CB_LTL>= VB_LTL THEN Stop_Prog('CB_LTL must be smaller than VB_LTL', EC_InvalidInput);
 		END
 		ELSE BEGIN {no TLs:}
-			IF W_L<CB THEN Stop_Prog('W_L cannot be smaller than CB.');
-			IF W_L>VB THEN Stop_Prog('W_L cannot be larger than VB.');
+			IF W_L<CB THEN Stop_Prog('W_L cannot be smaller than CB.', EC_InvalidInput);
+			IF W_L>VB THEN Stop_Prog('W_L cannot be larger than VB.', EC_InvalidInput);
 		END;
 		{check the right:}
 		IF L_RTL > 0 THEN
 		BEGIN
-			IF W_R<CB_RTL THEN Stop_Prog('W_R cannot be smaller than CB_RTL.');
-			IF W_R>VB_RTL THEN Stop_Prog('W_R cannot be larger than VB_RTL.');
-			IF CB_RTL>= VB_RTL THEN Stop_Prog('CB_RTL must be smaller than VB_RTL');
+			IF W_R<CB_RTL THEN Stop_Prog('W_R cannot be smaller than CB_RTL.', EC_InvalidInput);
+			IF W_R>VB_RTL THEN Stop_Prog('W_R cannot be larger than VB_RTL.', EC_InvalidInput);
+			IF CB_RTL>= VB_RTL THEN Stop_Prog('CB_RTL must be smaller than VB_RTL', EC_InvalidInput);
 		END
 		ELSE
 		BEGIN
-			IF W_R<CB THEN Stop_Prog('W_R cannot be smaller than CB.');
-			IF W_R>VB THEN Stop_Prog('W_R cannot be larger than VB.');
+			IF W_R<CB THEN Stop_Prog('W_R cannot be smaller than CB.', EC_InvalidInput);
+			IF W_R>VB THEN Stop_Prog('W_R cannot be larger than VB.', EC_InvalidInput);
 		END;
 
 {checks on traps}
 		{check whether there are a possible number of traps (negative not allowed)}
-		IF (St_L < 0) OR (St_R < 0) OR (Bulk_tr < 0) OR (GB_tr < 0) THEN Stop_Prog('Negative trap density not allowed.');
-		IF (St_L > 0) AND (L_LTL=0) THEN Stop_Prog('You cannot have interface traps (St_L>0) without a TL (L_LTL=0).');
-		IF (St_R > 0) AND (L_RTL=0) THEN Stop_Prog('You cannot have interface traps (St_R>0) without a TL (L_RTL=0).');
-		IF num_GBs<0 THEN Stop_Prog('The number of grain boundaries (num_GBs) cannot be negative.');
-		IF (num_GBs>0) AND (GB_tr=0) THEN Stop_Prog('Trap density at grain boundaries (GB_tr) must be > 0 if num_GBs>0');
+		IF (St_L < 0) OR (St_R < 0) OR (Bulk_tr < 0) OR (GB_tr < 0) THEN Stop_Prog('Negative trap density not allowed.', EC_InvalidInput);
+		IF (St_L > 0) AND (L_LTL=0) THEN Stop_Prog('You cannot have interface traps (St_L>0) without a TL (L_LTL=0).', EC_InvalidInput);
+		IF (St_R > 0) AND (L_RTL=0) THEN Stop_Prog('You cannot have interface traps (St_R>0) without a TL (L_RTL=0).', EC_InvalidInput);
+		IF num_GBs<0 THEN Stop_Prog('The number of grain boundaries (num_GBs) cannot be negative.', EC_InvalidInput);
+		IF (num_GBs>0) AND (GB_tr=0) THEN Stop_Prog('Trap density at grain boundaries (GB_tr) must be > 0 if num_GBs>0', EC_InvalidInput);
 		
 		{Only Cn OR Cp = 0 are allowed, if both are zero, no charge can reach the traps, this makes no sense.}
-		IF (Cn = 0) AND (Cp = 0) THEN Stop_Prog('Cn and Cp cannot both be zero, change parameters please.');	
+		IF (Cn = 0) AND (Cp = 0) THEN Stop_Prog('Cn and Cp cannot both be zero, change parameters please.', EC_InvalidInput);	
 
 		{trap types: -1, 0 or 1. Sets in pascal are an ordinal type with a range between 0 and 255, hence the ABS:}
-		IF NOT (ABS(Tr_type_L) IN [0, 1]) THEN Stop_Prog('Invalid left interface trap type.');
-		IF NOT (ABS(Tr_type_R) IN [0, 1]) THEN Stop_Prog('Invalid right interface trap type.');
-		IF NOT (ABS(Tr_type_B) IN [0, 1]) THEN Stop_Prog('Invalid bulk trap type.');        
+		IF NOT (ABS(Tr_type_L) IN [0, 1]) THEN Stop_Prog('Invalid left interface trap type.', EC_InvalidInput);
+		IF NOT (ABS(Tr_type_R) IN [0, 1]) THEN Stop_Prog('Invalid right interface trap type.', EC_InvalidInput);
+		IF NOT (ABS(Tr_type_B) IN [0, 1]) THEN Stop_Prog('Invalid bulk trap type.', EC_InvalidInput);        
 
 		{check on the energies of the traps are performed in proc Init_Trap_Distribution}
 		
 {checks on ions:}
-		IF SimSS AND (ion_red_rate<0) THEN Stop_Prog('Ion redistribution rate cannot be lower than zero, should be: 0 <= ion_red_rate < NJV');
+		IF SimSS AND (ion_red_rate<0) THEN Stop_Prog('Ion redistribution rate cannot be lower than zero, should be: 0 <= ion_red_rate < NJV', EC_InvalidInput);
 {checks on generation and recombination parameters}
-		IF NOT (ThermLengDist IN [1,2,3,4,5]) THEN Stop_Prog('Invalid ThermLengDist selected.');
-		IF (P0>=1) OR (P0<0) THEN Stop_Prog('Invalid value of P0, should be: 0<=P0<1');
-		IF (P0<>0) AND (Field_dep_G = FALSE) THEN Stop_Prog('P0 should be zero if not using field dependent generation');
+		IF NOT (ThermLengDist IN [1,2,3,4,5]) THEN Stop_Prog('Invalid ThermLengDist selected.', EC_InvalidInput);
+		IF (P0>=1) OR (P0<0) THEN Stop_Prog('Invalid value of P0, should be: 0<=P0<1', EC_InvalidInput);
+		IF (P0<>0) AND (Field_dep_G = FALSE) THEN Stop_Prog('P0 should be zero if not using field dependent generation', EC_InvalidInput);
 {checks on numerical parameters:}
-		IF (MinRelChange < 0) OR (MinRelChange >= 1) THEN Stop_Prog('Invalid MinRelChange.');
-		IF (NP<=15) OR (NP>Max_NP) THEN Stop_Prog('Invalid number of grid points (NP) selected, must be >=15 and <'+IntToStr(Max_NP)+'.');
-		IF (CurrDiffInt <> 1) AND (CurrDiffInt <> 2) THEN Stop_Prog('CurrDiffInt can only be 1 or 2.');
-		IF maxDelV<=0 THEN Stop_Prog('maxDelV should be positive.');
-		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog('maxDelV*Vt should be (much) larger than tolPois.');
-		IF couplePC < 0 THEN Stop_Prog('couplePC must be non-negative.');
+		IF (MinRelChange < 0) OR (MinRelChange >= 1) THEN Stop_Prog('Invalid MinRelChange.', EC_InvalidInput);
+		IF (NP<=15) OR (NP>Max_NP) THEN Stop_Prog('Invalid number of grid points (NP) selected, must be >=15 and <'+IntToStr(Max_NP)+'.', EC_InvalidInput);
+		IF (CurrDiffInt <> 1) AND (CurrDiffInt <> 2) THEN Stop_Prog('CurrDiffInt can only be 1 or 2.', EC_InvalidInput);
+		IF maxDelV<=0 THEN Stop_Prog('maxDelV should be positive.', EC_InvalidInput);
+		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog('maxDelV*Vt should be (much) larger than tolPois.', EC_InvalidInput);
+		IF couplePC < 0 THEN Stop_Prog('couplePC must be non-negative.', EC_InvalidInput);
 		{check if value of accDens makes any sense:}
-		IF (accDens>=2) OR (accDens<=0) THEN Stop_Prog('Invalid value of accDens selected.');  
-		IF NOT (FailureMode IN [0,1,2]) THEN Stop_Prog('Invalid FailureMode selected.');
+		IF (accDens>=2) OR (accDens<=0) THEN Stop_Prog('Invalid value of accDens selected.', EC_InvalidInput);  
+		IF NOT (FailureMode IN [0,1,2]) THEN Stop_Prog('Invalid FailureMode selected.', EC_InvalidInput);
 {checks on voltages, SimSS only:}
 		IF SimSS THEN
 		BEGIN
-			IF NOT (Vdistribution IN [1,2]) THEN Stop_Prog('Invalid voltage distribution selected.');
-			IF ABS(Vscan) <> 1 THEN Stop_Prog('Vscan must be either -1 or 1.');
+			IF NOT (Vdistribution IN [1,2]) THEN Stop_Prog('Invalid voltage distribution selected.', EC_InvalidInput);
+			IF ABS(Vscan) <> 1 THEN Stop_Prog('Vscan must be either -1 or 1.', EC_InvalidInput);
 			{check if Vmin and Vmax are not too small or large:}
-			IF Vmin*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog('Vmin is too small.');
-			IF Vmax*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('Vmax is too large.');
-			IF Vmin > Vmax THEN Stop_Prog('Vmin should not be greater than Vmax.');
+			IF Vmin*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog('Vmin is too small.', EC_InvalidInput);
+			IF Vmax*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('Vmax is too large.', EC_InvalidInput);
+			IF Vmin > Vmax THEN Stop_Prog('Vmin should not be greater than Vmax.', EC_InvalidInput);
 			{now check for redundancy of pre-bias:}
 			IF PreCond THEN
 			BEGIN
 				IF Rseries>0 THEN WarnUser('Pre-bias voltage does not take Rseries into account, so Vpre=Vint.');
-				IF ABS(Vpre)*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('|Vpre| is too large.');
-				IF ((CNI=0) AND (CPI=0)) THEN Stop_Prog('Do not use a pre-bias without any ions, makes no sense.');
-				IF (Vscan=1) AND (Vpre=Vmin) THEN Stop_Prog('Pre-bias voltage is equal to Vmin, makes no sense.');
-				IF (Vscan=-1) AND (Vpre=Vmax) THEN Stop_Prog('Pre-bias voltage is equal to Vmax, makes no sense.');
+				IF ABS(Vpre)*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('|Vpre| is too large.', EC_InvalidInput);
+				IF ((CNI=0) AND (CPI=0)) THEN Stop_Prog('Do not use a pre-bias without any ions, makes no sense.', EC_InvalidInput);
+				IF (Vscan=1) AND (Vpre=Vmin) THEN Stop_Prog('Pre-bias voltage is equal to Vmin, makes no sense.', EC_InvalidInput);
+				IF (Vscan=-1) AND (Vpre=Vmax) THEN Stop_Prog('Pre-bias voltage is equal to Vmax, makes no sense.', EC_InvalidInput);
 			END;
-			IF ((CNI<>0) OR (CPI<>0))AND (NOT (ion_red_rate in [0,1])) AND (Vdistribution =2) 
-			THEN Stop_Prog('Do not use Vdistribution=2 with ion_red_rate other than 0 or 1.');
-			IF (Vacc >= Vmin) AND (Vacc <= Vmax) AND (Vdistribution = 2)
-			THEN {Vacc is not valid} Stop_Prog('Invalid Vacc selected, must be outside [Vmin, Vmax].');
-			IF (Vdistribution=1) AND (Vstep <= 0) THEN Stop_Prog('Vstep should be positive.');	
+			IF ((CNI<>0) OR (CPI<>0))AND (NOT (ion_red_rate in [0,1])) AND (Vdistribution =2) THEN 
+				Stop_Prog('Do not use Vdistribution=2 with ion_red_rate other than 0 or 1.', EC_InvalidInput);
+			IF (Vacc >= Vmin) AND (Vacc <= Vmax) AND (Vdistribution = 2) THEN {Vacc is not valid} 
+				Stop_Prog('Invalid Vacc selected, must be outside [Vmin, Vmax].', EC_InvalidInput);
+			IF (Vdistribution=1) AND (Vstep <= 0) THEN Stop_Prog('Vstep should be positive.', EC_InvalidInput);	
 			IF (ABS(Vmin-Vmax) < 1e-10) AND (Vdistribution=2) {to avoid infinite loop of Va}
-			THEN Stop_Prog('Do not use Vdistribution=2 when Vmin = Vmax.');	
+			THEN Stop_Prog('Do not use Vdistribution=2 when Vmin = Vmax.', EC_InvalidInput);	
 		END;
 
 {checks on user-interface:}
@@ -613,14 +640,14 @@ BEGIN
 		THEN BEGIN
 			IF (Gehp * Gfrac <> 0) AND (stv.V0 <> stv.VL) AND UseExpData AND (rms_mode=logarithmic) {this is a weird combination, warn user}
 				THEN WarnUser('You are fitting a solar cell with rms_mode=log.');
-			IF UseExpData AND until_Voc THEN Stop_Prog('You cannot use until_Voc = 1 and UseExpData = 1 at the same time.');
-			IF UseExpData AND PreCond THEN Stop_Prog('You cannot use pre-conditioning (PreCond) and UseExpData = 1 at the same time.');
-			IF PreCond AND (ion_red_rate=1) THEN Stop_Prog('You cannot use PreCond and have ion_red_rate=1 at the same time as that defeats the purpose.');
+			IF UseExpData AND until_Voc THEN Stop_Prog('You cannot use until_Voc = 1 and UseExpData = 1 at the same time.', EC_InvalidInput);
+			IF UseExpData AND PreCond THEN Stop_Prog('You cannot use pre-conditioning (PreCond) and UseExpData = 1 at the same time.', EC_InvalidInput);
+			IF PreCond AND (ion_red_rate=1) THEN Stop_Prog('You cannot use PreCond and have ion_red_rate=1 at the same time as that defeats the purpose.', EC_InvalidInput);
 			IF ((rms_threshold<=0) OR (rms_threshold>1)) AND UseExpData THEN
-			Stop_Prog('rms_threshold has to be larger than 0 but not larger than 1.');
+				Stop_Prog('rms_threshold has to be larger than 0 but not larger than 1.', EC_InvalidInput);
 		END;		
-		IF SimSS AND (OutputRatio < 0) THEN Stop_Prog('OutputRatio should be 0 (no output) or positive.'); {if zero, then simply no var file output}
-		IF ZimT AND (OutputRatio <= 0) THEN Stop_Prog('OutputRatio should be positive.'); {In ZimT it cannot be zero as we NEED to write output as it also limits the output to screen.}
+		IF SimSS AND (OutputRatio < 0) THEN Stop_Prog('OutputRatio should be 0 (no output) or positive.', EC_InvalidInput); {if zero, then simply no var file output}
+		IF ZimT AND (OutputRatio <= 0) THEN Stop_Prog('OutputRatio should be positive.', EC_InvalidInput); {In ZimT it cannot be zero as we NEED to write output as it also limits the output to screen.}
     END
 END;
 
@@ -762,7 +789,7 @@ BEGIN
 		END
         ELSE BEGIN {optical interference effects are taken into account}
             IF NOT FileExists(par.Gen_profile) {file with gen. profile is not found}
-                THEN Stop_Prog('Cannot find file '+par.Gen_profile);
+                THEN Stop_Prog('Cannot find file '+par.Gen_profile, EC_FileNotFound);
             ASSIGN(inv, par.Gen_profile); {once we get here, we're sure the file exists}
             RESET(inv);
 			WRITELN('Reading generation profile from ',par.Gen_profile);
@@ -775,7 +802,7 @@ BEGIN
                 BEGIN counter:=counter+1; READLN(inv, a[counter], gr[counter]) END;
                 {a: x-coordinate, gr: corresponding generation rate}
             CLOSE(inv);
-            IF counter=-1 THEN Stop_Prog('The file generation_profile.txt is empty.');
+            IF counter=-1 THEN Stop_Prog('The file generation_profile.txt is empty.', EC_InvalidInput);
 
            { rescale a to ensure that a[counter]=L: }
             FOR i:=0 TO counter DO a[i]:=a[i] * par.L/a[counter];
@@ -1010,7 +1037,7 @@ BEGIN
 	{There cannot be two touching interfaces, as this is conflicting with how the equations are derived.}
 	FOR i := 1 TO par.NP DO
 		IF (stv.Nti[i-1,e] <> 0) AND (stv.Nti[i,e] <> 0) AND (stv.Nti[i+1,e] <> 0) THEN
-			Stop_Prog('There are multiple consecutive interfaces, decrease interface density.');
+			Stop_Prog('There are multiple consecutive interfaces, decrease interface density.', EC_InvalidInput);
 	
 END;
 
@@ -1024,7 +1051,7 @@ VAR inv : TEXT;
 	orgline, dumline : ANSISTRING;
 BEGIN
 	IF NOT FileExists(TrapFile) {file with trap profile is not found}
-        THEN Stop_Prog('Cannot find file '+TrapFile);
+        THEN Stop_Prog('Cannot find file '+TrapFile, EC_FileNotFound);
     ASSIGN(inv, TrapFile); {once we get here, we're sure the file exists}
     RESET(inv);
 	WRITELN('Reading trap profile from ',TrapFile);
@@ -1035,7 +1062,7 @@ BEGIN
 		READLN(inv, orgline)
 	EXCEPT
 		FLUSH(log);
-		Stop_Prog('It looks like file '+TrapFile+' is empty.');
+		Stop_Prog('It looks like file '+TrapFile+' is empty.', EC_InvalidInput);
 	END;
 
 	NumLevels:=0; {this is the number of trap levels, zero at first}
@@ -1060,13 +1087,13 @@ BEGIN
 		WRITELN('Error while reading from file ',TrapFile);
 		WRITELN('Offending line: ');
 		WRITELN(orgline);
-		Stop_Prog('See Reference Manual for details.');
+		Stop_Prog('See Reference Manual for details.', EC_InvalidInput);
 	END; 
 	UNTIL EOF(inv) OR (NumLevels = Max_NEtr); {we have to make sure that we are not reading more lines than we can handle}
 	
 	{check if the repeat...until loop stoped before the file was empty:}
-	IF NOT EOF(inv) THEN Stop_Prog('There are more trap levels in file '+TrapFile+' than we can handle.'+LineEnding+'See Max_NEtr in TypesAndConstants.');
-	IF NumLevels=0 THEN Stop_Prog('Could not find any trap levels in file '+TrapFile+'.');
+	IF NOT EOF(inv) THEN Stop_Prog('There are more trap levels in file '+TrapFile+' than we can handle.'+LineEnding+'See Max_NEtr in TypesAndConstants.', EC_InvalidInput);
+	IF NumLevels=0 THEN Stop_Prog('Could not find any trap levels in file '+TrapFile+'.', EC_InvalidInput);
 	{now we can be sure that NumLevels is at least 1}
 	
 	CLOSE(inv);
@@ -1107,8 +1134,6 @@ BEGIN
 		stv.IntTrapDist[1]:=1;
 	END;
 
-	stv.N_Etr:=MAX(NumBulkLevels, NumIntLevels); {this guarentees that N_Etr is at least 1 but not larger than Max_NEtr}
-
 	{Now let's check if the trap energies make sense with the CB and VB in the layers in the device}
 	{first: the bulk.}
 	IF par.Bulk_tr <> 0 THEN 
@@ -1133,10 +1158,10 @@ BEGIN
 		END;
 	
 		{now check the bulk trap energies and see if they are in (MinETrap, MaxETrap)}
-		FOR e:=1 TO stv.N_Etr DO
+		FOR e:=1 TO NumBulkLevels DO
 		BEGIN
-			IF stv.ETrapBulk[e] >= MaxETrap THEN Stop_Prog('Found a bulk trap energy that is larger than physically possible.');
-			IF stv.ETrapBulk[e] <= MinETrap THEN Stop_Prog('Found a bulk trap energy that is smaller than physically possible.');
+			IF stv.ETrapBulk[e] >= MaxETrap THEN Stop_Prog('Found a bulk trap energy that is larger than physically possible.', EC_InvalidInput);
+			IF stv.ETrapBulk[e] <= MinETrap THEN Stop_Prog('Found a bulk trap energy that is smaller than physically possible.', EC_InvalidInput);
 		END;
 	END;
 	
@@ -1163,13 +1188,15 @@ BEGIN
 		END;
 		
 		{now check the interface trap energies and see if they are in (MinETrap, MaxETrap)}
-		FOR e:=1 TO stv.N_Etr DO
+		FOR e:=1 TO NumIntLevels DO
 		BEGIN
-			IF stv.ETrapInt[e] >= MaxETrap THEN Stop_Prog('Found an interface trap energy that is larger than physically possible.');
-			IF stv.ETrapInt[e] <= MinETrap THEN Stop_Prog('Found an interface trap energy that is smaller than physically possible.');
+			IF stv.ETrapInt[e] >= MaxETrap THEN Stop_Prog('Found an interface trap energy that is larger than physically possible.', EC_InvalidInput);
+			IF stv.ETrapInt[e] <= MinETrap THEN Stop_Prog('Found an interface trap energy that is smaller than physically possible.', EC_InvalidInput);
 		END;
 		
 	END;
+
+	stv.N_Etr:=MAX(NumBulkLevels, NumIntLevels); {this guarentees that N_Etr is at least 1 but not larger than Max_NEtr}
 
 	FOR e:=1 TO stv.N_Etr DO
 		Init_Trap_Distribution_Single_Level(stv, e, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
@@ -1290,7 +1317,7 @@ BEGIN
 		BEGIN
 			IF par.IgnoreNegDens 
 				THEN nion[i]:=-nion[i] ELSE
-				Stop_Prog('Negative concentration of negative ions encountered!');
+				Stop_Prog('Negative concentration of negative ions encountered!', EC_NumericalFailure);
 		END;
 	{make sure the number of ions is preserved, i.e. correct:}
 	Rescale_Ion_Density(nion, par.CNI, stv, par);
@@ -1363,7 +1390,7 @@ BEGIN
 		BEGIN
 			IF par.IgnoreNegDens 
 				THEN pion[i]:=-pion[i] ELSE
-				Stop_Prog('Negative concentration of positive ions encountered!');
+				Stop_Prog('Negative concentration of positive ions encountered!', EC_NumericalFailure);
 		END;
 	{make sure the number of ions is preserved, i.e. correct:}
 	Rescale_Ion_Density(pion, par.CPI, stv, par);
@@ -1695,15 +1722,17 @@ BEGIN
         BEGIN
 			delV[i]:=SIGN(delV[i])*MIN(par.maxDelV*stv.Vt, ABS(delV[i])); {limit delV to a pre-set max}
             V[i]:=V[i] + delV[i];  {and add delV to V}
-			{Couple the Poisson to the cont. eqs. and makes convergence a lot easier!}
-			val:=SIGN(delV[i]) * MIN(lnr, ABS(delV[i])*stv.Vti);
-			fac2:=EXP(val);
-			fac3:=1/fac2;
-			n[i]:=n[i]*fac2; {now update the densities: we have to do this}
-			p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
-			{we also apply this to the ions. If IonsInTLs = 0 then we can still do this even though it's redundant for i<i1 and i>i2}
-			IF par.negIonsMove AND coupleIonsPoisson THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
-			IF par.posIonsMove AND coupleIonsPoisson THEN pion[i]:=pion[i]*fac3
+			IF dti=0 THEN BEGIN
+				{Couple the Poisson to the cont. eqs. and makes convergence a lot easier!}
+				val:=SIGN(delV[i]) * MIN(lnr, ABS(delV[i])*stv.Vti);
+				fac2:=EXP(val);
+				fac3:=1/fac2;
+				n[i]:=n[i]*fac2; {now update the densities: we have to do this}
+				p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
+				{we also apply this to the ions. If IonsInTLs = 0 then we can still do this even though it's redundant for i<i1 and i>i2}
+				IF par.negIonsMove AND coupleIonsPoisson THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
+				IF par.posIonsMove AND coupleIonsPoisson THEN pion[i]:=pion[i]*fac3
+			END
 		END; {for loop}
 
         it:=it+1;
@@ -1729,7 +1758,7 @@ BEGIN
 	
 END;
 
-PROCEDURE Calc_Elec_Mob(VAR mu : vector; V, n : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Calc_Elec_Mob(VAR mu : vector; CONSTREF V, n : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 VAR i : INTEGER;
 {calculates the elec. mob. on the interleaved mesh, mun[i]=mun at x=i+1/2}
 {therefore the field or concentration on x=i+1/2 is needed}
@@ -1738,7 +1767,7 @@ BEGIN
         0 : FOR i:=0 TO par.NP DO mu[i]:=par.mun_0; { mob. is constant }
         1 : FOR i:=0 TO par.NP DO {field-dep. mob}
                 mu[i]:=par.mun_0 * EXP(par.gamma_n*SQRT(ABS(V[i+1]-V[i])/(par.L*stv.h[i])));
-		ELSE Stop_Prog('Only very simple mobility models (0 and 1) currently implemented.');
+		ELSE Stop_Prog('Only very simple mobility models (0 and 1) currently implemented.', EC_ProgrammingError);
     END; {case selector}
 
     mu[par.NP+1]:=mu[par.NP]; {does not have a meaning, should not be used}
@@ -1757,7 +1786,7 @@ BEGIN
 	END
 END;
 
-PROCEDURE Calc_Hole_Mob(VAR mu : vector; V, p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Calc_Hole_Mob(VAR mu : vector; CONSTREF V, p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 VAR i : INTEGER;
 {calculates the hole mob. on the interleaved mesh, mup[i]=mup at x=i+1/2}
 {therefore the field or concentration on x=i+1/2 is needed}
@@ -1766,7 +1795,7 @@ BEGIN
         0 : FOR i:=0 TO par.NP DO mu[i]:=par.mup_0; { mob. is constant }
         1 : FOR i:=0 TO par.NP DO {field-dep. mob}
                 mu[i]:=par.mup_0 * EXP(par.gamma_p*SQRT(ABS(V[i+1]-V[i])/(par.L*stv.h[i])));
-		ELSE Stop_Prog('Only very simple mobility models (0 and 1) currently implemented.');
+		ELSE Stop_Prog('Only very simple mobility models (0 and 1) currently implemented.', EC_ProgrammingError);
     END; {case selector}
     mu[par.NP+1]:=mu[par.NP]; {does not have a meaning, should not be used}
 
@@ -2412,7 +2441,7 @@ BEGIN
 			n[i]:=nmin
 		END;
 
-	IF ResetDens AND (NOT par.IgnoreNegDens) THEN Stop_Prog('Negative electron concentration encountered!')
+	IF ResetDens AND (NOT par.IgnoreNegDens) THEN Stop_Prog('Negative electron concentration encountered!' , EC_NumericalFailure)
 END;
 
 
@@ -2512,7 +2541,7 @@ BEGIN
 			p[i]:=pmin
 		END;
 
-	IF ResetDens AND (NOT par.IgnoreNegDens) THEN Stop_Prog('Negative hole concentration encountered!')
+	IF ResetDens AND (NOT par.IgnoreNegDens) THEN Stop_Prog('Negative hole concentration encountered!', EC_NumericalFailure)
 
 END;
 
@@ -2531,8 +2560,8 @@ PROCEDURE Calc_Curr_Diff(sn : ShortInt; istart, ifinish : INTEGER; VAR J : vecto
 VAR i, e	  : INTEGER;
 	int_traps : BOOLEAN;
 BEGIN
-	IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Diff');
-	IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Diff.');
+	IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Diff', EC_ProgrammingError);
+	IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Diff.', EC_ProgrammingError);
 
 	{the current is only non-zero between istart and ifinish, so first init the zero's:}
 	FOR i:=0 TO istart-1 DO J[i]:=0;
@@ -2565,8 +2594,8 @@ VAR i, e								 : INTEGER;
 	int_traps							 : BOOLEAN;
 BEGIN
 	{first check a few things:}
-	IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Int');
-	IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Int.');
+	IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Int', EC_ProgrammingError);
+	IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Int.', EC_ProgrammingError);
 
     single_int:=0;
     double_int:=0;
@@ -2619,19 +2648,15 @@ BEGIN
 		{Note: we use global variable RecDum : TRec as a dummy variable. It is too larger to be a local variable.}
 		
 		{first do the electrons}
-		Calc_Recombination_n(RecDum, dti, n, p, diss_prob, Lang, curr.f_tb, curr.f_ti, stv, par); {calc net recombination of electrons}
-
 		CASE par.CurrDiffInt OF
-			1 : Calc_Curr_Diff(-1, 0, par.NP, Jn, Vgn, n, mun, RecDum.int, stv, par); {only needs part of RecDum with interface recombination}
-			2 : Calc_Curr_Int(-1, 0, par.NP, dti, Jn, Vgn, n, curr.n, mun, gen, RecDum, stv, par); {needs full RecDum and curr.n}
+			1 : Calc_Curr_Diff(-1, 0, par.NP, Jn, Vgn, n, mun, Rn.int, stv, par); {only needs part of Rn with interface recombination}
+			2 : Calc_Curr_Int(-1, 0, par.NP, dti, Jn, Vgn, n, curr.n, mun, gen, Rn, stv, par); {needs full Rn and curr.n}
 		END;	
 
 		{now do the holes}
-		Calc_Recombination_p(RecDum, dti, n, p, diss_prob, Lang, curr.f_tb, curr.f_ti, stv, par); {calc net recombination of holes}
-
 		CASE par.CurrDiffInt OF
-			1 : Calc_Curr_Diff(1, 0, par.NP, Jp, Vgp, p, mup, RecDum.int, stv, par);{only needs part of RecDum with interface recombination}
-			2 : Calc_Curr_Int(1, 0, par.NP, dti, Jp, Vgp, p, curr.p, mup, gen, RecDum, stv, par); {needs full RecDum and curr.p}
+			1 : Calc_Curr_Diff(1, 0, par.NP, Jp, Vgp, p, mup, Rp.int, stv, par);{only needs part of Rp with interface recombination}
+			2 : Calc_Curr_Int(1, 0, par.NP, dti, Jp, Vgp, p, curr.p, mup, gen, Rp, stv, par); {needs full Rp and curr.p}
 		END;	
 
 		{ions can be limited to the middle layer (which can take up the whole device i=0...NP+1.}
@@ -2641,7 +2666,6 @@ BEGIN
 
 		FILLCHAR(RecDum, SIZEOF(RecDum), 0); {set all fields of RecDum to zero as ions don't have generation/recombination}
 
-		{for the ions, we always take the diff form as this appears to work best, also in transient simulations}
 		IF par.negIonsMove AND (dti<>0) THEN {dti=0, then we're in steady-state => ionic currents are zero!}
 		BEGIN 
 			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobnion;
@@ -2688,6 +2712,71 @@ BEGIN
 		highJ:=Max(highJ, totJ);
 	END;
 	Calc_Range_Current:=highJ-lowJ; {range: difference between largest and smallest J}
+END;
+
+
+PROCEDURE Extrapolate_Solution(CONSTREF prev, curr : TState; VAR new : TState; AccSols : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Obtains a guess for state new based on an extrapolation of states prev and curr}
+VAR i : INTEGER;
+	rV, rt : myReal;
+BEGIN
+	{what we will doing depends on the number of accepted solutions (AccSols)}
+	
+	CASE AccSols OF
+		0 : ; {here we might add the initial guess for the first solution}
+		1 : IF new.Vint <> curr.Vint THEN {all we can do is extrapolate the electric field}
+				FOR i:=1 TO par.NP DO {only loop over interior points, not the contacts}
+					new.V[i]:=curr.V[i] + 1*(stv.x[i]/par.L - 0.5)*(new.Vint-curr.Vint);
+	OTHERWISE BEGIN
+		{so at least 2 accepted solutions are available}
+		{first calculate the factors (rV,G,t) by which the voltage, generation and time have increased:}
+		IF curr.Vint <> prev.Vint THEN
+			rV:=(new.Vint - curr.Vint)/(curr.Vint - prev.Vint)
+		ELSE rV:=0;
+				IF curr.tijd <> prev.tijd THEN
+			rt:=(new.tijd - curr.tijd)/(curr.tijd - prev.tijd)
+		ELSE rt:=0; {In SimSS this will always be zero, in ZimT mostly not}
+		IF (rV<>0) AND (curr.Gehp = prev.Gehp) THEN 
+			FOR i:=1 TO par.NP DO {only loop over interior points, not the contacts}
+			BEGIN
+				{use linear extrapolation. Simple and it works!}
+				new.V[i]:=curr.V[i] + rV*(curr.V[i]-prev.V[i]); 
+
+				{for the densities, we have to ensure that they are: 0< n <= NcLoc:}
+				{If n<=0, then we set n to MinFloat, the smallest positive real:}
+				new.n[i]:=MAX(MinFloat, MIN(stv.NcLoc[i], curr.n[i] + rV*(curr.n[i]-prev.n[i])));
+				new.p[i]:=MAX(MinFloat, MIN(stv.NcLoc[i], curr.p[i] + rV*(curr.p[i]-prev.p[i])));
+
+				{now IF there are moving ions:}
+				IF new.UpdateIons THEN BEGIN
+					IF par.negIonsMove THEN	new.nion[i]:=MAX(0, curr.nion[i] + rV*(curr.nion[i]-prev.nion[i])); {these need to be non-negative}
+					IF par.posIonsMove THEN new.pion[i]:=MAX(0, curr.pion[i] + rV*(curr.pion[i]-prev.pion[i]))
+				END; {ions}
+			
+			END {for loop interior grid points}
+		
+		ELSE {rV=0 and/or (curr.Gehp<>prev.Gehp). In either case, simply extrapolate using the time difference}
+			FOR i:=1 TO par.NP DO {only loop over interior points, not the contacts}
+			BEGIN
+				{use linear extrapolation. Simple and it works!}
+				new.V[i]:=curr.V[i] + rt*(curr.V[i]-prev.V[i]);
+			
+				{for elec/holes and ions, we essentially extrapolate the quasi-fermi level:}
+				{for the densities, we have to ensure that they are: 0< n <= NcLoc:}
+				new.n[i]:=MIN(stv.NcLoc[i], curr.n[i]*power(curr.n[i]/prev.n[i], rt));
+				new.p[i]:=MIN(stv.NcLoc[i], curr.p[i]*power(curr.p[i]/prev.p[i], rt));
+			
+				{now IF there are moving ions:}
+				IF new.UpdateIons THEN BEGIN
+					IF par.negIonsMove AND (prev.nion[i]<>0) THEN new.nion[i]:=curr.nion[i]*power(abs(curr.nion[i]/prev.nion[i]), rt); {these need to be non-negative}
+					IF par.posIonsMove AND (prev.nion[i]<>0) THEN new.pion[i]:=curr.pion[i]*power(abs(curr.pion[i]/prev.pion[i]), rt)
+				END; {ions}
+		
+			END {for loop interior grid points}
+	
+	END {otherwise}
+	END {case statement}	
+	
 END;
 
 FUNCTION Determine_Convergence(VAR ResJ : TItResult; VAR new : TState; it : INTEGER; VAR ConvMsg : STRING; 
@@ -2949,7 +3038,7 @@ BEGIN
 		WRITE(uitv,' ',JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);
 
         IF transient 
-			THEN WRITELN(uitv,' ',q*par.L*dti*(Ave(n)-Ave(PrevState.n)),' ',q*par.L*dti*(Ave(p)-Ave(PrevState.p)),' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
+			THEN WRITELN(uitv,' ',q*par.L*dti*(Ave(n)-Ave(PrevState.n)):nd,' ',q*par.L*dti*(Ave(p)-Ave(PrevState.p)):nd,' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
 			ELSE WRITELN(uitv);
     END; {with astate}
     FLUSH(uitv);
@@ -3025,7 +3114,7 @@ BEGIN
     CLOSE(uitv);
 END;
 
-PROCEDURE Tidy_Up_Parameter_File(QuitWhenDone : BOOLEAN);
+PROCEDURE Tidy_Up_Parameter_File(parameterFile : STRING; QuitWhenDone : BOOLEAN);
 {This procedure cleans up the parameter file: it makes sure that all the * are aligned, that every parameter has a 
 unit or other description/comment and left-aligns any line that starts with **. It does this by reading the original device
 parameter file line by line and writing corrected lines to a temp file. Once the correct position of the descriptions 
@@ -3035,8 +3124,8 @@ VAR inp, outp : TEXT;
     line, dumstr, outline : STRING;
     max_pos, linecount, pos_asterix, i : INTEGER;
 BEGIN
-    {open the original parameter_file}
-    ASSIGN(inp, parameter_file);
+    {open the original parameterFile}
+    ASSIGN(inp, parameterFile);
     RESET(inp);
     {and create a temp output file:}
     ASSIGN(outp, temp_file);
@@ -3072,7 +3161,7 @@ BEGIN
 				WRITELN('description, etc, and always after a *.');
 				WRITELN('The line that starts with "',LeftStr(line, MIN(LENGTH(line),20)),'" does not obey this rule.');				
 				WRITELN('This is something you need to fix yourself.');
-				Stop_Prog('See line number '+IntToStr(linecount)+'.');
+				Stop_Prog('See line number '+IntToStr(linecount)+'.', EC_DevParCorrupt);
 			END;
 			{now we are sure there is an *}
 			dumstr:=dumstr + ' * ' + TrimLeft(RightStr(line, LENGTH(line)-pos_asterix));
@@ -3090,8 +3179,8 @@ BEGIN
     {now start reading from the temp file:}
     ASSIGN(inp, temp_file);
     RESET(inp);
-    {and start writing into the real parameter_file:}
-    ASSIGN(outp, parameter_file);
+    {and start writing into the real parameterFile:}
+    ASSIGN(outp, parameterFile);
     REWRITE(outp);
     
     WHILE NOT EOF(inp) DO
@@ -3113,12 +3202,12 @@ BEGIN
     CLOSE(inp);
     CLOSE(outp);
     
-    {now delete old parameter_file and replace with temp_file}
+    {now delete old parameterFile and replace with temp_file}
     ERASE(inp); {the file should be assigned with Assign, but not opened with Reset or Rewrite}
-    RENAME(outp, parameter_file); {file must be assigned, but not opened}
+    RENAME(outp, parameterFile); {file must be assigned, but not opened}
     IF QuitWhenDone 
-		THEN Stop_Prog('Replaced old '+parameter_file+' with a tidy version.')
-		ELSE WRITELN('Tidied-up ',parameter_file,'.');
+		THEN Stop_Prog('Replaced old '+parameterFile+' with a tidy version.', EC_Warning)
+		ELSE WRITELN('Tidied-up ',parameterFile,'.');
 END;
 
 

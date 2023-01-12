@@ -1,3 +1,81 @@
+Version 4.45, 11 Jan 2023, LJAK
+
+1) Marten Koopmans is now Dr Marten Koopmans, so I've changed this throughout the codes.
+2) Defined exit codes (see unit TypesAndConstants) so that we can alert the outside world if something strange happens, like invalid input, numerical problems, etc. To do this, we pass the exit code to Stop_Prog.
+3) In Solve_Poisson, I have removed the updating of the densities (n, p, nion, pion) unless we're in steady-state (dti=0). In steady-state this coupling is fine and leads to correct results, but in the transient case it is not correct (essentially undoing part of what we did in version 4.35).
+
+
+
+Version 4.44, 9 Dec 2022, LJAK
+
+I have made it possible to specify a different device parameter file. The default file is defined in unit DDTypesAndConstants ('device_parameters.txt'), but one can specify a different parameter file via the command line:
+./zimt another_dev_par_file.txt -T 340
+Note: zimt and simss check whether the first parameter (if any) does NOT start with a '-'. If so, then this parameter is interpreted as the name of the device parameter file. If no such filename is specified, then zimt/simss look for the default file (device_parameters.txt). The log file lists which file was used.
+
+A new procedure (DDRoutines/Determine_Name_Parameter_File) does all the work.
+
+
+Version 4.43, 24 Nov 2022, LJAK
+
+BUG fix:
+Found and fixed a small bug in procedure Init_Trap_Distribution. Previously, after reading bulk and interface traps from a file (if applicable), we would set the number of trap levels for both types to stv.N_Etr. Then, we would do a loop over the trap levels to make sure they are commensurate with the conduction and valence bands. However, if we used 2 bulk levels and 1 interface level from a file, then we would check 2 interface trap levels and compare their value with the conduction and valence bands, resulting in a warning and exit from the program. So, now we first check the trap levels, and then set the overall number of such levels (i.e. for both bulk and interfaces) to stv.N_Etr.
+
+
+Version 4.42, 17 Nov 2022, LJAK
+
+1) I have improved the way we guess the new solution (also see 4.38 and 4.39). By introducing a counter that keeps track of how many solutions we have accepted (CountAcceptedSolutions), we can be a little bit more specific about what to do in procudure Extrapolate_Solution. If this number is 2, then we proceed as we did before. If it is 1 (most likely the second point this is being calculated), then we cannot use extrapolation of the solution, but we can add the change in the electric field to the potential instead. 
+
+2) Arrays V, n, p were passed by value to procedures Calc_Elec/Hole_Mob which is slower than passing them by CONSTREF, so I've changed this.
+
+
+Version 4.41, 27 Sep 2022, LJAK
+BUG fix.
+
+When using a field dependent generation of free electrons and holes (so Field_dep_G = 1) in conjuction with a distribution of thermalization lengths (so ThermLengDist > 1) the code crashes due to a range check error. 
+The origin of the bug was in the following: I had moved MaxRombIt from the device parameters to unit DDTypesAndConstants: that way, the user needn't bother about specifying this parameter (likewise for TolRomb, LowerLimBraun, and UpperLimBraun), see version 4.35. However, I had forgotten to delete MaxRombIt from TInputParameters. So, even when setting MaxRombIt to some suitable value in DDTypesAndConstants, the value that the Romberg algorithm was getting was 0 (= the uninitialized value from the old TInputParameters.MaxRombIt variable). So the integration algorithm crashes. 
+
+
+Version 4.40, 15 Sep 2022, LJAK
+I have introduced a new procedure (Finalize_Log_File) that writes some last info (a string), the date&time and the total runtime to the log file. In the DDRoutines unit, I have introduced a global variable (TimeStart : TDateTime) to store the timestamp at the beginning of the simulation. This variable gets its value in Prepare_Log_File, where it's also written to the log file. Finalize_Log_File needs this variable (therefore it's global) to compute the total runtime in seconds.
+
+
+Version 4.39, 13 Sep 2022, LJAK
+
+I have extended the idea of 4.38 to ZimT as well, the use of extrapolation to obtain a better guess for the new voltage/time point. So, I have moved procedure ExtrapolateSolution to unit DDRoutines so we can also use it in ZimT. First, we calculate the rate of change of the voltage and time (rV, rt). 
+
+If the voltage changes, but the generation does not (like a simply IV sweep), then we keep the extrapolation of version 4.38: There, we simply do a linear extrapolation of the voltage and the densities (incl. ions). However, if the generation (also) changes, then this does not work so well. In complicated simulations in ZimT, we might have a change in voltage and generation (e.g. TPV). After some testing, I have found that it is best (in terms of stability and speed) to simply based the extrapolation on the time derivative. The potential is linearly extrapolated in time, but the densities (electrons, holes, and ions) are treated differently. Basically, we extrapolate their quasi-fermi level.
+
+Note: Extrapolate_Solution is visible from SimSS and ZimT (i.e. they are visible outside the DDRoutines unit). We could call Extrapolate_Solution from the Main_Solver and hide Extrapolate_Solution from the outside world. However, I think that it is clearer to do the extrapolation from the main programs.
+
+
+Version 4.38, 8 Sep 2022, LJAK
+
+SimSS Only:
+
+I have improved the way we use previous solutions to obtain a good starting point for the main solver. Previously, all we did was update the potential at the contacts, and that's it. No changes make to the interior potential, nor to the densities. Now, we have an additional state (prev) in addition to curr and new. Just as a reminder: new is the state we are trying to solve, curr is the last one that was accepted and prev is the one before curr. So, when we want to simulate at the next voltage, we can obtain an estimate for new's potential and densities based on an extrapolation of prev and curr. This is exactly what procedure ExtrapolateSolution does, it uses a simple linear extrapolation for the (ion) densities and the potential. We also ensure that the values of the densities remain physical (e.g. positive).
+
+To do all this, I have also modified test 3: I've set tolJ from 1e-3 to 1e-6, just to make sure we get a good IV-curve. Also, I have changed the criterion for passing this test. Originally, the test was passed if the rms-error against the Lampert&Mark solution was less than 13%: older version achieved 12%, so they passed the test. However, the numbers are ever so slightly different now, with an error of 16%. Please note, it is not obvious which number is more accurate as the Lampert & Mark result is only accurate in the limit of high voltages. So, I've set the bar to 20%.
+
+Briefly:
+1) Initially, prev is equal to curr, simply to make sure it has a definite value.
+2) If we accept the solution, then we move the current solution to prev and copy the new solution to curr. Once we have accepted 2 solutions, prev will be different from curr and we can use this to get a guess (through extrapolation) for new.
+3) once the voltages of prev and curr are different (so after 2 successful voltages), we use extrapolation to get a better guess for new.
+
+Version 4.37, 6 Sep 2022, LJAK
+
+BUG FIX:
+Fixed a strange bug. In Calc_All_Currents, the global variable (RecDum : TRec, see version 4.31) was used twice, for electrons and holes, to calculate the recombination rate. However, the result was not stored correctly in RecDum after the second call. Using a second global variable (RecDum2, for example) also works, but this is not needed. This routine is only called after the recombination rates have been computed and stored in variable new : TState. So, instead of computing the recombination rates again, we simply use new.Rn and new.Rp for the electron / hole recombination rates. 
+
+Other stuff
+1) Removed function B (Bernoulli function) from unit NumericalUtils and function Bessel from unit DDRoutines. Both functions appeared in both units, which is bad.
+2) I've made the tests more difficult in that FailureMode = 0, i.e. if a single point fails to converge, then SIMsalabim stops. Previously, most tests had FailureMode = 2 (i.e. skip) while the rest had FailureMode = 1 (ignore).
+
+
+Version 4.36, 17 June 2022, LJAK
+
+Minor update: in ZimT, the tJ_file output was a bit unfortunate: the Jdndt and Jdpdt columns were stored with too many digits. All columns should be stored to nd digits (nd is defined in unit DDTypesAndConstants and is used to cap the number of digits).
+
+
 Version 4.35, 3 June 2022, LJAK
 
 1) BUG fix (SimSS only!): In the process of merging ZimT and SimSS (formerly known as SIMsalabim), the functionality of SimSS parameter ion_red_rate was lost. Within SimSS's main code, the parameter (TJVList.UpdateIons) was set and stored in the log_file, but it was never used in the main code. So, if fixing the ions, for example, by setting ion_red_rate = 0, the ion distributions would still be computed at every voltage. 
@@ -32,7 +110,7 @@ We have extended the use of the integral form of computing the current (introduc
 
 Version 4.31, 24 Feb 2022, LJAK
 BUGs fixed: 
-1)In routines Calc_All_Currents, Calc_Recombination_n, and Calc_Recombination_p, we used a local variable (like Rec) of type TRec. This type has become quite large after the introduction of multipe trap levels (version 4.28). Too large, in fact, to function properly. This is not always obvious: when using myReal = EXTENDED this would cause the program to crash is using CurrDiffInt = 2 as some of the fields of this record appeared not to be initialised => NAN. This is a nice feature of EXTENDED reals, as using such a NAN value will crash the program. DOUBLE reals will not and will simply have 0 value, if things go well. So, I have introduced a global variable RecDum : TRec in the DDRoutines unit (right below IMPLEMENTATION) to serve as a dummy variable that the above mentioned routines use. I have also added a note in the developer guidelines.
+1)In routines Calc_All_Currents, Calc_Recombination_n, and Calc_Recombination_p, we used a local variable (like Rec) of type TRec. This type has become quite large after the introduction of multiple trap levels (version 4.28). Too large, in fact, to function properly. This is not always obvious: when using myReal = EXTENDED this would cause the program to crash is using CurrDiffInt = 2 as some of the fields of this record appeared not to be initialised => NAN. This is a nice feature of EXTENDED reals, as using such a NAN value will crash the program. DOUBLE reals will not and will simply have 0 value, if things go well. So, I have introduced a global variable RecDum : TRec in the DDRoutines unit (right below IMPLEMENTATION) to serve as a dummy variable that the above mentioned routines use. I have also added a note in the developer guidelines.
 
 
 2) DDRoutines: Variables Ntb_charge and Nti_charge were passed by value to routine Solve_Poisson even though these were updated inside this procedure by passing them onto other routines as VAR variables (passed by reference). So, I have made them VAR variables in Solve_Poisson's heading as well.
@@ -86,10 +164,6 @@ In order to make it a little bit more clear how the SIMsalabim project can be co
 Version 4.24, 4 Nov. 2021, MK, LJAK
 
 Building on version 4.23, we have implemented fully transient trapping/de-trapping statistics for interface traps.
-
-to do:
--Calc_f_ti aanpassen: ook het aanroepen niet meer met 2 functies (denom and numerator) in heading.
--Rec_np aanpassen (linearisatie!!!)
 
 
 Version 4.23, 4 Nov. 2021, MK, LJAK
@@ -575,7 +649,7 @@ Version 3.61 LJAK, MK
 14) Removed a bug from procedure Init_Hole_Mob_Table: it checked for mob_n_dep = 2, not mob_p_dep!
 15) MK wrote the procedure interpolation, this procedure accepts two arrays, x & y, that are to be interpolated. The procedure uses Neville interpolation to make an interpolation of polynomial order n, using n+1 point x & y arrays. The interpolation procedure looks for the consecutive points that together have the lowest offset from the target x-coordinate and sends arrays containing only those points to the Neville interpolation algorithm. The interpolation procedure returns an estimate of y and an error estimate on the y-estimate. The error estimate is the difference between the y-estimate using a polynomial of order n-1 and the estimate using a polynomial of order n.
 16) moved the 'magic numbers' to the top of the code: these are a couple of constants (mostly numberical ones) that are used somewhere (as indicated).
-17) I have introduced a new procedure (Check_Parameters) that performs a number of checks on the input parameters. ni and Vt need to be calculated BEFORE starting this procedue (that's why Check_Parameters checks if they're not zero).
+17) I have introduced a new procedure (Check_Parameters) that performs a number of checks on the input parameters. ni and Vt need to be calculated BEFORE starting this procedure (that's why Check_Parameters checks if they're not zero).
 18) Removed a strang bug (typo, really). No idea when this was introduced in the code. It was a typo in Calc_dissociation, case ThermLengDist = 2 (Gaussian distribution, the one we used the most). There was an a missing after UpperLimBraun: 2 : dp[i]:=RombergIntegration(DissProb_Gauss, LowerLimBraun*a, UpperLimBraun, TolRomb, MaxRombIt, FALSE). Result: zero dissociation probability. 
 
 Version 3.60 (14 May 2019), LJAK

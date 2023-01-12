@@ -69,7 +69,7 @@ log_y = True
 labels = {'x' : plot_x, 'y' : plot_y}
 dat_sim, dat_test = get_data_from_sim(SimSS, test_idx), get_data_from_file(test_idx, x_test, y_test)
 rmse, dat_rmse = calc_selected_rmse(dat_sim, dat_test, x_min=1.5, log_x=log_x, log_y=log_y)
-passed = rmse < 1.3e-1
+passed = rmse < 2e-1
 test_results.append({'passed' : passed, 'test nr' : test_idx})
 plot_test_results(test_idx, dat_sim, labels, dat_tests=[(label_test, dat_test)], dat_err=[(rmse, dat_rmse)], log_x=log_x, log_y=log_y)
 
