@@ -1,4 +1,4 @@
-Energy	traps, relative
+E		Ntrap
 3.025	7.788e-01
 3.076 	4.662e-01
 3.128 	2.791e-01

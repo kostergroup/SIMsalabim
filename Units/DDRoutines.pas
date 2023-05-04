@@ -3,8 +3,8 @@ unit DDRoutines;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
-F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
+Copyright (c) 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
 This program is free software: you can redistribute it and/or modify
@@ -38,12 +38,13 @@ USES sysutils,
 	 DateUtils,
 	 Math, 
 	 TypesAndConstants,
+	 TransferMatrix,
 	 InputOutputUtils, 
      NumericalUtils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.45'; {version of this unit}
+CONST DDRoutinesVersion = '4.50'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -53,7 +54,11 @@ PROCEDURE Display_Help_Exit(ProgName : TProgram);
 
 FUNCTION Max_Value_myReal : EXTENDED;
 {Determines the largest value that can be stored in myReal. The result, thus,
-depends on how myReal was defined. It should be a single, doulbe or extended.}
+depends on how myReal was defined. It should be a single, double or extended.}
+
+PROCEDURE Set_Number_Digits(LimOutput : BOOLEAN; BytesInReal : INTEGER);
+{sets the number of digits when printing real numbers (in global var nd), 
+depending on the size of the floating point type}
 
 PROCEDURE Determine_Name_Parameter_File(VAR parameterFile : STRING);
 {Determines which parameter file should be used}
@@ -88,9 +93,9 @@ PROCEDURE Init_Generation_Profile(VAR stv : TStaticVars; VAR log : TEXT; CONSTRE
 {Inits the generation profile, either constant or from a file. This is the SHAPE of the profile}
 {When using a profile from file, a message is written on screen and in the log file.}
 
-PROCEDURE Update_Generation_Profile(org: vector; VAR new : vector; Gehp : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Rescale profile such that Gehp equals the average of the profile over the length of the absorber. 
-The latter equals L if TLsAbsorb or there are no transport layers, and L-L_LTL-L_RTL otherwise. }
+PROCEDURE Update_Generation_Profile(org: vector; VAR new : vector; Geff : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Rescale profile such that Geff equals the average of the profile over the length of the absorber. 
+The latter equals L if TLsGen or there are no transport layers, and L-L_LTL-L_RTL otherwise. }
 
 PROCEDURE Init_Pot_Dens_Ions_Traps(VAR V, Vgn, Vgp, n, p, nion, pion : vector; VAR f_tb, f_ti : TrapArray; Va : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {init. for V, Vgn,p, n, p, ion densities and trap parameters at bias voltage Va}
@@ -135,14 +140,17 @@ VAR RecDum : TRec; {global dummy variable that will be used in Calc_All_Currents
 
 VAR TimeStart : TDateTime; {stores the date/time at the start of the sim. Used in Prepare_Log_File and Finalize_Log_File}
 
+VAR nd : INTEGER; {used to specify the field_width of floating point type}
+
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
 VAR strprogname : STRING;
 BEGIN
     Str(ProgName, strprogname); {convert variable ProgName to a string}
     WRITELN('Welcome to ',strprogname,' version ',version,'.');
-    WRITELN('Copyright (C) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre,'); 
-    WRITELN('Dr M. Koopmans, F. Wobben, and Prof L.J.A. Koster, University of Groningen.');
+    WRITELN('Copyright (C) 2020, 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar,'); 
+    WRITELN('Dr V.M. Le Corre, Dr M. Koopmans, F. Wobben,');
+    WRITELN('and Prof L.J.A. Koster, University of Groningen.');
     WRITELN;
 END;
 
@@ -189,16 +197,26 @@ BEGIN
 		END; {absx >= C1}
 END;
 
-FUNCTION Average(Vec, h : Vector; istart, ifinish : INTEGER) : myReal;
+FUNCTION Average(Vec, h : Vector; istart, ifinish : INTEGER; onGrid : BOOLEAN = FALSE) : myReal;
 {calcs the average of a vector (Vec) from index istart -> ifinish. 
-As the grid may be non-uniform, it also takes and uses grad spacing h.}
+As the grid may be non-uniform, it also takes and uses grid spacing h.}
+{On-grid: like densities, V, etc. Not on-grid: currents, mobility}
 VAR i   : INTEGER;
-    Avg : myReal;
+    sumy, sumh, val : myReal;
 BEGIN
-    Avg:=0;
-    FOR i:=istart+1 TO ifinish DO
-        Avg := Avg + 0.5*(Vec[i]+Vec[i-1])*h[i-1];
-    Average := Avg;
+    sumy:=0; {sum of the y-values}
+    sumh:=0; {sum of grid spacing}
+    
+	FOR i:=istart TO ifinish-1 DO BEGIN
+		IF onGrid THEN
+			val:=0.5*(Vec[i+1] + Vec[i]) {we use trapezoidal integration, so interpolate y-values (Vec)}
+		ELSE
+			val:=Vec[i]; {quantity (Vec) is defined between grid points, so Vec[i] is the value between x[i] and x[i+1]}
+		sumy:=sumy + h[i]*val;
+		sumh:=sumh + h[i]
+	END;
+   
+    Average := sumy/sumh;
 END;
 
 FUNCTION Max_Value_myReal : EXTENDED;
@@ -230,6 +248,23 @@ BEGIN
 	Max_Value_myReal:=dummy;
 END;
 
+PROCEDURE Set_Number_Digits(LimOutput : BOOLEAN; BytesInReal : INTEGER);
+{sets the number of digits when printing real numbers (in global var nd), depending on the size of the floating point type}
+BEGIN	
+
+	IF LimOutput THEN {limit output, depending on size of floating point type}
+		nd:=ROUND(0.333*(4*BytesInReal+20))
+	ELSE
+		{we use the full floating point type, which depends on the size of the type}
+		CASE BytesInReal OF
+			4 : nd:=16;
+			8 : nd:=24;
+			10 : nd:=29;
+		OTHERWISE 
+			Stop_Prog('Invalid parameter BytesInReal passed to procedure Set_Number_Digits', EC_ProgrammingError)
+		END
+END;
+
 PROCEDURE Determine_Name_Parameter_File(VAR parameterFile : STRING);
 {Determines which parameter file should be used}
 VAR key : STRING;
@@ -240,7 +275,7 @@ BEGIN
 	{now take default file if the first character is a '-' (=> variable name is coming!) or there parameters at all!}
 	IF StartsStr('-', key) OR (ParamCount=0) THEN
 		parameterFile:=defaultParameterFile
-	ELSE {only in this do we take the name of the parameter file from the command line}
+	ELSE {only in this case do we take the name of the parameter file from the command line}
 		parameterFile:=key
 END;
 
@@ -317,11 +352,11 @@ END;
 
 PROCEDURE Read_Parameters(parameterFile : STRING; VAR msg : ANSISTRING; VAR par : TInputParameters; VAR stv : TStaticVars; ProgName : TProgram);
 {Reads-in all the parameters. Some bits are specific to either ZimT or SimSS}
-VAR 
+VAR countStart, countFinish : INTEGER;
     dumint : INTEGER; {a dummy integer variable}
     dumstr : STRING; {again, a dummy variable}
     inv : TEXT;
-    ZimT, SimSS	: BOOLEAN; 
+    ZimT, SimSS, UsedSpecialParFile	: BOOLEAN; 
 BEGIN
     {use 2 booleans to check if we're using ZimT or SimSS}
     ZimT:= (ProgName=TProgram.ZimT);
@@ -331,6 +366,7 @@ BEGIN
 		THEN Stop_Prog('Could not find file '+parameterFile+'.', EC_FileNotFound);
     ASSIGN(inv, parameterFile);
     RESET(inv);
+	countStart:=Count_Char_In_String(LineEnding, msg); {first, count the number of LineEndings in msg-str.}
 
 	WITH par DO BEGIN
 {**General**************************************************************************}
@@ -344,6 +380,17 @@ BEGIN
 		Get_Float(inv, msg, 'Nc',Nc);  {effective DOS, m^-3}
 		Get_Float(inv, msg, 'n_0', n_0);  {ionised n-doping density, m^-3}
 		Get_Float(inv, msg, 'p_0', p_0);  {ionised p-doping density, m^-3}
+
+{**Optics****************************************************************************}
+		Get_Float(inv, msg, 'L_TCO', L_TCO); {m, thickness of the TCO. Set to 0 if layer is not used}
+		Get_Float(inv, msg, 'L_BE', L_BE); {m, thickness of back electrode, must be >0}
+		Get_String(inv, msg, 'nk_substrate', nk_substrate); {name of file with n,k values of substrate}
+		Get_String(inv, msg, 'nk_TCO', nk_TCO); {name of file with n,k values of TCO}
+		Get_String(inv, msg, 'nk_active', nk_active); {name of file with n,k values of active layer}
+		Get_String(inv, msg, 'nk_BE', nk_BE); {name of file with n,k values of back electrode}
+		Get_String(inv, msg, 'spectrum', spectrum); {name of file that contains the spectrum}
+		Get_Float(inv, msg, 'lambda_min', lambda_min); {m, lower bound wavelength}
+		Get_Float(inv, msg, 'lambda_max', lambda_max); {m, upper bound wavelength}
 
 {**Mobilities************************************************************************}
 		Get_Float(inv, msg, 'mun_0', mun_0); {electron zero-field mobility, m^2/Vs}
@@ -370,6 +417,8 @@ BEGIN
 {**Transport Layers************************************************************************}
 		Get_Float(inv, msg, 'L_LTL', L_LTL); {m, thickness left TL}
 		Get_Float(inv, msg, 'L_RTL', L_RTL); {m, thickness right TL}
+		Get_String(inv, msg, 'nk_LTL', nk_LTL); {name of file with n,k values of the left TL}
+		Get_String(inv, msg, 'nk_RTL', nk_RTL); {name of file with n,k values of the right TL}
 		Get_Float(inv, msg, 'Nc_LTL', Nc_LTL); {m^-3, DOS of left TL}
 		Get_Float(inv, msg, 'Nc_RTL', Nc_RTL); {m^-3, DOS of right TL}
 		Get_Float(inv, msg, 'doping_LTL', doping_LTL);  {m^-3, doping in left TL if >0 p-type doping if <0 n-type doping}
@@ -384,8 +433,8 @@ BEGIN
 		Get_Float(inv, msg, 'CB_RTL', CB_RTL); {eV, conduction band right TL}
 		Get_Float(inv, msg, 'VB_LTL', VB_LTL); {eV, valence left TL}
 		Get_Float(inv, msg, 'VB_RTL', VB_RTL); {eV, valence right TL}
-		Get_Integer(inv, msg, 'TLsAbsorb', dumint); {TLsAbsorb, TLs absorb yes(1)/no(0), overrides the profile}
-		TLsAbsorb:=ROUND(dumint)=1;
+		Get_Integer(inv, msg, 'TLsGen', dumint); {TLsGen, TLs generate elctrons and holes? yes(1)/no(0), overrides the profile}
+		TLsGen:=ROUND(dumint)=1;
 		Get_Integer(inv, msg, 'TLsTrap', dumint); {TLsTrap, traps in TLs yes(1)/no(0)}
 		TLsTrap:=ROUND(dumint)=1;
 		Get_Integer(inv, msg, 'IonsInTLs', dumint); {can ions, if any, move into the TLs? yes(1)/no(<>1)}
@@ -410,7 +459,12 @@ BEGIN
 			Get_Float(inv, msg, 'Gfrac', Gfrac);
 		END;
 		Get_String(inv, msg, 'Gen_profile', Gen_profile); {name of file generation profile (or 'none')}
-		Use_gen_profile:= lowercase(Trim(Gen_profile))<>'none'; {use the profile if Gen_profile isn't 'none'}
+		CASE lowercase(Trim(Gen_profile)) OF
+			'none' : Use_gen_profile := 0; {Uniform generation}
+			'calc' : Use_gen_profile := 1; {Calculate generation profile using the Transfermatrix method}
+		ELSE
+			Use_gen_profile := 2; {Use an user-defined generation profile}
+		END;
 		Get_Integer(inv, msg, 'Field_dep_G', dumint);  {field-dependent G, true or false}
 		Field_dep_G:=(ROUND(dumint) = 1);
     	Get_Float(inv, msg, 'P0', P0); {0<=P0<1, fraction of quenched excitons that directly yield free carriers}
@@ -454,11 +508,10 @@ BEGIN
 		Get_Integer(inv, msg, 'MaxItSS', MaxItSS); {max. number it. steady-state loops}
 		IF ZimT THEN Get_Integer(inv, msg, 'MaxItTrans', MaxItTrans); {max. number it. transient solver}
 		Get_Integer(inv, msg, 'CurrDiffInt', CurrDiffInt); {Calc. current from differential (1) or integral (2) expression}
-		Get_Float(inv, msg, 'tolJ', tolJ); {tolerance of current density in main loop}
-		Get_Float(inv, msg, 'MinRelChange', MinRelChange); {if change per loop smaller than this, then loop converges}	
-		Get_Float(inv, msg, 'MinAbsJDark', MinAbsJDark); {A/m2, if |Jint|<MinAbsJDark we simply stop and take Jint=0}		
+		Get_Float(inv, msg, 'tolDens', tolDens); {relative tolerance of density solver}
 		Get_Float(inv, msg, 'couplePC', couplePC); {>= 0, coupling between Poisson equation and continuity equations}
-		Get_Float(inv, msg, 'accDens', accDens); {accelation for densities, 0 < accDens < 2}
+		Get_Float(inv, msg, 'minAcc', minAcc); {>0, min. acceleration parameter}
+		Get_Float(inv, msg, 'maxAcc', maxAcc); {<2, max. acceleration parameter}
 		Get_Integer(inv, msg, 'IgnoreNegDens', dumint);
 		IgnoreNegDens:= dumint=1; {whether(1) or not(<>1) to ignore negative densities}
 		Get_Integer(inv, msg, 'FailureMode', FailureMode); {how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip}
@@ -510,15 +563,28 @@ BEGIN
 		END;
 		IF SimSS THEN Get_String(inv, msg, 'JV_file', JV_file); {name of file with simulated JV points}
 		Get_String(inv, msg, 'Var_file', Var_file); {name of file with internal variables}
+		Get_Integer(inv, msg, 'LimitDigits', dumint); {if 1, then number of digits in output is limited}
+		LimitDigits:=dumint = 1;
 		Get_Integer(inv, msg, 'OutputRatio', OutputRatio); {output (ZimT: J to screen and) variables to var_file every OutputRatio timesteps/voltages}	
 		IF SimSS THEN StoreVarFile:=OutputRatio>0;
 		IF ZimT THEN StoreVarFile:=lowercase(Trim(Var_file))<>'none'; {only store var_file if Var_file isn't 'none'}    
 		IF SimSS THEN Get_String(inv, msg, 'scPars_file', scPars_file); {name of file with solar cell parameters}
 		Get_String(inv, msg, 'log_file', log_file); { name of log file}
     END; {WITH par statement}
- 
+
     CLOSE(inv);
     WRITELN('Read parameters from ',parameterFile);
+    {now check if all parameters that were in the command line have been used:}
+	{did we use a special parameter file or not?}
+	UsedSpecialParFile:=NOT( (ParamCount=0) OR StartsStr('-', TRIM(ParamStr(1))) );
+
+    {we use countStart/Finish to count the number of parameters obtained from the command line}
+	{every time we find such a parameter, a LineEnding is added to msg}
+    countFinish:=Count_Char_In_String(LineEnding, msg);
+	
+	{now the number of arguments (bar a dev par file) needs to be 2 x the difference in the counter:}
+    IF ParamCount - ORD(UsedSpecialParFile) <> 2*(countFinish-countStart) THEN
+		Stop_Prog('The command line contains invalid arguments, see the manual.', EC_InvalidCLInput);
     msg:=msg + 'Read parameters from ' + parameterFile + LineEnding
 END;
 
@@ -594,19 +660,28 @@ BEGIN
 		
 {checks on ions:}
 		IF SimSS AND (ion_red_rate<0) THEN Stop_Prog('Ion redistribution rate cannot be lower than zero, should be: 0 <= ion_red_rate < NJV', EC_InvalidInput);
-{checks on generation and recombination parameters}
+{checks on optics, generation and recombination parameters}
+		IF Use_gen_profile = 1 THEN BEGIN
+			IF L_TCO < 0 THEN Stop_Prog('L_TCO cannot be negative.', EC_InvalidInput);
+			IF L_BE <= 0 THEN Stop_Prog('L_BE must be positive.', EC_InvalidInput);
+			IF lambda_min > lambda_max THEN Stop_Prog('lambda_min cannot be larger than lambda_max.', EC_InvalidInput);
+			IF lambda_min <= 0 THEN Stop_Prog('lambda_min must be positive.', EC_InvalidInput); 
+			{note, now we are sure that lambda_max is also positive!}		
+		END;
 		IF NOT (ThermLengDist IN [1,2,3,4,5]) THEN Stop_Prog('Invalid ThermLengDist selected.', EC_InvalidInput);
 		IF (P0>=1) OR (P0<0) THEN Stop_Prog('Invalid value of P0, should be: 0<=P0<1', EC_InvalidInput);
 		IF (P0<>0) AND (Field_dep_G = FALSE) THEN Stop_Prog('P0 should be zero if not using field dependent generation', EC_InvalidInput);
 {checks on numerical parameters:}
-		IF (MinRelChange < 0) OR (MinRelChange >= 1) THEN Stop_Prog('Invalid MinRelChange.', EC_InvalidInput);
 		IF (NP<=15) OR (NP>Max_NP) THEN Stop_Prog('Invalid number of grid points (NP) selected, must be >=15 and <'+IntToStr(Max_NP)+'.', EC_InvalidInput);
 		IF (CurrDiffInt <> 1) AND (CurrDiffInt <> 2) THEN Stop_Prog('CurrDiffInt can only be 1 or 2.', EC_InvalidInput);
 		IF maxDelV<=0 THEN Stop_Prog('maxDelV should be positive.', EC_InvalidInput);
 		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog('maxDelV*Vt should be (much) larger than tolPois.', EC_InvalidInput);
+		IF tolDens <= 0 THEN Stop_Prog('tolDens must be larger than zero.', EC_InvalidInput);
 		IF couplePC < 0 THEN Stop_Prog('couplePC must be non-negative.', EC_InvalidInput);
-		{check if value of accDens makes any sense:}
-		IF (accDens>=2) OR (accDens<=0) THEN Stop_Prog('Invalid value of accDens selected.', EC_InvalidInput);  
+		{check if values of minAcc and maxAcc makes any sense:}
+		IF maxAcc >= 2 THEN Stop_Prog('maxAcc must be smaller than 2.', EC_InvalidInput);  
+		IF minAcc <= 0 THEN Stop_Prog('minAcc must be positive.', EC_InvalidInput);  
+		IF minAcc > maxAcc THEN Stop_Prog('minAcc cannot be larger than maxAcc.', EC_InvalidInput);  
 		IF NOT (FailureMode IN [0,1,2]) THEN Stop_Prog('Invalid FailureMode selected.', EC_InvalidInput);
 {checks on voltages, SimSS only:}
 		IF SimSS THEN
@@ -620,7 +695,7 @@ BEGIN
 			{now check for redundancy of pre-bias:}
 			IF PreCond THEN
 			BEGIN
-				IF Rseries>0 THEN WarnUser('Pre-bias voltage does not take Rseries into account, so Vpre=Vint.');
+				IF Rseries>0 THEN Warn_User('Pre-bias voltage does not take Rseries into account, so Vpre=Vint.');
 				IF ABS(Vpre)*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('|Vpre| is too large.', EC_InvalidInput);
 				IF ((CNI=0) AND (CPI=0)) THEN Stop_Prog('Do not use a pre-bias without any ions, makes no sense.', EC_InvalidInput);
 				IF (Vscan=1) AND (Vpre=Vmin) THEN Stop_Prog('Pre-bias voltage is equal to Vmin, makes no sense.', EC_InvalidInput);
@@ -639,7 +714,7 @@ BEGIN
 		IF SimSS 
 		THEN BEGIN
 			IF (Gehp * Gfrac <> 0) AND (stv.V0 <> stv.VL) AND UseExpData AND (rms_mode=logarithmic) {this is a weird combination, warn user}
-				THEN WarnUser('You are fitting a solar cell with rms_mode=log.');
+				THEN Warn_User('You are fitting a solar cell with rms_mode=log.');
 			IF UseExpData AND until_Voc THEN Stop_Prog('You cannot use until_Voc = 1 and UseExpData = 1 at the same time.', EC_InvalidInput);
 			IF UseExpData AND PreCond THEN Stop_Prog('You cannot use pre-conditioning (PreCond) and UseExpData = 1 at the same time.', EC_InvalidInput);
 			IF PreCond AND (ion_red_rate=1) THEN Stop_Prog('You cannot use PreCond and have ion_red_rate=1 at the same time as that defeats the purpose.', EC_InvalidInput);
@@ -676,6 +751,7 @@ PROCEDURE Make_Grid(VAR k, x : vector; VAR i1, i2 : INTEGER; CONSTREF par : TInp
 {i1 is the last point in the left insulator (or 0 if there isn't any)
 i2 is the first point in the right insulator (or NP+1 if there is none)}
 VAR del : myReal;
+	i : INTEGER;
 BEGIN
    
 	WITH par DO 
@@ -775,42 +851,36 @@ BEGIN
 END;
 
 PROCEDURE Init_Generation_Profile(VAR stv : TStaticVars; VAR log : TEXT; CONSTREF par : TInputParameters);
-{Inits the generation profile, either constant or from a file. This is the SHAPE of the profile}
+{Inits the generation profile, either constant, calculated by the transfer matrix unit, or from a file. 
+This is the SHAPE of the profile}
 {When using a profile from file, a message is written on screen and in the log file.}
-VAR inv : TEXT; {file with generation profile}
-    a, gr : ARRAY[0..maxGenProfPoints] OF myReal; {a : x-coordinate, gr: generation rate}
-    counter, i, j : INTEGER;
+VAR a, gr : Row; {a : x-coordinate, gr: generation rate}
+    numLines, i, j : INTEGER;
     maxG : myReal;
 BEGIN
-    IF NOT par.Use_gen_profile 
-        THEN BEGIN
+	CASE par.Use_gen_profile OF
+	0:	BEGIN {uniform generation}
 			FOR i:=0 TO par.NP+1 DO stv.orgGm[i]:=1; {constant Gehp=generation rate of e-h pairs}
 			maxG:=1
-		END
-        ELSE BEGIN {optical interference effects are taken into account}
-            IF NOT FileExists(par.Gen_profile) {file with gen. profile is not found}
-                THEN Stop_Prog('Cannot find file '+par.Gen_profile, EC_FileNotFound);
-            ASSIGN(inv, par.Gen_profile); {once we get here, we're sure the file exists}
-            RESET(inv);
+		END;
+	1:	Calc_TransferMatrix(stv,par); {Calculate the generation profile using the TransferMatrix script.}
+	2:	BEGIN {use profile supplied by user}
 			WRITELN('Reading generation profile from ',par.Gen_profile);
 			WRITELN(log, 'Reading generation profile from ',par.Gen_profile);
-			
-            {the input file contains the generation profile, however, the grid points
-             in this file may not correspond to our grid here}
-            counter:=-1; {count the number of points in the input file}
-            WHILE NOT(EOF(inv)) DO {read all the generation rates from file}
-                BEGIN counter:=counter+1; READLN(inv, a[counter], gr[counter]) END;
-                {a: x-coordinate, gr: corresponding generation rate}
-            CLOSE(inv);
-            IF counter=-1 THEN Stop_Prog('The file generation_profile.txt is empty.', EC_InvalidInput);
+			Read_XY_Table(a, gr, par.Gen_profile, 'x Gehp', numLines);
+			{a: x-coordinate, gr: corresponding generation rate}
 
-           { rescale a to ensure that a[counter]=L: }
-            FOR i:=0 TO counter DO a[i]:=a[i] * par.L/a[counter];
+            IF numLines=0 THEN Stop_Prog('The file generation_profile.txt is empty.', EC_InvalidInput);
+
+           { rescale a to ensure that a[numLines-1]=L: }
+            FOR i:=0 TO numLines-1 DO a[i]:=a[i] * par.L/a[numLines-1];
+			{the input file contains the generation profile, however, the grid points
+             in this file may not correspond to our grid here}
 
             {Now interpolate gr to get genrate on x[i] grid:}
             i:=0; {counter for x[i] grid}
             maxG:=0; {max. of genrate}
-            FOR j:=0 TO counter-1 DO
+            FOR j:=0 TO numLines-2 DO
                 WHILE (stv.x[i] < a[j+1]) AND (i<par.NP+1) DO
                     BEGIN
 						stv.orgGm[i]:=gr[j] + (stv.x[i]-a[j]) * (gr[j+1]-gr[j])/(a[j+1]-a[j]);
@@ -818,14 +888,16 @@ BEGIN
                         {we're using linear interpolation here}
                         i:=i+1
                     END;
+
             {now rescale genrate array so that the maximum is equal to 1:}
 			FOR i:=0 TO par.NP+1 DO
 				stv.orgGm[i]:=stv.orgGm[i]/maxG;
         END; {reading generation profile from file}
-
-	{if the insulators (if there are any) don't absorb we need set the generation
+	END;
+	
+	{if the insulators (if there are any) don't absorb/generate we need set the generation
 	 rate to zero. This overrides the generation profile (if any).}
-	IF NOT par.TLsAbsorb THEN
+	IF NOT par.TLsGen THEN
 	BEGIN
 		{left insulator, offset generalised potentials:}
 		IF stv.i1>0 THEN { I would have thought that one shouldn't need this if statement}
@@ -838,22 +910,27 @@ BEGIN
 	END;
 END;
 
-PROCEDURE Update_Generation_Profile(org: vector; VAR new : vector; Gehp : myReal;CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Rescale profile such that Gehp equals the average of the profile over the length of the absorber. 
-The latter equals L if TLsAbsorb or there are no transport layers, and L-L_LTL-L_RTL otherwise. }
+PROCEDURE Update_Generation_Profile(org: vector; VAR new : vector; Geff : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Rescale profile such that Geff equals the average of the profile over the length of the absorber. 
+The latter equals L if TLsGen or there are no transport layers, and L-L_LTL-L_RTL otherwise. }
 VAR i : INTEGER;
 	Gav : myReal;
 BEGIN
-	IF Gehp<>0 
+	IF Geff<>0 
 	THEN BEGIN
-		{Rescale such that Gehp equals the average of the profile over the
-	    length of the absorber. The latter equals L if TLsAbsorb or there
-	    are no transport layers, and L-L_LTL-L_RTL otherwise. }
-	    Gav:=Average(org, stv.h, 0, par.NP+1); {so average gen rate of original profile}   
-	    IF NOT par.TLsAbsorb THEN Gav:=Gav * par.L / (par.L-par.L_LTL-par.L_RTL);
-	    FOR i:=0 TO par.NP+1 DO
-		new[i]:=org[i] * (Gehp/Gav) {now set new generation rate to correct value:}
-	END
+		IF par.Use_gen_profile <> 1 THEN {either uniform generation, or from user defined profile}
+			BEGIN
+			{Rescale such that Geff = Gehp * Gfrac equals the average of the profile over the
+			length of the absorber. The latter equals L if TLsGen or there
+			are no transport layers, and L-L_LTL-L_RTL otherwise. }
+			Gav:=Average(org, stv.h, 0, par.NP+1, TRUE); {so average gen rate of original profile}
+			IF NOT par.TLsGen THEN Gav:=Gav * par.L / (par.L-par.L_LTL-par.L_RTL);
+			FOR i:=0 TO par.NP+1 DO
+				new[i]:=org[i] * (Geff/Gav) {now set new generation rate to correct value:}
+			END
+		ELSE {calculated using transfer matrix, Geff = Gfrac:}
+			FOR i:=0 TO par.NP+1 DO new[i]:=org[i]*Geff; {Generation rate already set in original profile}
+		END
 	ELSE FOR i:=0 TO par.NP+1 DO new[i]:=0;
 END;
 
@@ -1045,60 +1122,30 @@ PROCEDURE Init_Traps_From_File(VAR log : TEXT; VAR Energies, Traps : TrapEnArray
 {Inits traps if their energy levels are specified in a file}
 {Energies: the energies of the traps. Traps: their relative number (per volume or area). This sums to 1}
 {NumLevels: number of trap levels that are specified. Capped to Max_NEtr (in unit TypesAndConstants)}
-VAR inv : TEXT;
-	e : INTEGER;
+VAR e : INTEGER;
 	sum : myReal;
-	orgline, dumline : ANSISTRING;
+	x, y : Row;
 BEGIN
-	IF NOT FileExists(TrapFile) {file with trap profile is not found}
-        THEN Stop_Prog('Cannot find file '+TrapFile, EC_FileNotFound);
-    ASSIGN(inv, TrapFile); {once we get here, we're sure the file exists}
-    RESET(inv);
 	WRITELN('Reading trap profile from ',TrapFile);
 	WRITELN(log, 'Reading trap profile from ',TrapFile);
 	
-	{the first line in the file should contain a header like 'Energy Traps' so we ignore this}	
-	TRY
-		READLN(inv, orgline)
-	EXCEPT
-		FLUSH(log);
-		Stop_Prog('It looks like file '+TrapFile+' is empty.', EC_InvalidInput);
-	END;
-
-	NumLevels:=0; {this is the number of trap levels, zero at first}
-	sum:=0;
+	{Read data from TrapFile and put them in local vars x and y:}
+	Read_XY_Table(x, y, TrapFile, 'E Ntrap', NumLevels);
 	
-	{now read the input file line by line and try to extract the energies and trap densities:}
-	REPEAT
-	TRY
-		READLN(inv, orgline); {read a line from input}
-		dumline:=DelWhite1(orgline); {returns a copy of str with all white spaces (ASCII code 9,..13, and 32) reduced to 1 space}
-		dumline:=TrimLeft(dumline); {remove any spaces on the left}
-		IF dumline<>'' THEN
-		BEGIN {OK, we might have something!}
-			INC(NumLevels);
-			{Copy2SpaceDel, strutils: Deletes and returns all characters in a string till the first space character (not included).}
-			Energies[NumLevels]:=StrToFloat(Copy2SpaceDel(dumline)); {contains the first parameter}
-			{StrToFloat, sysutils: Convert a string to a floating-point value.}
-			Traps[NumLevels]:=StrToFloat(Copy2SpaceDel(dumline));
-			sum:=sum + Traps[NumLevels]; 
-		END;
-	EXCEPT {reading didn't work, raise exception}
-		WRITELN('Error while reading from file ',TrapFile);
-		WRITELN('Offending line: ');
-		WRITELN(orgline);
-		Stop_Prog('See Reference Manual for details.', EC_InvalidInput);
-	END; 
-	UNTIL EOF(inv) OR (NumLevels = Max_NEtr); {we have to make sure that we are not reading more lines than we can handle}
-	
-	{check if the repeat...until loop stoped before the file was empty:}
-	IF NOT EOF(inv) THEN Stop_Prog('There are more trap levels in file '+TrapFile+' than we can handle.'+LineEnding+'See Max_NEtr in TypesAndConstants.', EC_InvalidInput);
+	{check the number of levels:}
+	IF NumLevels > Max_NEtr THEN Stop_Prog('There are more trap levels in file '+TrapFile+' than we can handle.'+LineEnding+'See Max_NEtr in TypesAndConstants.', EC_InvalidInput);
 	IF NumLevels=0 THEN Stop_Prog('Could not find any trap levels in file '+TrapFile+'.', EC_InvalidInput);
-	{now we can be sure that NumLevels is at least 1}
-	
-	CLOSE(inv);
 
-	{now we reschale the number of Traps (now in sum) to 1}
+	{now copy data into the proper arrays Traps and Energies:}
+	sum:=0;
+	FOR e:=1 TO NumLevels DO
+	BEGIN
+		Energies[e]:=x[e-1]; {note: Energies and Traps start at index 1.}
+		Traps[e]:=y[e-1];
+		sum:=sum + Traps[e]; 
+	END;	
+
+	{now we reschale the total number of Traps (now in sum) to 1}
 	FOR e:=1 TO NumLevels DO 
 		Traps[e]:=Traps[e]/sum;
 
@@ -1539,7 +1586,7 @@ END;
 PROCEDURE Calc_Trap_Filling_Charge(VAR f_tb, f_ti : TrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF n, p : vector; Old_f_tb, Old_f_ti : TrapArray; dti : myReal;
 									CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {calculates the charge of the (bulk and interface) traps at every gridpoint.}
-VAR e								 : INTEGER;
+VAR i, e : INTEGER;
 	Ntb_charge_single, Nti_charge_single : vector;
 BEGIN
 	FOR e:=1 TO stv.N_Etr DO
@@ -1572,8 +1619,9 @@ traps with respect to the potential. This function is written in such a way,
 that the result can be added to the Poisson equation regardless of the presence of traps. 
 If traps are not present the elements added to the Poisson equation simply become zero.
 A derivation can be found in the docs.}
-VAR f_tb_numer, f_tb_inv_denom		: myReal;
+VAR f_tb_numer, f_tb_inv_denom : myReal;
 	zeros, f_ti_numer, f_ti_inv_den	: vector;
+	i : INTEGER;
 BEGIN	
 	FOR i:=0 TO par.NP+1 DO zeros[i]:=0;
 
@@ -1639,7 +1687,7 @@ END;
 PROCEDURE Calc_Linearization_f_t_All(VAR lin : TLinFt; CONSTREF n, p : vector; dti : myReal;
                                   CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {calculates the charge of the (bulk and interface) traps at every gridpoint.}
-VAR e		   : INTEGER;
+VAR i, e : INTEGER;
 	lin_single : TLinFt; {this type (a record) stores the linearisation of the trapping terms.}	
 BEGIN
 	FOR e:=1 TO stv.N_Etr DO
@@ -1736,7 +1784,7 @@ BEGIN
 		END; {for loop}
 
         it:=it+1;
-        NormDelV:=Norm(delV, 1, par.NP);
+        NormDelV:=Norm_Eucl(delV, 1, par.NP);
         conv:=NormDelV <= par.tolPois  {finally, check for convergence}
     END;
 	
@@ -1968,7 +2016,7 @@ END;
 PROCEDURE Calc_Recombination_n_Single_Level(VAR Rn : TRec; dti : myReal; CONSTREF e : INTEGER; CONSTREF n, p, dp, Lan : vector; CONSTREF f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculate all recombination processes and their contribution to the continuity equation for electrons. 
 For a derivation see the doc files.}
-VAR j : INTEGER;
+VAR i, j : INTEGER;
 	f_ti_inv_denom, zeros	: vector;
 	sum_aj, sum_bj, sum_cj, sum_dj,
 	ci, ai_min, ai, ai_plus,
@@ -2115,7 +2163,7 @@ END;
 PROCEDURE Calc_Recombination_p_Single_Level(VAR Rp : TRec; dti : myReal; CONSTREF e : INTEGER; CONSTREF n, p, dp, Lan : vector; CONSTREF f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculate all recombination processes and their contribution to the continuity equation for holes. 
 For a derivation see the doc files.}
-VAR j : INTEGER;
+VAR i, j : INTEGER;
 	f_ti_inv_denom, zeros : vector;
 	sum_aj, sum_bj, sum_cj, sum_dj,
 	di, bi_min, bi, bi_plus,
@@ -2261,7 +2309,7 @@ END;
 PROCEDURE Calc_Recombination_n(VAR Rn : TRec; dti : myReal; CONSTREF n, p, dp, Lan : vector; f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculate all recombination processes and their contribution to the continuity equation for electrons. 
 For a derivation see the doc files.}
-VAR e : INTEGER;
+VAR i, e : INTEGER;
 BEGIN
 	FOR e:=1 TO stv.N_Etr DO
 	BEGIN
@@ -2306,7 +2354,7 @@ END;
 PROCEDURE Calc_Recombination_p(VAR Rp : TRec; dti : myReal; CONSTREF n, p, dp, Lan : vector; f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculate all recombination processes and their contribution to the continuity equation for electrons. 
 For a derivation see the doc files.}
-VAR e : INTEGER;
+VAR i, e : INTEGER;
 BEGIN
 	FOR e:=1 TO stv.N_Etr DO
 	BEGIN
@@ -2588,35 +2636,42 @@ PROCEDURE Calc_Curr_Int(sn : ShortInt; istart, ifinish : INTEGER; dti : myReal; 
 {Calculates the current density in integral form, see De Mari, solid-state elec. vol 11 p.33 (68) eq. 15}
 {istart and ifinish exclude the electrodes, so istart>=1, ifinish<=NP}
 {sn denotes the sign of the carrier, so -1 for electrons, +1 for holes}
-VAR i, e								 : INTEGER;
-    K, single_int, double_int, int_U, dx : myReal;
-    U									 : vector;
-	int_traps							 : BOOLEAN;
+VAR i, e : INTEGER;
+    K, single_int, double_int, int_U, int_U_old, dx : myReal;
+    U : vector;
+	int_traps : BOOLEAN;
 BEGIN
-	{first check a few things:}
-	IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Int', EC_ProgrammingError);
-	IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Int.', EC_ProgrammingError);
+    {first check a few things:}
+    IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Int', EC_ProgrammingError);
+    IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Int.', EC_ProgrammingError);
 
     single_int:=0;
     double_int:=0;
     int_U:=0;
 
-	{the current is only non-zero between istart and ifinish, so first init the zero's:}
-	FOR i:=0 TO istart-1 DO J[i]:=0;
-	FOR i:=ifinish+1 TO par.NP DO J[i]:=0;
+    {the current is only non-zero between istart and ifinish, so first init the zero's:}
+    FOR i:=0 TO istart-1 DO J[i]:=0;
+    FOR i:=ifinish+1 TO par.NP DO J[i]:=0;
 
-	{now we compute the various integrals. Note: some variables are on-grid (V, dens, Rnet.direct/bulk), but 
-	others are not: Rnet.int is defined between 2 grid points. We approximate the integral in either case 
-	by value(grid point i) * grid spacing between i and i+1. This works as we're using a grid with a uniform
-	spacing near the interfaces (see Make_Grid)} 
-    FOR i:=istart TO ifinish DO
+    {now we compute the various integrals. Note: some variables are on-grid (V, dens, Rnet.direct/bulk), but 
+    others are not: Rnet.int is defined between 2 grid points. We approximate the integral in either case 
+    by value(grid point i) * grid spacing between i and i+1. This works as we're using a grid with a uniform
+    spacing near the interfaces (see Make_Grid)} 
+	
+    i:=istart;
+    U[i]:=Rec.direct[i] + Rec.bulk[i] + Rec.int[i] - g[i] {recombination - generation in grid point i}
+			    + dti * (dens[i]-olddens[i]); {change in density also contributes}  
+   
+    {now we do trapezoidal integration for single and double int:}
+    FOR i:=istart+1 TO ifinish DO
     BEGIN
-		U[i]:=Rec.direct[i] + Rec.bulk[i] + Rec.int[i] - g[i] {recombination - generation in grid point i}
-				   + dti * (dens[i]-olddens[i]); {change in density also contributes}    
-        dx:=stv.x[i+1]-stv.x[i]; {grid spacing between x[i] and x[i+1]}
-        single_int:=single_int + EXP(sn*V[i]*stv.Vti)*dx/mu[i];
-        int_U:=int_U + U[i]*dx;
-        double_int:=double_int + EXP(sn*V[i]*stv.Vti)*int_U*dx/mu[i]
+        U[i]:=Rec.direct[i] + Rec.bulk[i] + Rec.int[i] - g[i] {recombination - generation in grid point i}
+				   + dti * (dens[i]-olddens[i]); {change in density also contributes}  
+        dx:=stv.x[i]-stv.x[i-1]; {grid spacing between x[i] and x[i-1]}
+        int_U_old:=int_U; {keep the old one}
+        int_U:=int_U + 0.5*dx*(U[i-1] + U[i]);
+        single_int:=single_int + 0.5*dx*(EXP(sn*V[i-1]*stv.Vti)/mu[i-1] + EXP(sn*V[i]*stv.Vti)/mu[i]);
+        double_int:=double_int + 0.5*dx*(EXP(sn*V[i-1]*stv.Vti)*int_U_old/mu[i-1] + EXP(sn*V[i]*stv.Vti)*int_U/mu[i])    
     END;
     K:=(stv.Vt*(sn*dens[ifinish+1]*EXP(sn*V[ifinish+1]*stv.Vti) - sn*dens[istart]*EXP(sn*V[istart]*stv.Vti)) 
 		- sn*double_int)/single_int;
@@ -2640,7 +2695,7 @@ END;
 
 PROCEDURE Calc_All_Currents(VAR new : TState; CONSTREF curr : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
 {calculates all the currents for state new}
-VAR mob : vector;
+VAR mob, Jsum : vector;
 	i, istart, ifinish : INTEGER;
 BEGIN
 	WITH new DO 
@@ -2691,29 +2746,17 @@ BEGIN
 			THEN Calc_Displacement_Curr(JD, V, curr.V, dti, stv, par) {calc. displacement current}
 			ELSE FILLCHAR(JD, SIZEOF(JD), 0); {if dti=0 => steady-state, so zero.}
 		
-		{calc the total current density}
-		Jint:=Average(Jn, stv.h,0,par.NP+1) + Average(Jp,stv.h,0,par.NP+1) 
-			  + Average(Jnion,stv.h,0,par.NP+1) + Average(Jpion,stv.h,0,par.NP+1) + Average(JD,stv.h,0,par.NP+1);	
+		{now compute the total summed current:}
+		FOR i:=0 TO par.NP+1 DO
+			Jsum[i]:=Jn[i] + Jp[i] + Jnion[i] + Jpion[i] + JD[i];
+			
+		{calc the total interal current density}
+		Jint:=Average(Jsum, stv.h, 0, par.NP+1);	
+		{and its rms error:}
+		errJ:=Calc_RMS_Error(Jsum, Jint, 0, par.NP+1)
+
 	END;
 END; 
-
-FUNCTION Calc_Range_Current(VAR Jn, Jp, Jnion, Jpion, JD : vector; CONSTREF par : TInputParameters) : myReal;
-{Calc. range of total current}
-{by searching for min and max current}
-VAR i : INTEGER;
-	totJ, lowJ, highJ : myReal;
-BEGIN
-	lowJ:=1e40;
-	highJ:=-1e40;
-	FOR i:=0 TO par.NP DO {note: J[NP+1] is zero, so loop till NP}
-	BEGIN
-		totJ:=Jn[i] + Jp[i] + Jnion[i] + Jpion[i] + JD[i]; {current at i}
-		lowJ:=Min(lowJ, totJ);
-		highJ:=Max(highJ, totJ);
-	END;
-	Calc_Range_Current:=highJ-lowJ; {range: difference between largest and smallest J}
-END;
-
 
 PROCEDURE Extrapolate_Solution(CONSTREF prev, curr : TState; VAR new : TState; AccSols : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Obtains a guess for state new based on an extrapolation of states prev and curr}
@@ -2779,100 +2822,37 @@ BEGIN
 	
 END;
 
-FUNCTION Determine_Convergence(VAR ResJ : TItResult; VAR new : TState; it : INTEGER; VAR ConvMsg : STRING; 
-							  check_Poisson : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : INTEGER;
-{Determine if main loop has converged. 0: no. 1: yes, 2: yes, but only because current is very small (<MinAbsJ)}
-VAR convIteration, convChangeSmallEnough, convUniformJ, convCurrentSmallEnough, OpenCircuit : BOOLEAN;
-
+FUNCTION Deterimine_Convergence_Densities(CONSTREF deln, delp, delnion, delpion, n, p, nion, pion : vector; 
+							UpdateIons : BOOLEAN; accDens : myReal; VAR ConvMsg : STRING; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : BOOLEAN;
+{Determines whether the densities have converged}
+VAR totRelChange : myReal;
 BEGIN
+	totRelChange:=0; {total relative change of all charges}
+	
+	{now compute relative changes of densities:}
+	totRelChange:=totRelChange + Norm_Eucl(deln, 0, par.NP+1) / Norm_Eucl(n, 0, par.NP+1);
+	totRelChange:=totRelChange + Norm_Eucl(delp, 0, par.NP+1) / Norm_Eucl(p, 0, par.NP+1);
+	
+	{for ions, only if they move (note: if they move, their densities is non-zero!}
+	IF par.negIonsMove THEN
+		totRelChange:=totRelChange + Norm_Eucl(delnion, 0, par.NP+1) / Norm_Eucl(nion, 0, par.NP+1);
+	IF par.posIonsMove THEN
+		totRelChange:=totRelChange + Norm_Eucl(delpion, 0, par.NP+1) / Norm_Eucl(pion, 0, par.NP+1);
 
-	OpenCircuit:=(new.SimType=2) OR (new.SimType=3); {these imply we're trying to get Voc! exact solution of J is zero.}
-	ResJ[it].Jint:=new.Jint; {we copy the new Jint into our array as we need to be able to calc the change per loop}
-	ConvMsg:=''; {our message string, empty at first}
-	
-	WITH ResJ[it] DO BEGIN
-		{check the following:
-		1) check the iteration error, an estimate based on the relative changes per loop
-		2) is the current sufficiently uniform?
-		3) is the change per loop very very small?
-		4) perhaps the current is simply really small (<minAbsJ)?}
-		
-		ConvMsg:='Main loop status:' + LineEnding;
-			
-		{First: calculate the error estimate based on the iteration behaviour:}
-		IF (it>1) AND (Jint<>0) THEN relchange:=ABS((Jint-ResJ[it-1].Jint)/Jint) ELSE relchange:=0;
-		IF (it>2) AND (ResJ[it-1].relchange - relchange <> 0) 
-			THEN error:=ResJ[it-1].relchange*relchange/(ResJ[it-1].relchange - relchange)
-			ELSE error:=-2*par.tolJ; {set to impossible value so we are sure this did not converge!}
-		{if the error <0, then the rel change increases instead of decreases!}
-		{also: if the behaviour is correct, then the error should also keep on decreasing}
-		convIteration:=(error<par.tolJ) AND (error>0) AND (error<ResJ[it-1].error); 
-		ConvMsg:=ConvMsg + '- current converged: '+myBoolStr(convIteration) + LineEnding;
-		ConvMsg:=ConvMsg + '- error on current: ' + FloatToStrF(error, ffExponent,5,0) + LineEnding;
-		ConvMsg:=ConvMsg + '- error decreasing: ' + myBoolStr(error<ResJ[it-1].error) + LineEnding;
+	ConvMsg:='- relative change of densities: ' + FloatToStrF(totRelChange, ffExponent,5,0) + LineEnding; {our message string}
 
-		{Next: check if current is sufficiently uniform:}
-		RangeJ:=ABS(Calc_Range_Current(new.Jn, new.Jp, new.Jnion, new.Jpion, new.JD, par)); {A/m2, so absolute, i.e. not relative to Jint}	
-		
-		IF OpenCircuit {in this case use the absolute RangeJ (A/m2!)}
-		THEN convUniformJ:=RangeJ <= par.tolJ
-		ELSE BEGIN {Normal case, now it makes more sense to take the range relative to Jint:}
-			IF Jint <> 0 
-				THEN RangeJ:=ABS(RangeJ/Jint) {calc. relative range of current}
-				ELSE RangeJ:=2*par.tolJ; {highly unlikely, but if Jint=0 then we can't calc the range}
-			convUniformJ:=(RangeJ < par.tolJ);
-		END;
-		ConvMsg:=ConvMsg+'- current is sufficiently uniform: '+myBoolStr(convUniformJ) + LineEnding;
-	
-		{check if relative change was small MinCountChangeSmall times in a row!}
-		IF ABS(relchange) <= par.MinRelChange 
-			THEN CountChangeSmall:=ResJ[it-1].CountChangeSmall + 1 
-			ELSE CountChangeSmall:=0;
-		convChangeSmallEnough:= CountChangeSmall >= MinCountChangeSmall;
-	
-		{In the dark (Gehp=0), we have an alternative criterion for convergence:}
-		{if the abs current is really small, then we won't bother. However, we need to be sure it really is small!}
-		{We count the number of consecutive iterations where the current is small enough:}
-		IF (new.Gehp=0) AND (ABS(Jint) < par.MinAbsJDark) 
-			THEN CountJSmall:=ResJ[it-1].CountJSmall + 1 
-			ELSE CountJSmall:=0;
-	
-		convCurrentSmallEnough:=FALSE;
-		IF (CountJSmall >= MinCountJSmall) THEN {check if J was small MinCountJSmall times in a row!}
-		BEGIN
-			convCurrentSmallEnough:=TRUE; {we also put this to true as we really don't want to bother with small J's}
-			new.Jint:=0; {we simply set Jint to zero}
-		END;
-	
-		{now check if all criteria have been met:}
-		Determine_Convergence:=0;
-		IF check_Poisson THEN
-		BEGIN {OK, Poisson converged, let's look at the rest:}
-			{we check from the worst to the best situation, we know that check_Poisson = true:}
-			IF convChangeSmallEnough AND convUniformJ THEN Determine_Convergence:=3;
-			IF convCurrentSmallEnough THEN Determine_Convergence:=2;	
-			IF convUniformJ AND convIteration THEN Determine_Convergence:=1;  
-		END;	
-	
-		ConvMsg:=ConvMsg + '- current smaller than MinAbsJDark: '+myBoolStr(convCurrentSmallEnough) + LineEnding;
-		ConvMsg:=ConvMsg + '- relative change smaller MinRelChange: '+myBoolStr(convChangeSmallEnough) + LineEnding;	
-	
-	END;
-	{at this stage we (should) have:
-	Determine_Convergence = 0: convergence failed!
-							1: success, ideal case: Poisson converged and current has small error
-							2: current simply very small and Poisson converged, so good enough
-							3: relative change very small, current uniform, Poisson converged: OK}
+	{so, converged if change is small enough, we take the acceleration into accout as well:}
+	Deterimine_Convergence_Densities:=totRelChange <= accDens*par.tolDens
 END;
 
 PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLEAN; VAR StatusStr : ANSISTRING; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
 {can be used in steady-state and transient cases}
 VAR i, MaxIt : INTEGER;
-	check_Poisson, coupleIonsPoisson : BOOLEAN;
-	oldn, oldp, oldnion, oldpion : vector; {we need this to monitor the iteration loops}
-	ResJ : TItResult; {we use this to store the J, change and error estimate in every loop} 
+	check_Poisson, coupleIonsPoisson, convDensities : BOOLEAN;
+	oldn, oldp, oldnion, oldpion, deln, delp, delnion, delpion : vector; {we need this to monitor the iteration loops}
 	PoissMsg, ConvMsg : STRING;
+	accDens : myReal;
 BEGIN
 	{apply new bias to electrodes:}
 	new.V[0]:=stv.V0 - 0.5 *new.Vint;
@@ -2884,11 +2864,6 @@ BEGIN
 		THEN MaxIt:=par.MaxItSS 
 		ELSE MaxIt:=par.MaxItTrans;
 
-	{init array where we'll store the results of each iteration loop. We need this to monitor our progress}
-	SetLength(ResJ, MaxIt+1); {we will use this array to store the result of J so we can estimate the error}
-	ResJ[it].CountJSmall:=0; {this counts the number of times (consecutively) that abs(Jint)<MinAbsJ}
-	ResJ[it].CountChangeSmall:=0; {counts the number of times (consecutively) that rel.change <MinRelChange}
-	
 	coupleIonsPoisson:=TRUE; {signfies whether ion density can be modified by Poisson solver}
 	
 	REPEAT WITH new DO
@@ -2923,37 +2898,49 @@ BEGIN
 		END;
 
 		{now use SUR to get updated densities:}
+		accDens:=par.maxAcc - it/MaxIt * (par.maxAcc - par.minAcc);
 		FOR i:=0 TO par.NP+1 DO
 		BEGIN
-			n[i]:=par.accDens * n[i] + (1-par.accDens) * oldn[i]; {update n array using SOR/SUR}
-			p[i]:=par.accDens * p[i] + (1-par.accDens) * oldp[i]; {update n array using SOR/SUR}
-			nion[i]:=par.accDens * nion[i] + (1-par.accDens) * oldnion[i]; {update n array using SOR/SUR}
-			pion[i]:=par.accDens * pion[i] + (1-par.accDens) * oldpion[i]; {update n array using SOR/SUR}
+			deln[i]:=accDens*(n[i]-oldn[i]); {use SUR to get change in n}
+			delp[i]:=accDens*(p[i]-oldp[i]); {use SUR to get change in p}
+			n[i]:=oldn[i] + deln[i]; {now compute new densities, with damping (SUR)}
+			p[i]:=oldp[i] + delp[i];
+
+			{now do the same for the ions, but only if they need updating:}
+			IF UpdateIons THEN BEGIN
+				delnion[i]:=accDens*(nion[i]-oldnion[i]);
+				delpion[i]:=accDens*(pion[i]-oldpion[i]);
+				nion[i]:=oldnion[i] + delnion[i];
+				pion[i]:=oldpion[i] + delpion[i]
+			END
 		END;
 
-		{calculate current densities:}
-		Calc_All_Currents(new, curr, stv, par); {calcs vectors Jn, Jp, Jnion, Jpion, JD and overall current Jint} 
-
-		{check for convergence (several possibilities!) in separate routine:}
-		convIndex:=Determine_Convergence(ResJ, new, it, ConvMsg, check_Poisson, stv, par); {this is the index: 0 (not conv), 1: ideal, 2: special}
-		
-		{if there are ions: Until the first time that convIndex>0, we have coupled the Poisson solver
-		 and the ion solver by allowing the Poisson solver to modified the ions densities on the fly.
-		 Now we see if the convergence is also OK is we forbid the Poisson solver to change the ion densities.}
-		IF (convIndex > 0) AND (par.negIonsMove OR par.posIonsMove) AND coupleIonsPoisson THEN
+		{now check if the charge densities (n,p,nion,pion) have converged:}
+		convDensities:=Deterimine_Convergence_Densities(deln, delp, delnion, delpion, n, p, nion, pion, UpdateIons, accDens, ConvMsg, stv, par);
+			
+		{if there are ions: Until the first time that convDensities, we have coupled the Poisson solver
+		 and the ion solver by allowing the Poisson solver to modify the ions densities on the fly.
+		 Now we see if the convergence is also OK if we forbid the Poisson solver to change the ion densities.}
+		IF convDensities AND (par.negIonsMove OR par.posIonsMove) AND coupleIonsPoisson THEN
 		BEGIN {force main solver to keep iterating, but now don't touch ions in Poisson solver}
 			coupleIonsPoisson:=FALSE; {no longer update ions inside Poisson solver}
-			convIndex:=0; {reset convIndex to make sure we'll keep iterating}
+			convDensities:=FALSE {reset convDensities to make sure we'll keep iterating}
 		END;	
 		
-		conv:=convIndex > 0; {so convergence=true if index is positive}
+		conv:=convDensities AND check_Poisson; {so convergence=true if index is positive}
 
-		{finally, compute the effects of series and shunt resistance:}
-		IF par.Rshunt>0 THEN Jext:=Jint + Vint/par.Rshunt ELSE Jext:=Jint; {note: infinite Rshunt (no shunt) means Rshunt<0}
-		Vext:=Vint + Jext*par.Rseries;	
 	END; {WITH new statement}
 
 	UNTIL conv OR (it = MaxIt); 
+	
+	{now compute the currents:}
+	Calc_All_Currents(new, curr, stv, par); {calcs vectors Jn, Jp, Jnion, Jpion, JD and overall current Jint plus its rms error} 
+
+	{finally, compute the effects of series and shunt resistance:}
+	WITH new DO BEGIN
+		IF par.Rshunt>0 THEN Jext:=Jint + Vint/par.Rshunt ELSE Jext:=Jint; {note: infinite Rshunt (no shunt) means Rshunt<0}
+		Vext:=Vint + Jext*par.Rseries
+	END;
 	
 	{now construct string to report on our progress:}
 	StatusStr:='Overall convergence: '+myBoolStr(conv) + LineEnding;
@@ -2971,7 +2958,7 @@ BEGIN
 	REWRITE(uitv); {rewrite old file (if any) or create new one}
     {write header, in the simulation we'll simply output the variables, but not change this header:}
 	IF transient THEN WRITE(uitv,' t');
-	WRITE(uitv,' Vext Jext convIndex P Jphoto Jdir ');
+	WRITE(uitv,' Vext Jext errJ P Jphoto Jdir ');
 	IF transient THEN WRITE(uitv, 'JBulkSRHn JBulkSHRp JIntLeftn JIntLeftp JIntRightn JintRightp ') 
 		ELSE WRITE(uitv, 'JBulkSRH JIntLeft JIntRight ');
 	WRITE(uitv,'JminLeft JminRight JShunt'); 
@@ -2985,16 +2972,16 @@ VAR JminLeft, JminRight, J1, J2 : myReal;
 	NP : INTEGER;
 
 	{first: 2 short functions that will aid in compact notation:}
-	FUNCTION Ave(Vec : vector) : myReal;
+	FUNCTION Ave(Vec : vector; onGrid : BOOLEAN = FALSE) : myReal;
 	{local version of Average to calc the average over the full interval 0..NP+1 without having to specify the bounds}
 	BEGIN
-		Ave:=Average(Vec, stv.h, 0, par.NP+1);
+		Ave:=Average(Vec, stv.h, 0, par.NP+1, onGrid);
 	END;
 	
 	FUNCTION EquiCurr(Vec : vector) : myReal;
 	{local function to calc the Equivalent Current (A/m2) of a volume generation or recombination process}
 	BEGIN
-		EquiCurr:=q*Ave(Vec)*par.L
+		EquiCurr:=q*Ave(Vec, FALSE)*par.L
 	END;
 	
 BEGIN
@@ -3007,7 +2994,7 @@ BEGIN
 		IF n[0]<p[0] THEN JminLeft:=Jn[0] ELSE JminLeft:=Jp[0];
 		IF n[NP+1]<p[NP+1] THEN JminRight:=Jn[NP+1] ELSE JminRight:=Jp[NP+1];   
         
-        WRITE(uitv,Vext:nd,' ',Jext:nd,' ',convIndex,' ',Ave(diss_prob):nd,' ',EquiCurr(gen):nd,' ',
+        WRITE(uitv,Vext:nd,' ',Jext:nd,' ',errJ:nd,' ',Ave(diss_prob):nd,' ',EquiCurr(gen):nd,' ',
 			EquiCurr(Rn.direct):nd,' ',EquiCurr(Rn.bulk):nd);
 		IF transient THEN WRITE(uitv,' ',EquiCurr(Rp.bulk):nd); {transient => SRH Bulk n and p might be different!}
 
@@ -3022,7 +3009,7 @@ BEGIN
 			ELSE J2:=0; {for transient, we also need the interface rec for holes}
 			WRITE(uitv,' ',J2:nd);
 		END;
-			
+		
 		{RIGHT interface recombination currents:}
 		IF stv.i2<par.NP+1 THEN {interface rec at right interface for electrons}
 			J1:=q*Average(Rn.int, stv.h, stv.i2-1, stv.i2)*par.L 
@@ -3038,7 +3025,7 @@ BEGIN
 		WRITE(uitv,' ',JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);
 
         IF transient 
-			THEN WRITELN(uitv,' ',q*par.L*dti*(Ave(n)-Ave(PrevState.n)):nd,' ',q*par.L*dti*(Ave(p)-Ave(PrevState.p)):nd,' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
+			THEN WRITELN(uitv,' ',q*par.L*dti*(Ave(n, TRUE)-Ave(PrevState.n, TRUE)):nd,' ',q*par.L*dti*(Ave(p, TRUE)-Ave(PrevState.p, TRUE)):nd,' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
 			ELSE WRITELN(uitv);
     END; {with astate}
     FLUSH(uitv);

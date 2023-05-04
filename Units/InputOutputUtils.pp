@@ -37,6 +37,8 @@ uses TypesAndConstants,
 	 SysUtils, {for reading the command line and FileExists}
 	 StrUtils; {for DelSpace}
 
+type TSetChar = Set of Char;
+
 function myBoolStr(val : boolean) : string;
 {my implementation of BoolToStr. Returns 'TRUE' or 'FALSE'}
 
@@ -58,7 +60,7 @@ function hasCLoption(ch : String; CaseSensitive : boolean = false) : boolean;
 procedure Stop_Prog(msg : STRING; exitCode : INTEGER; wait_for_user : boolean = false);
 {displays message (msg), waits for a hard return if wait_for_user and halts the program}
 
-procedure WarnUser(msg : STRING; wait_for_user : boolean = false);
+procedure Warn_User(msg : STRING; wait_for_user : boolean = false);
 {displays message (msg), waits for a hard return if wait_for_user, does NOT halt the program}
 
 function FindFile(key : string) : string;
@@ -125,6 +127,26 @@ Next, it tries to get this value from the command line. If a command line value 
 found, its name and value will be stored in the msgstr.}
 OVERLOAD;
 
+procedure Read_Table(fileName : string; var data : Table; NumCol : integer; var NumLines : integer;
+					 Delims : TSetChar = [#0..' ', ',', ';']; 
+					 CommentSym : char = '*'; ErrorHandling : integer = 2;
+					 header : string = '');
+{Reads data from a file in a table format. Comments (after CommentSym) are ignored. Delims define the delimiters}
+{NumCol: The first NumCol columns will be used. A line that contains fewer columns (but is not empty, or comments) will result in an error.}
+{NumLines: the number of lines with data that was read}
+{Delims: delimiters used to extract the data, so typically a ' ', or a comma}
+{CommentSym: comments may appear after this character. Note: should NOT appear in Delims, nor be a decimal separator or a number}
+{ErrorHandling: if 0, faulty data is ignored without warning. 1 => warning, but no halt. 2: program halts.}
+{Header: Routine looks for this header and it must be there (not case-sensitive), but it can contain comments, etc.}
+
+procedure Read_XY_Table(var x, y : Row; fileName, header : string; var NumLines : integer);
+{Wrapper routine for Read_Table. Reads x,y data from a file, delimiter: white space. x, y are set to the correct length (index starting at 0)}
+
+procedure Read_XYZ_Table(var x, y, z : Row; fileName, header : string; var NumLines : integer);
+{Wrapper routine for Read_Table. Reads x,y,z data from a file, delimiter: white space. x, y, z are set to the correct length (index starting at 0)}
+
+FUNCTION Count_Char_In_String(ch : CHAR; Str : STRING) : INTEGER;
+{counts the number of occurances of character ch in string Str}
 implementation
 
 function myBoolStr(val : boolean) : string;
@@ -238,7 +260,7 @@ BEGIN
     HALT(exitCode) {This terminates the program and returns the exit code so the outside world knows there was an error.}
 END;
 
-procedure WarnUser(msg : STRING; wait_for_user : boolean = false);
+procedure Warn_User(msg : STRING; wait_for_user : boolean = false);
 {displays message (msg), waits for a hard return if wait_for_user, does NOT halt the program}
 BEGIN
     WRITELN('WARNING:');
@@ -503,6 +525,164 @@ BEGIN
 		END;
 END;
 
+procedure Remove_Comments(var str : string; CommentSym : char); 
+{remove anything after (and including) CommentSym from string}
+var PosComment : integer;
+begin
+	PosComment:=Pos(CommentSym, str); {this is the position of the comment symbol. If 0, then no such character in str!}
+	if PosComment > 0 then
+		str:=Copy(str, 1, PosComment-1) {copy str until we get to the CommentSym}
+end;
+
+procedure Clean_Line(var str : string; CommentSym : char);
+{removes excess white space and anything after CommentSym}
+begin
+	Remove_Comments(str, CommentSym); {remove anything after CommentSym from string}
+	str:=DelWhite1(str); {returns a copy of str with all white spaces (ASCII code 9,..13, and 32) reduced to 1 space}
+	str:=Trim(str); {remove any spaces on the left and the right of aline}
+end;
+
+procedure Read_Table(fileName : string; var data : Table; NumCol : integer; var NumLines : integer;
+					 Delims : TSetChar = [#0..' ', ',', ';']; 
+					 CommentSym : char = '*'; ErrorHandling : integer = 2;
+					 header : string = '');
+{Reads data from a file in a table format. Comments (after CommentSym) are ignored. Delims define the delimiters}
+{NumCol: The first NumCol columns will be used. A line that contains fewer columns (but is not empty, or comments) will result in an error.}
+{NumLines: the number of lines with data that was read}
+{Delims: delimiters used to extract the data, so typically a ' ', or a comma}
+{CommentSym: comments may appear after this character. Note: should NOT appear in Delims, nor be a decimal separator or a number}
+{ErrorHandling: if 0, faulty data is ignored without warning. 1 => warning, but no halt. 2: program halts.}
+{Header: Routine looks for this header and it must be there (not case-sensitive), but it can comments, etc.}
+
+var inp : text;
+	i, j, lineCount : integer;
+	aline : string; {here we store a string line from the file}
+	dataRow : array of myReal; {this is where we store a line of the data}
+	FoundHeader : boolean;
+	
+	procedure Handle_Error(msg : string; ErrorHandling : integer);
+	{local routine to handle error messages and warn/halt if need be}
+	begin
+		case ErrorHandling of
+			0 : ; {just for completeness sake. We simply ignore any errors and proceed}
+			1 : Warn_User(msg);
+			2 : Stop_Prog(msg, EC_InvalidInput);
+		otherwise Stop_Prog('Invalid ErrorHandling passed on to Read_Table.', EC_ProgrammingError);
+		end;
+	end;
+	
+begin
+
+	if not FileExists(fileName) 
+        then Stop_Prog('Cannot find file '+fileName, EC_FileNotFound);
+    assign(inp, fileName); {once we get here, we're sure the file exists}
+    reset(inp);
+  
+	i:=0;
+	lineCount:=0;
+	SetLength(dataRow, NumCol); 
+	
+	{first: check the header}
+	Clean_Line(header, CommentSym); {first, we clean up the header string}
+	if header <> '' then begin {OK, we're supposed to look for a header}
+		FoundHeader:=false;
+		
+		{read file and check for header:}
+		while (not eof(inp)) and (not FoundHeader) do begin
+			readln(inp, aline);
+			inc(lineCount);
+			Clean_Line(aline, CommentSym);
+			FoundHeader:=LowerCase(header) = LowerCase(LeftStr(aline, Length(header)))
+		end;
+		
+		if not FoundHeader then {error, in case we still haven't found the header!}
+			Handle_Error('Cannot find correct header in '+fileName+'.', ErrorHandling)
+	end;
+	
+	{now read the data:}
+	while not eof(inp) do
+	begin
+		readln(inp, aline);
+		inc(lineCount);
+		Clean_Line(aline, CommentSym); {removes excess white space and anything after CommentSym}
+	
+		{check if number of fields equals number of columns we're supposed to find:}
+		if WordCount(aline, Delims) >= NumCol then begin {extract fields/numbers from the line}
+			{OK, let's try to extract the data:}
+			try
+				for j:=0 to NumCol-1 do
+					dataRow[j]:=StrToFloat(ExtractWord(j+1, aline, Delims)); {now extract the fields and convert to float:}
+			except
+				Handle_Error('Cannot process line '+IntToStr(lineCount)+' in '+filename+'.', ErrorHandling);
+			end;
+			
+			{now the data are there, we need to copy it to the main table: data}
+			inc(i);
+			SetLength(data, i, NumCol); {add a line of data}
+			for j:=0 to NumCol-1 do
+				data[i-1, j]:=dataRow[j]
+				
+		end
+		else 
+			if Length(aline) <> 0 then
+				Handle_Error('Cannot process line '+IntToStr(lineCount)+' in '+filename+'.', ErrorHandling);		
+
+	end;
+	
+	NumLines:=i;
+	close(inp)
+	
+end;
+
+procedure Read_XY_Table(var x, y : Row; fileName, header : string; var NumLines : integer);
+{Wrapper routine for Read_Table. Reads x,y data from a file, delimiter: white space. x, y are set to the correct length (index starting at 0)}
+var data : Table;
+	i : integer;
+begin
+	Read_Table(fileName, data, 2, NumLines, [#0..' '], '*', 2, header);
+	
+	{now set the length of x and y to the correct value, such that we can access indeces 0..NumLines-1:}
+	SetLength(x, NumLines);
+	SetLength(y, NumLines);
+	
+	{now copy data into x and y:}
+	for i:=0 to NumLines-1 do
+	begin
+		x[i]:=data[i,0];
+		y[i]:=data[i,1]
+	end
+end;
+
+procedure Read_XYZ_Table(var x, y, z : Row; fileName, header : string; var NumLines : integer);
+{Wrapper routine for Read_Table. Reads x,y,z data from a file, delimiter: white space. x, y, z are set to the correct length (index starting at 0)}
+var data : Table;
+	i : integer;
+begin
+	Read_Table(fileName, data, 3, NumLines, [#0..' '], '*', 2, header);
+	
+	{now set the length of x, y and z to the correct value, such that we can access indeces 0..NumLines-1:}
+	SetLength(x, NumLines);
+	SetLength(y, NumLines);
+	SetLength(z, NumLines);
+	
+	{now copy data into x, y and z:}
+	for i:=0 to NumLines-1 do
+	begin
+		x[i]:=data[i,0];
+		y[i]:=data[i,1];
+		z[i]:=data[i,2]
+	end
+end;
+
+FUNCTION Count_Char_In_String(ch : CHAR; Str : STRING) : INTEGER;
+{counts the number of occurances of character ch in string Str}
+VAR n : INTEGER;
+BEGIN
+	n:=0;
+	WHILE NPos(ch, Str, n+1) > 0 DO
+		INC(n);
+	Count_Char_In_String:=n
+END;
 
 begin
 

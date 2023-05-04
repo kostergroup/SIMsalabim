@@ -51,10 +51,14 @@ procedure SolveQuadraticEq(a, b, c : myReal; var nr : integer; var x1, x2 : myRe
 {solves the equation a*x*x + b*x + c = 0, and returns roots x1 and x2}
 {nr : number of roots}
 
-FUNCTION Norm(vec : vector; istart, ifinish : integer) : myReal;
-VAR i : INTEGER;
-    ans : myReal;
+FUNCTION Norm_Inf(vec : vector; istart, ifinish : integer) : myReal;
 {computes the infinity norm of vector vec}
+
+FUNCTION Norm_Eucl(vec : vector; istart, ifinish : integer) : myReal;
+{computes the Euclidean norm of vector vec}
+
+FUNCTION Calc_RMS_Error(y : vector; avy : myReal; istart, ifinish : INTEGER) : myReal;
+{computes the rms error of y given average y (avy)}
 
 FUNCTION sf(r : myReal) : INTEGER;
 {step function}
@@ -250,7 +254,7 @@ begin
      end;{det >=0}
 end;
 
-FUNCTION Norm(vec : vector; istart, ifinish : integer) : myReal;
+FUNCTION Norm_Inf(vec : vector; istart, ifinish : integer) : myReal;
 VAR i : INTEGER;
     ans : myReal;
 {computes the infinity norm of vector vec}
@@ -258,8 +262,31 @@ BEGIN
     ans:=0;
     FOR i:=istart TO ifinish DO
         IF ABS(vec[i]) > ans THEN ans:=ABS(vec[i]);
-    Norm:=ans
+    Norm_Inf:=ans
 END;
+
+FUNCTION Norm_Eucl(vec : vector; istart, ifinish : integer) : myReal;
+VAR i : INTEGER;
+    ans : myReal;
+{computes the Euclidean norm of vector vec}
+BEGIN
+    ans:=0;
+    FOR i:=istart TO ifinish DO
+        ans:=ans + vec[i]*vec[i];
+    Norm_Eucl:=SQRT(ans)
+END;
+
+FUNCTION Calc_RMS_Error(y : vector; avy : myReal; istart, ifinish : INTEGER) : myReal;
+{computes the rms error of y given average y (avy)}
+VAR i : INTEGER;
+    sum : myReal;
+BEGIN
+    sum:=0;
+    FOR i:=istart TO ifinish DO
+	sum:=sum + SQR(y[i]-avy);
+    Calc_RMS_Error:=SQRT(sum);
+END;
+
 
 FUNCTION sf(r : myReal) : INTEGER;
 {step function}
@@ -334,7 +361,7 @@ FUNCTION InterExtraPolation(x, y : Row; x0 : myReal; VAR y_estimate, err_estimat
 {x0: desired x, y_estimate, err_estimate: estimated y and its error. Order: order of polynomial}
 {ExtraIndex: 0=> no extrapolation, 1=> extrapolation limited to average x-spacing, 2=> full extrapolation}
 {Returns TRUE if successful, FALSE if not}
-VAR i1, N, istart, ifin : INTEGER;
+VAR i, i1, N, istart, ifin : INTEGER;
 	delx : myReal;
 	x_selected, y_selected : Row; {selected points close to x0}
 	x0Bracketed : BOOLEAN;

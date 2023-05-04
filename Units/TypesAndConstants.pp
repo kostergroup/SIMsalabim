@@ -33,6 +33,8 @@ Nijenborgh 4, 9747 AG Groningen, the Netherlands
 
 interface
 
+uses Ucomplex;
+
 const
     Max_NP	 = 1000;     {max number of grid points except contacts}
 	Max_NEtr = 20;	     {max number of trap levels}
@@ -60,6 +62,9 @@ type myReal = EXTENDED;
      Table			= ARRAY OF ARRAY OF myReal; {used to store mob_tab, table with elec. mob. as a function of F and n}
      MathFunc		= FUNCTION(x : myReal) : myReal;
      MathFuncValues = FUNCTION(x : myReal; vals : Row) : myReal;
+     intArray 		= ARRAY OF ShortInt;
+     StringArray 	= ARRAY OF STRING;
+     ComplexMatrix 	= ARRAY OF ARRAY OF COMPLEX;
 
 implementation
 

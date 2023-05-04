@@ -1,139 +1,152 @@
 ** SimSS Device data:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.45
+** version: 4.50
 
 **General**************************************************************************
-T = 295                  * K, absolute temperature
-L = 1e-6                 * m, device length/thickness
-eps_r = 4                * relative dielectric constant
-CB = 3.0                 * eV, conduction band edge
-VB = 5.0                 * eV, valence band edge
-Nc = 1e25                * m^-3, DOS of conduction and valence bands
-n_0 = 0                  * m^-3, ionised n-doping
-p_0 = 0                  * m^-3, ionised p-doping
+T = 295                                 * K, absolute temperature
+L = 1e-6                                * m, device length/thickness
+eps_r = 4                               * relative dielectric constant
+CB = 3.0                                * eV, conduction band edge
+VB = 5.0                                * eV, valence band edge
+Nc = 1e25                               * m^-3, DOS of conduction and valence bands
+n_0 = 0                                 * m^-3, ionised n-doping
+p_0 = 0                                 * m^-3, ionised p-doping
+
+**Optics****************************************************************************
+L_TCO = 110E-9                          * m, thickness of the TCO. Set to 0 if layer is not used
+L_BE = 200e-9                           * m, thickness of back electrode, must be >0
+nk_substrate = ../Data/nk_SiO2.txt      * name of file with n,k values of substrate
+nk_TCO = ../Data/nk_ITO.txt             * name of file with n,k values of TCO
+nk_active = ../Data/nk_P3HTPCBM_BHJ.txt * name of file with n,k values of active layer
+nk_BE = ../Data/nk_Al.txt               * name of file with n,k values of back electrode
+spectrum = ../Data/AM15G.txt            * name of file that contains the spectrum
+lambda_min = 350E-9                     * m, lower bound wavelength
+lambda_max = 800E-9                     * m, upper bound wavelength
 
 **Mobilities************************************************************************
-mun_0 = 1e-4             * m^2/Vs, zero field mobility
-mup_0 = 1e-4             * m^2/Vs, zero field mobility
-mob_n_dep = 0            * 0 : const. mob, 1 : field-dependent
-mob_p_dep = 0            * 0 : const. mob, 1 : field-dependent
-gamma_n = 1e-4           * (m/V)^0.5, field dependence of mob, Poole-Frenkel form
-gamma_p = 0              * (m/V)^0.5, field dependence of mob, Poole-Frenkel form
+mun_0 = 1e-4                            * m^2/Vs, zero field mobility
+mup_0 = 1e-4                            * m^2/Vs, zero field mobility
+mob_n_dep = 0                           * 0 : const. mob, 1 : field-dependent
+mob_p_dep = 0                           * 0 : const. mob, 1 : field-dependent
+gamma_n = 1e-4                          * (m/V)^0.5, field dependence of mob, Poole-Frenkel form
+gamma_p = 0                             * (m/V)^0.5, field dependence of mob, Poole-Frenkel form
 
 **Contacts**************************************************************************
-W_L = 3.0                * eV, work function left electrode
-W_R = 3.0                * eV, work function right electrode
-Sn_L = -1e-7             * m/s, surface recombination of electrons at the left electrode
-Sp_L = -1e-7             * m/s, surface recombination of holes at the left electrode
-Sn_R = -1e-7             * m/s, surface recombination of electrons at the right electrode
-Sp_R = -1e-7             * m/s, surface recombination of holes at the right electrode
-                         * nb: use negative values if Sn/pR/L should be infinite
-Rshunt = -1e0            * Ohms m2, shunt resistance. Use negative value for infinite Rshunt
-Rseries = 0e-4           * Ohms m2, series resistance.
+W_L = 3.0                               * eV, work function left electrode
+W_R = 3.0                               * eV, work function right electrode
+Sn_L = -1e-7                            * m/s, surface recombination of electrons at the left electrode
+Sp_L = -1e-7                            * m/s, surface recombination of holes at the left electrode
+Sn_R = -1e-7                            * m/s, surface recombination of electrons at the right electrode
+Sp_R = -1e-7                            * m/s, surface recombination of holes at the right electrode
+                                        * nb: use negative values if Sn/pR/L should be infinite
+Rshunt = -1e0                           * Ohms m2, shunt resistance. Use negative value for infinite Rshunt
+Rseries = 0e-4                          * Ohms m2, series resistance.
 
 **Transport layers******************************************************************
-L_LTL = 0e-9             * m, thickness left TL
-L_RTL = 0e-9             * m, thickness right TL
-Nc_LTL = 1e26            * m^-3, DOS of left TL
-Nc_RTL = 1e26            * m^-3, DOS of right TL
-doping_LTL = -0e24       * m^-3, doping in left TL
-                         * if >0 p-type doping if <0 n-type doping
-doping_RTL = 0e24        * m^-3, doping in right TL
-                         * if >0 p-type doping if <0 n-type doping
-mob_LTL = 1e-6           * m2/Vs, mobility of left TL, constant (case 0) only.
-mob_RTL = 1.5e-8         * m2/Vs, mobility of right TL, constant (case 0) only.
-nu_int_LTL = 1e3         * m/s, interface transfer velocity, left TL
-nu_int_RTL = 1e3         * m/s, interface transfer velocity, right TL
-eps_r_LTL = 5            * relative dielectric constant left TL
-eps_r_RTL = 3.5          * relative dielectric constant right TL
-CB_LTL = 3.9             * eV, conduction band left TL
-CB_RTL = 2.5             * eV, conduction band right TL
-VB_LTL = 5.9             * eV, valence band left TL
-VB_RTL = 5.5             * eV, valence band right TL
-TLsAbsorb = 0            * TLs absorb yes(1)/no(0), overrides profile!
-TLsTrap = 0              * traps in TLs yes(1)/no(0)
-IonsInTLs = 0            * can ions, if any, move into the TLs? yes(1)/no(<>1).
+L_LTL = 0e-9                            * m, thickness left TL
+L_RTL = 0e-9                            * m, thickness right TL
+nk_LTL = ../Data/nk_PEDOT.txt           * name of file with n,k values of the left TL
+nk_RTL = ../Data/nk_Ca.txt              * name of file with n,k values of the right TL
+Nc_LTL = 1e26                           * m^-3, DOS of left TL
+Nc_RTL = 1e26                           * m^-3, DOS of right TL
+doping_LTL = -0e24                      * m^-3, doping in left TL
+                                        * if >0 p-type doping if <0 n-type doping
+doping_RTL = 0e24                       * m^-3, doping in right TL
+                                        * if >0 p-type doping if <0 n-type doping
+mob_LTL = 1e-6                          * m2/Vs, mobility of left TL, constant (case 0) only.
+mob_RTL = 1.5e-8                        * m2/Vs, mobility of right TL, constant (case 0) only.
+nu_int_LTL = 1e3                        * m/s, interface transfer velocity, left TL
+nu_int_RTL = 1e3                        * m/s, interface transfer velocity, right TL
+eps_r_LTL = 5                           * relative dielectric constant left TL
+eps_r_RTL = 3.5                         * relative dielectric constant right TL
+CB_LTL = 3.9                            * eV, conduction band left TL
+CB_RTL = 2.5                            * eV, conduction band right TL
+VB_LTL = 5.9                            * eV, valence band left TL
+VB_RTL = 5.5                            * eV, valence band right TL
+TLsGen = 0                              * TLs generate electrons/hole yes(1)/no(0), overrides profile!
+TLsTrap = 0                             * traps in TLs yes(1)/no(0)
+IonsInTLs = 0                           * can ions, if any, move into the TLs? yes(1)/no(<>1).
 
 **Ions******************************************************************************
-CNI = 0e20               * m^-3, concentration of negative ions
-CPI = 0e20               * m^-3, concentration of positive ions
-mob_ion_spec = 1         * mobile ion species: -1: negative, 0: both, 1: positive ions
-ion_red_rate = 1         * ion redistribution rate, number of voltage steps after which ions
-                         * redistribute (ions only distributed at first voltage if ion_red_rate = 0)
+CNI = 0e20                              * m^-3, concentration of negative ions
+CPI = 0e20                              * m^-3, concentration of positive ions
+mob_ion_spec = 1                        * mobile ion species: -1: negative, 0: both, 1: positive ions
+ion_red_rate = 1                        * ion redistribution rate, number of voltage steps after which ions
+                                        * redistribute (ions only distributed at first voltage if ion_red_rate = 0)
 
 **Generation and recombination******************************************************
-Gehp = 0.00e27           * m^-3 s^-1, average generation rate of electron-hole pairs
-Gfrac = 1                * fraction of Gmax used in solar cell
-Gen_profile = none       * name of file generation profile (or 'none')
-Field_dep_G = 0          * field dependent generation yes (1) or no (0)
-P0 = 0.0                 * 0<=P0<1, fraction of quenched excitons that direcltly yield free carriers
-a = 1.0e-9               * m, charge separation distance, Braun model used
-ThermLengDist = 2        * distribution of a, 1 for delta function, 2 for Gaussian
-                         * 3 for exponential and 4 for r^2 exponential 5 for r^4 Gaussian
-kf = 1e6                 * 1/s, decay rate
-kdirect = 1e-18          * m3/s, direct (band-to-band, bimolecular) recombination rate
-Lang_pre = 1             * Langevin recombination prefactor
-UseLangevin = 1          * (1) use Langevin to calc. recombination or not (<>1, kdirect is used)
+Gehp = 0.00e27                          * m^-3 s^-1, average generation rate of electron-hole pairs
+Gfrac = 1                               * fraction of Gmax used in solar cell
+Gen_profile = none                      * name of file generation profile (or 'none' or 'calc')
+Field_dep_G = 0                         * field dependent generation yes (1) or no (0)
+P0 = 0.0                                * 0<=P0<1, fraction of quenched excitons that direcltly yield free carriers
+a = 1.0e-9                              * m, charge separation distance, Braun model used
+ThermLengDist = 2                       * distribution of a, 1 for delta function, 2 for Gaussian
+                                        * 3 for exponential and 4 for r^2 exponential 5 for r^4 Gaussian
+kf = 1e6                                * 1/s, decay rate
+kdirect = 1e-18                         * m3/s, direct (band-to-band, bimolecular) recombination rate
+Lang_pre = 1                            * Langevin recombination prefactor
+UseLangevin = 1                         * (1) use Langevin to calc. recombination or not (<>1, kdirect is used)
 
 **Trapping**************************************************************************
 ** To select 'no trapping', put trap densities equal to zero
 ** Bulk traps
-Bulk_tr = 4.42e20        * m^-3, trap density (in bulk)
+Bulk_tr = 4.42e20                       * m^-3, trap density (in bulk)
 ** Surface traps
-St_L = 0                 * m^-2, left interface trap density
-St_R = 0                 * m^-2, right interface trap density
+St_L = 0                                * m^-2, left interface trap density
+St_R = 0                                * m^-2, right interface trap density
 ** Grain boundaries
-num_GBs = 0              * number of grain boundaries
-GB_tr = 1e13             * m^-2, grain boundary trap density per grain boundary
+num_GBs = 0                             * number of grain boundaries
+GB_tr = 1e13                            * m^-2, grain boundary trap density per grain boundary
 ** trap coefficients
-Cn = 1e-13               * m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)
-Cp = 1e-13               * m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)
-ETrapSingle = 4.0        * eV, energy level of all traps
-BulkTrapFile = none      * name of file with bulk trap energy profile (or 'none'). If specified, overrides EtrapSingle
-IntTrapFile = none       * name of file with interface trap energy profile (or 'none'). If specified, overrides EtrapSingle
-Tr_type_L = -1           * Trap type for the left interface: -1: acceptor, 0: neutral, 1: donor
-Tr_type_R = 1            * Trap type for the right interface: -1: acceptor, 0: neutral, 1: donor
-Tr_type_B = -1           * Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor
+Cn = 1e-13                              * m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)
+Cp = 1e-13                              * m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)
+ETrapSingle = 4.0                       * eV, energy level of all traps
+BulkTrapFile = none                     * name of file with bulk trap energy profile (or 'none'). If specified, overrides EtrapSingle
+IntTrapFile = none                      * name of file with interface trap energy profile (or 'none'). If specified, overrides EtrapSingle
+Tr_type_L = -1                          * Trap type for the left interface: -1: acceptor, 0: neutral, 1: donor
+Tr_type_R = 1                           * Trap type for the right interface: -1: acceptor, 0: neutral, 1: donor
+Tr_type_B = -1                          * Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor
 
 **Numerical Parameters**************************************************************
-NP = 1000                * integer, number of grid points, must be at least 5.
-tolPois = 1e-5           * V, abs. tolerance of iterative Poisson solver
-maxDelV = 10             * maximum change (in Vt) of the potential per loop
-MaxItPois = 1e3          * max. number it. Poisson loop
-MaxItSS = 1e3            * max. number it. main loop
-CurrDiffInt = 1          * Calc. current from differential (1) or integral (2) expression
-tolJ = 1e-3              * max. allowed relative range of current, 1% OK.
-MinRelChange = 1e-7      * if change per loop smaller than this, then the loop converges
-MinAbsJDark = 0          * A/m2, if |Jint|<MinAbsJDark and Gehp=0 we simply stop and take Jint=0
-couplePC = 4             * >= 0, coupling between Poisson equation and continuity equations
-accDens = 0.9            * accelation parameter for density solver, 0 < accDens < 2
-IgnoreNegDens = 1        * whether(1) or not(<>1) to ignore negative densities
-FailureMode = 0          * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
-grad = 0                 * determines shape of exp. grid, increase grad for smaller h[1]
+NP = 1000                               * integer, number of grid points, must be at least 5.
+tolPois = 1e-5                          * V, abs. tolerance of iterative Poisson solver
+maxDelV = 10                            * maximum change (in Vt) of the potential per loop
+MaxItPois = 1e3                         * max. number it. Poisson loop
+MaxItSS = 1e3                           * max. number it. main loop
+CurrDiffInt = 2                         * Calc. current from differential (1) or integral (2) expression
+tolDens = 1e-8                          * relative tolerance of density solver
+couplePC = 4                            * >= 0, coupling between Poisson equation and continuity equations
+minAcc = 0.05                           * >0, min. acceleration parameter
+maxAcc = 0.95                           * <2, max. acceleration parameter
+IgnoreNegDens = 1                       * whether(1) or not(<>1) to ignore negative densities
+FailureMode = 0                         * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
+grad = 4                                * determines shape of exp. grid, increase grad for smaller h[1]
 
 **Voltage range of simulation*******************************************************
-Vdistribution = 2        * 1 for uniform (specified by Vstep), 2 for logarithmic (specified by Vacc and NJV)
-PreCond = 0              * pre-conditioning, yes(1)/no(0)
-Vpre = 0.0               * V, pre-conditioned voltage
-Vscan = 1                * integer, 1 for forward sweep direction, -1 for reverse sweep
-Vmin = 0.01              * V
-Vmax = 100               * V
-Vstep = 0.1              * V
-Vacc = 0                 * V, point of accumulation of row of V's, note: Vacc should be
-                         * slightly larger than Vmax or slightly lower than Vmin
-NJV = 100                * number of JV points in logarithmic distribution
-until_Voc = 0            * if 1 then SimSS will stop at Voc
+Vdistribution = 2                       * 1 for uniform (specified by Vstep), 2 for logarithmic (specified by Vacc and NJV)
+PreCond = 0                             * pre-conditioning, yes(1)/no(0)
+Vpre = 0.0                              * V, pre-conditioned voltage
+Vscan = 1                               * integer, 1 for forward sweep direction, -1 for reverse sweep
+Vmin = 0.01                             * V
+Vmax = 100                              * V
+Vstep = 0.1                             * V
+Vacc = 0                                * V, point of accumulation of row of V's, note: Vacc should be
+                                        * slightly larger than Vmax or slightly lower than Vmin
+NJV = 100                               * number of JV points in logarithmic distribution
+until_Voc = 0                           * if 1 then SimSS will stop at Voc
 
 **User interface********************************************************************
-Pause_at_end = 0         * pause at the end of the simulation yes(1) or no (0)
-AutoTidy = 0             * if 1, then SimSS will always tidy up this file
-UseExpData = 0           * if 1, SimSS will try to read JV_Exp and use it
-ExpJV = expJV.csv        * name of file with experimental JV characteristics
-rms_mode = lin           * lin or log: use J or log(J) in calc. of rms error
-rms_threshold = 0.8      * threshold of fraction converged points in calc. rms error
-JV_file = JV.dat         * name of the file with simulated JV characteristics
-Var_file = Var.dat       * name of the file with (x,V,n,p,Jn,Jp,etc.) at V=Vmax
-OutputRatio = 100        * Output to Var_file every OutputRatio voltages
-scPars_file = scPars.dat * name of file with solar cell parameters
-log_file = log.txt       * name of log file
+Pause_at_end = 0                        * pause at the end of the simulation yes(1) or no (0)
+AutoTidy = 0                            * if 1, then the program will always tidy up this file
+UseExpData = 0                          * if 1, SimSS will try to read JV_Exp and use it
+ExpJV = expJV.csv                       * name of file with experimental JV characteristics
+rms_mode = lin                          * lin or log: use J or log(J) in calc. of rms error
+rms_threshold = 0.8                     * threshold of fraction converged points in calc. rms error
+JV_file = JV.dat                        * name of the file with simulated JV characteristics
+Var_file = Var.dat                      * name of the file with internal variables (x,V,n,p,Jn,Jp,etc.)
+LimitDigits = 1                         * if 1, then number of digits in output is limited
+OutputRatio = 100                       * Output to Var_file every OutputRatio voltages
+scPars_file = scPars.dat                * name of file with solar cell parameters
+log_file = log.txt                      * name of log file

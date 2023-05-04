@@ -60,6 +60,9 @@ This tests ZimT's ability to simulate detrapping of charges from bulk traps that
 ## Test 12: Transient Photo-current for estimating Urbach energy
 This tests ZimT's ability to simulate detrapping of charges from interface traps that are distributed exponentially from the valence band, defined by an Urbach of 70 meV. We use 10 grain boundaries for this purpose. The Urbach energy can be fitted by transforming time and current output as described in MacKenzie, et al., J. Phys. Chem. C **117 (24)**, 12407-12414 (2013). First we run the steady state solver under illumination, effectively filling the traps present. Then we switch off the light and track detrapping charges through the current. We then manipulate the current and time values to estimate the DOS(E) and fit the Urbach energy, which yields 63 meV, i.e. sufficiently close to the input value.
 
+## Test 13: Generation profile using the TransferMatrix method
+This tests the creation of a generation profile using the TransferMatrix method based on the layers in the device structure, which are characterized by width and n,k properties of the layer material. The resulting generation profile is compared to a generation profile for the same device calculated using the script from the work of G.F. Burkhard, E.T. Hoke and M.D. McGehee, Adv. Mater. **22**, 3293 (2010).
+
 
 
 

@@ -18,7 +18,7 @@ SimSS and ZimT can be used to simulate current-voltage (JV) characteristics of s
 
 The routines that make up this project are used in two different guises: SimSS and ZimT. The former is a steady-state version and is the 'main' code. The latter, ZimT, can be used to simulate transients. 
 The project folder is structured as follows:
-- Docs: this folder contains a manual, developer guidelines, and a log of all changes to the code
+- Docs: this folder contains the manual, developer guidelines, and a log of all changes to the code
 - SimSS: contains the steady-state version of this software
 - Tests: contains a number of tests to assess the functioning of the codes (SimSS and ZimT)
 - Units: this is where the heart of the code resides. These units are shared between SimSS and ZimT
@@ -166,9 +166,9 @@ The SIMsalabim project is licensed under the GNU Lesser General Public Licence v
 Several authors (all from the University of Groningen) have contributed to the code: 
 - Dr T.S. (Tejas) Sherkar
 - Dr V.M. (Vincent) Le Corre
-- M. (Marten) Koopmans
+- Dr M. (Marten) Koopmans
 - F. (Friso) Wobben
-- Prof. Dr. L.J.A. (Jan Anton) Koster
+- Prof. Dr L.J.A. (Jan Anton) Koster
 
 
 ## How to contribute
@@ -178,6 +178,8 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 ## Scientific publications based on the SIMsalabim project
 
 List of publications (not complete):
+
+- C. Liu, L. Lüer, V.M. Le Corre, K. Forberich, P. Weitz, T. Heumüller, X. Du, J. Wortmann, J. Zhang, J. Wagner, L. Ying, J. Hauch, N. Li, and C.J. Brabec, Understanding causalities in organic photovoltaics device degradation in a machine learning driven high-throughput platform, Adv. Mater. (2023)
 
 - M. Koopmans and L.J.A. Koster, Voltage deficit in wide band gap perovskite solar cells: the role of traps, band energies, and effective density of states, Sol. RRL, 2200560 (2022).
 

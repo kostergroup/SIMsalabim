@@ -4,8 +4,8 @@
 
 {
 ZimT:a transient 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
-F. Wobben, and Prof. Dr L.J.A. Koster, University of Groningen
+Copyright (c) 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
 This program is free software: you can redistribute it and/or modify
@@ -48,6 +48,7 @@ USES {our own, generic ones:}
      NumericalUtils,
      {our drift-diffusion stuff:}
 	 DDTypesAndConstants,
+	 TransferMatrix,
 	 DDRoutines,
 	 {and normal units:}
 	 Math,  {for min and max functions}
@@ -58,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.45';  
+    version = '4.50';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -66,8 +67,8 @@ CONST
 	{$STOP FPC VERSION SHOULD BE AT LEAST 3.2.0}
 {$ENDIF}
 {now check to see if the versions of the units match that of this code:}
-{$IF (DDRoutinesVersion <> version) OR (DDTypesAndConstantsVersion <> version)} 
-	{$STOP Wrong version of the DD units!}
+{$IF (DDRoutinesVersion <> version) OR (DDTypesAndConstantsVersion <> version) OR (TransferMatrixVersion <> version)} 
+	{$STOP Wrong version of one or more units!}
 {$ENDIF}
 
 
@@ -155,7 +156,7 @@ BEGIN
 END;
 
 PROCEDURE Open_and_Read_tVG_file(VAR inv : TEXT; VAR new : TState; CONSTREF par : TInputParameters); 
-{open tVG file, read header and first time/voltage/Gehp}
+{open tVG file, read header and first time/voltage/Gehp|Gfrac}
 VAR foundHeader : BOOLEAN;
 BEGIN
 	{open input file with times, voltage and generation rate}
@@ -163,16 +164,30 @@ BEGIN
         THEN Stop_Prog('Could not find file '+par.tVG_file, EC_FileNotFound);
 	ASSIGN(inv, par.tVG_file);
 	RESET(inv);
-	
-	WRITELN('Reading t, Vext, Gehp from file ',par.tVG_file);
-	{now try to read from input file until we find 't Vext Gehp'}
-	REPEAT
-		READLN(inv, dumstr);
-		foundHeader:=LeftStr(DelWhite(dumstr),9) ='tVextGehp'; {cut relevant part of string}
-	UNTIL foundHeader OR EOF(inv);
-	
-	IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext Gehp'' in ' + par.tVG_file + '.', EC_InvalidInput);
-	
+
+	IF par.Use_gen_profile = 1 THEN {we will calculate the generation profile using unit TransferMatrix}
+	BEGIN
+		WRITELN('Reading t, Vext, Gfrac from file ',par.tVG_file);
+		{now try to read from input file until we find 't Vext Gfrac'}
+		REPEAT
+			READLN(inv, dumstr);
+			foundHeader:=LeftStr(DelWhite(LowerCase(dumstr)),10) ='tvextgfrac'; {cut relevant part of string}
+		UNTIL foundHeader OR EOF(inv);
+		
+		IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext Gfrac'' in ' + par.tVG_file + '.', EC_InvalidInput);
+	END
+	ELSE 
+	BEGIN
+		WRITELN('Reading t, Vext, Gehp from file ',par.tVG_file);
+		{now try to read from input file until we find 't Vext Gehp'}
+		REPEAT
+			READLN(inv, dumstr);
+			foundHeader:=LeftStr(DelWhite(LowerCase(dumstr)),9) ='tvextgehp'; {cut relevant part of string}
+		UNTIL foundHeader OR EOF(inv);
+
+		IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext Gehp'' in ' + par.tVG_file + '.', EC_InvalidInput);
+	END;
+
 	{DelWhite removes all white spaces (incl. tabs, etc.) from a string, see myUtils}
 	Read_tVG(new, 0, inv, foundtVG); {try to read a line of t, Va, Gehp}
 	IF NOT(foundtVG) OR (new.tijd<>0) THEN Stop_Prog('tVG_file did not specify steady-state (t=0)', EC_InvalidInput);
@@ -255,10 +270,11 @@ BEGIN {main program}
     Determine_Name_Parameter_File(parameterFile); {either default or user-specified file with all the parameters}
     IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(parameterFile, TRUE); {tidy up file and exit}
     IF NOT Correct_Version_Parameter_File(ProgName, parameterFile, version) THEN Stop_Prog('Version of ZimT and '+parameterFile+' do not match.', EC_DevParCorrupt);
-    
+
 {Initialisation:}
     Read_Parameters(parameterFile, MsgStr, par, stv, ProgName); {Read parameters from input file}
     Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
+    Set_Number_Digits(par.LimitDigits, SizeOf(myReal)); {limits number of digits in floating point}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
     IF par.AutoTidy THEN Tidy_Up_Parameter_File(parameterFile, FALSE); {clean up file but don't exit!}
     
@@ -347,7 +363,7 @@ BEGIN {main program}
 		IF CounttVGPoints MOD par.OutputRatio = 0 THEN {output to screen and var_file every OutputRatio timesteps}
         BEGIN
 			IF NOT Conv THEN TextColor(LightRed) ELSE TextColor(LightGray); {Reset to default font colour: it's not white, it's light grey!}
-			WITH new DO WRITELN('Time:',tijd:12,' Vext: ',Vext:6:4,' Gehp:',Gehp:11,' Jext:',Jext  :8:3,' convIndex: ',convIndex);
+			WITH new DO WRITELN('Time:',tijd:12,' Vext: ',Vext:6:4,' Gehp:',Gehp:11,' Jext:',Jext  :7:2,' +- ',errJ:4:2);
 			IF par.StoreVarFile AND acceptNewSolution THEN Write_Variables_To_File(curr, stv, par, TRUE)
         END;
 	

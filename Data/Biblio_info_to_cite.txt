@@ -1,0 +1,83 @@
+Reference list for the nk values:
+
+
+##############################
+
+Ref for:
+'nk_PBDTTPDPC70BMVLC', 'nk_ZnONPVLC','nk_PCE10PC60BMVLC','nk_PC70BMVLC','nk_PBDTTPDalone','nk_MoOx35nmVLC'
+'nk_MoOx5nmVLC','nk_aZnOVLC','nk_ZnOnanoVLC'
+
+cite:
+Gao, Y. , Le Corre, V. M., Gaï¿½tis, A. , Neophytou, M. , Hamid, M. A., Takanabe, K. and Beaujuge, P. M. 
+(2016), Homo-Tandem Polymer Solar Cells with VOC >1.8 V for Efficient PV-Driven Water Splitting. Adv. Mater., 28: 3366-3373. 
+doi:10.1002/adma.201504633
+
+
+##############################
+
+Ref for:
+'nk_BCPLiu' 
+cite:
+Z.T. Liu, C.Y. Kwong, C.H. Cheung, A.B. Djuriï¿½ic, Y. Chan, P.C. Chui,
+The characterization of the optical functions of BCP and CBP thin films by spectroscopic ellipsometry,
+Synthetic Metals, Volume 150, Issue 2, 2005, Pages 159-163,
+https://doi.org/10.1016/j.synthmet.2005.02.001.
+
+
+##############################
+
+Ref for:
+'nk_MAPITejas'
+cite:
+T. S. Sherkar, C. Momblona, L. Gil-Escrig, H. J. Bolink, L. J. A. Koster, Adv. Energy Mater. 2017, 7, 1602432. https://doi.org/10.1002/aenm.201602432
+
+Ref for:
+'nk_TaTm','nk_TaTmdopedF6TCNNQ','nk_C60Tejas','nk_MAPITejas2'
+
+cite:
+Recombination in Perovskite Solar Cells: Significance of Grain Boundaries, Interface Traps, and Defect Ions
+Tejas S. Sherkar, Cristina Momblona, Lidï¿½n Gil-Escrig, Jorge ï¿½vila, Michele Sessolo, Henk J. Bolink, and L. Jan Anton Koster
+ACS Energy Letters 2017 2 (5), 1214-1222
+DOI: 10.1021/acsenergylett.7b00236
+
+##############################
+
+Ref for:
+'nk_TiO2Qiu'
+cite:
+An electron beam evaporated TiO2 layer for high efficiency planar perovskite solar cells on flexible polyethylene terephthalate substrates
+Weiming Qiu,*ab  Ulrich W. Paetzold,ad  Robert Gehlhaar,a  Vladimir Smirnov,d  Hans-Gerd Boyen,g  Jeffrey G. Tait,a  Bert Conings,g  Weimin Zhang,e  Christian B. Nielsen,e  Iain McCulloch,f  Ludo Froyen,b  Paul Heremans*ac  and  David Cheynsa
+J. Mater. Chem. A, 2015,3, 22824-22829 
+10.1039/C5TA07515G
+
+
+##############################
+Ref for:
+'IDTBR','ITICinCB','IT2Cl','Y6','IDTBR','SF-PDI2','ITIC','IDIC','IT4F','ITM','DPO','CuSCN'
+
+Nature Communications volume 11, Article number: 5220 (2020)
+https://doi.org/10.1038/s41467-020-19029-9
+
+##############################
+ref for:
+
+'nk_peroTripleCatMartin','nk_C60Martin','nk_PTAAMartin'
+
+ACS Appl. Energy Mater. 2019, 2, 9, 6280–6287
+https://doi.org/10.1021/acsaem.9b00856
+
+
+
+##############################
+Not published:
+'nk_SpiroOMeTAD'
+
+##############################
+Not published:
+'nk_ITOBrabec','nk_ZnOBrabec','nk_PM6Y6Brabec','nk_MoOxBrabec','nk_AgBrabec'
+
+
+
+##############################
+Not published: See with Zhipeng Kan (kanzhipeng@cigit.ac.cn)
+'nk_IDTTIC','nk_IDTT4FIC','nk_PTO2'

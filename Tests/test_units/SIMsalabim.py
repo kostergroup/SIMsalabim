@@ -30,7 +30,7 @@ class SIMsalabim():
         self.output_dic = {}
         self.out_fil_nam = {}
 
-        if code_name == 'SimSS' or 'SIMsalabim':
+        if code_name == 'SimSS' or code_name == 'SIMsalabim':
             if include_jv == True:
                 self.output_dic['jv'] = None
                 self.out_fil_nam['-JV_file'] = output_sub_folder +'/JV' + str(file_nr) + '_file.dat'

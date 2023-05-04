@@ -1,3 +1,59 @@
+Version 4.50, 3+4 May 2023, LJAK
+
+Improved the routine for computing the current density based on the integral form (DDRoutines/Calc_Curr_Int). This routine is based on the paper by De Mari (Solid-State Elec. vol 11 p.33 (68) eq. 15). Previously, we used a very crude way of computing the integrals (the left Riemann sum), which was only accurate if the grid was sufficiently fine. Now we use the trapezoidal rule to compute the integrals, which is more accurate, also for grids that are not so fine.
+
+Also: in monitoring the relative changes of the densities (see 4.49), we now divide the change by the acceleration parameter (accDens). If this value is small, then the relative change will be artificially small as well.
+
+Version 4.49, 1-2 May 2023, LJAK
+
+
+A major update to the way we determine whether the program converges: In the main loop, we no longer check for uniformity of the internal current (Jint), but rather monitor the convergence of the charge densities (so including the ions, if any). Simply put, we check if the relative change (per loop) of the charge densities is smaller than a tolerance (parameter tolDens). If so, and if the Poisson solver converged as well, then the main loops stops and is deemed successful. Next, the current (internal Jint and external Jext) is computed. The root-mean-square deviation (non-uniformity) of the current density is used as an error estimate for the current that is stored in the the output files and shown on screen. The result is a much better stability.
+
+I noticed that sometimes the densities start to oscillate (so the relative change remains very high) which can be solved by using a smaller acceleration parameter. However, choosing a very small acceleration parameter makes the program slow. So, to aid convergence, I've made the acceleration parameter of the main loop (accDens) a function of the number of iterations: It starts at a maximum value (device parameters / maxAcc) and decreases linearly to minAcc. 
+
+
+Small stuff:
+-Removed a small bug from unit NumericalUtils: inadvertently, a global variable (i : integer) was introduced in this unit that was then used in various routines in DDRoutines. 
+-DDTypesAndConstants/TItResult removed as obsolete.
+-added errJ (the rms error on Jint and Jext) to type TState.
+-removed routine Calc_Range_Current as this is obsolete.
+-removed input parameters tolJ, MinRelChange, and MinAbsJDark (obsolete).
+-replace accDens with minAcc and maxAcc. 
+-introduced routine Calc_RMS_Error in NumericalUtils (used to compute the rms error on the current)
+-changed routine Average (in DDRoutines) to account for variables that are either on grid (such as V,n,p) and off-grid (mobilities, currents, etc). 
+
+
+Version 4.48, 20 March 2023 Sander Heester (SH), LJAK
+
+Previously, SIMsalabim would not check if all parameters in the command line were valid and used. For example, a typo in a variable name would prevent its use without any warning (of course, it's good practice to check the log_file to see what happened). To change this, Read_Parameters now does a check on the number of variables it has set from the command line and it compares it with the number of parameters in the command line. To streamline things, I have added function Count_Char_In_String to unit InputOutputUtils to count the number of occurances of a character in a string.
+
+Added a procedure to calculate the generation profile using the TransferMatrix method based on the device structure and properties and placed it in the unit TransferMatrix. Added a new variable section 'Optics' in the device parameters. This procedure is used by setting the variable Gen_profile to 'calc'. The procedure returns the generation profile with generation rate in true values, not a relative profile. Procedures Init_Generation_Profile and Update_Generation_Profile take this into account.
+
+Small stuff:
+-Renamed parameter 'TLsAbsorb' to 'TLsGen': Whether the TLs absorb or not is not so relevant; rather, the point is whether they generate electron/hole pairs.
+-In unit DDTypesAndConstants, we have removed '/' and '\' from myDelims: Not having these slashes as a delimiter means that we can include a filepath in the name of a file.
+-Added 3 new types (intArray, LayerStringArray, ComplexMatrix) to unit TypesAndConstants.
+-Replaced variable Gehp with Geff in DDRoutines/Update_Generation_Profile. We did this as Geff represents either the actual generation rate Gehp*Gfrac, or (in the case of a calculated profile using the transfer matrix algorithm) Gfrac.
+-Added a test (nr 13) to validate the transfer matrix unit.
+-Fixed bug in tests which caused all ZimT related tests to fail with the new check on command line parameters. The tests failed because SimSS specific parameters were added to the command line string for ZimT due to an incorrect statement which handled the program name (SimSS or ZimT) in the SIMsalabim class.
+-Removed a bug in reading 'LimitDigits' introduced in version 4.46: The order in the device parameter file and the code was different: OutputRatio should come after LimitDigits (see the parameter file and the manual), but they were read in the opposite order.
+
+Version 4.47, 20 Feb 2023, LJAK
+
+IMPORTANT: all input files need to have an appropriate header as specified in the manual. I have done this to ensure that we treat all input files (apart from the device_parameter_file) the same.
+
+I have introduced a routine to read data from a file in unit InputOutputUtils (Read_Table) and two smaller wrapper routines to read either data in 2 or 3 columns (Read_XY_Table and Read_XYZ_Table). The wrapper routines take arrays (type Row in unit TypesAndConstants), tries to read data from a file with white space as the delimiter and checks whether the file has the correct header. Comments may be added to the input files (after '*') and extra columns can also be added: Read_XY(Z)_Table simply takes the first two (three) columns from the left and stores those in arrays x,y(z). These routines also set these arrays to the correct lengths (starting at index 0). Routine Read_Table is more flexible, but it not currently used directly within SIMsalabim.
+
+The Read_XY_Table routine is now used in procedures Read_Experimental_JV, Init_Generation_Profile and Init_Traps_From_File. Therefore, their input files now need to be supplied with the correct headers as outlined in the manual. For input files Gen_profile and ExpJV I have also removed the maximum number of lines such input files may contain as the arrays that Read_XY_Table uses are dynamic. 
+
+Note: ZimT uses a separate routine to read the tVG_file (Open_and_Read_tVG_file and the actual reading is done in Read_tVG). This avoids storing the tVG info in an array as it is done on the fly. This has the advantage of potentially saving memory (i.e. there is no limit on the number of points ZimT can simulate) but it also has two disavantages: 1) We use a separate routine, 2) ZimT does not know what will happen in the tVG_file, which makes AutoStop more difficult to implement.
+
+
+
+
+Version 4.46, 2 Feb 2023, LJAK
+Introduced a way to limit the number of digits in the output: There is usually no need for all the digits in the floating point type that SIMsalabim uses. This type (myReal) is defined in unit TypesAndConstants and is normally set to extended (which is 10 bytes on most CPUs). Previously, SIMsalabim would limit the number of digits when writing to the JV_file and Var_file and this was defined by a constant (nd) in unit DDTypesAndConstants. However, there can be cases where one wants all possible digits. So, I have introduced a new parameter in the device parameter file (LimitDigits). If 1 (would be default), then we limit the output to a sensible number of digits. If not 1, then the full length of the floating point type (myReal) is used, which depends on the number of bytes of this type. 
+
 Version 4.45, 11 Jan 2023, LJAK
 
 1) Marten Koopmans is now Dr Marten Koopmans, so I've changed this throughout the codes.
@@ -906,7 +962,7 @@ Removed a bug: the Pasveer formula wasn't implemented correctly as I had inadver
 Added a new procedure: Solve_Poisson_Direct. This solves V directly from n and p and can only be used in the absence of traps. There are two reasons for implementing this procedure:
 1) Using a generalised form of the Einstein relation (Dn,p_dep <> 0) affects the way the iterative Poisson solver should be implemented as there are many Vt terms in these equations. However, I chose not to change this procedure as it doesn't seem to make much of a difference. As the iterative procedure only slightly alters n and p the effect of eta_n,p not being 1 is not that important.
 2) It can (but this is not always the case!) make the simulation faster.
-Caveat: if we replace the old values of V with the newly (directly solved) one, the program sometimes fails to converge and starts to oscilate. Therefore, I've implemented a parameter (mixV), so the new value is: V:=mixV*Vold + (1-mixV)*V. Obviously 0<=mixV<1.
+Caveat: if we replace the old values of V with the newly (directly solved) one, the program sometimes fails to converge and starts to oscillate. Therefore, I've implemented a parameter (mixV), so the new value is: V:=mixV*Vold + (1-mixV)*V. Obviously 0<=mixV<1.
 I have not (yet) implemented trapping in the direct Poisson solver, so the program halts if trapping is used in conjunction with the direct solver.
  
 
@@ -1396,7 +1452,7 @@ I have added the possibility to insert insulating layers next to the electrodes.
 
 The insulators now can have a different dielectric constant (eps_r_ins). This means that the Poisson solvers had to be adapted, but also the Langevin and Braun rates are different. In the Braun model, the local epsilon (eps[i]) is passed via a global variable epsi (cf. Braun_rec). To get the displacement current, the epsilon at the inferfaces between active layer and insulators, we simply take the dielectric constant to be equal to eps[i].
 
-Also, I have introduced separate accelation parameters for Poisson and the densities (transient solver) as it appears that we can use a higher value for the Poisson equation. The steady-solver now can ignore negative densities (if IgnoreNegDens = 1) and reset them to a small value. In case the steady-state solver and if IgnoreFailure, we ignore this. Also, I removed TolNotConv as it was no longer being used. The mobilities, and other transport parameters are now updated in every transient loop.
+Also, I have introduced separate acceleration parameters for Poisson and the densities (transient solver) as it appears that we can use a higher value for the Poisson equation. The steady-solver now can ignore negative densities (if IgnoreNegDens = 1) and reset them to a small value. In case the steady-state solver and if IgnoreFailure, we ignore this. Also, I removed TolNotConv as it was no longer being used. The mobilities, and other transport parameters are now updated in every transient loop.
 
 Trapping is now also included in the transient solver (side-by-side with SIMIS 1.10): The transient solver calculates the trapping densities each loop. Note, that it is assumed that the trapped and the free carriers are in thermal equilibrium. So, the effect of (de)trapping slower than the timescale of the simulation is not considered.
 

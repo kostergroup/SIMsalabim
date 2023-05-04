@@ -1,9 +1,9 @@
 PROGRAM SimSS;
 
 {
-SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
-F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
+SimSS:a 1D drift-diffusion simulator 
+Copyright (c) 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
 This program is free software: you can redistribute it and/or modify
@@ -45,28 +45,29 @@ to Turbo Pascal or Delphi mode, respectively.}
 
 
 USES {our own, generic ones:}
-	 TypesAndConstants,
+     TypesAndConstants,
      InputOutputUtils, 
      NumericalUtils,
      {our drift-diffusion stuff:}
-	 DDTypesAndConstants,
-	 DDRoutines,
-	 {and normal units:}
-	 Math,  
-	 StrUtils,
-	 SysUtils; 
+     DDTypesAndConstants,
+     TransferMatrix,
+     DDRoutines,
+     {and normal units:}
+     Math,  
+     StrUtils,
+     SysUtils; 
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '4.45';   {version, 1.00 = 10-03-2004}
+    version = '4.50';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
 	{$STOP FPC VERSION SHOULD BE AT LEAST 3.2.0}
 {$ENDIF}
 {now check to see if the versions of the units match that of this code:}
-{$IF (DDRoutinesVersion <> version) OR (DDTypesAndConstantsVersion <> version)} 
-	{$STOP Wrong version of the DD units!}
+{$IF (DDRoutinesVersion <> version) OR (DDTypesAndConstantsVersion <> version) OR (TransferMatrixVersion <> version)} 
+	{$STOP Wrong version of one or more units!}
 {$ENDIF}
 
 
@@ -124,47 +125,24 @@ PROCEDURE Read_Experimental_JV(VAR JVExp : TJVList; VAR log : TEXT; VAR stv : TS
 {we could have used a linked list instead...}
 {NOTE: stv and par are passed as VAR parameters as we need to set stv.NJV, par.Vmin and par.Vmax}
 VAR i : INTEGER;
-    inp : TEXT;
-    dumstr : STRING;
-    V, J : ARRAY[1..maxExpData] OF myReal;
+    V, J : Row;
 BEGIN
-    IF NOT FileExists(par.ExpJV) THEN Stop_Prog('Could not find file '+par.ExpJV, EC_FileNotFound, FALSE);
-    ASSIGN(inp, par.ExpJV);
-    RESET(inp);
-    
-    {first try to read a header}
-    TRY 
-		READLN(inp, dumstr);
-    EXCEPT
-		Stop_Prog('Cannot read a header from '+par.ExpJV+', is it empty?', EC_InvalidInput, FALSE);
-    END;
-
-    i:=0;
-    WHILE (NOT EOF(inp)) AND (i < maxExpData) DO
-    BEGIN
-        INC(i);
-        TRY
-            READLN(inp, V[i], J[i]);
-        EXCEPT
-            Stop_Prog('The experimental JV curve in '+par.ExpJV+' can only contain voltage and current density, etc.', EC_InvalidInput, FALSE);
-        END
-    END;
-
-    CLOSE(inp);
-
-    {now check a number of things:}
-    stv.NJV:=i; {this overrides NJV calculated from Vmin,Vmax,Vstep, or from direct input}
+	{Read V-J data from file:}
+	Read_XY_Table(V, J, par.ExpJV, 'Vext Jext',  stv.NJV);
+	{this overrides NJV calculated from Vmin, Vmax, Vstep, or from direct input}
+   
+    {now check a number of things:} 
     IF stv.NJV < minExpData THEN Stop_Prog('Not enough experimental data points.', EC_InvalidInput, FALSE);
-    IF stv.NJV = maxExpData THEN Stop_Prog('It looks like the experimental JV file contains more points than I can handle.', EC_InvalidInput, FALSE);
 
     {now we can copy the arrays V and J into ExpJV}
     SetLength(JVExp, stv.NJV+1); {the regular voltages start at 1}
     FOR i:=1 TO stv.NJV DO {note, we only use part of the JVList record}
     BEGIN
-        JVExp[i].Vint:=V[i];
-        JVExp[i].Vext:=V[i];
-        JVExp[i].Jint:=J[i];
-        JVExp[i].Jext:=J[i];
+        {note: in JVExp we start at index 1, in V and J we start at 0}
+        JVExp[i].Vint:=V[i-1];
+        JVExp[i].Vext:=V[i-1];
+        JVExp[i].Jint:=J[i-1];
+        JVExp[i].Jext:=J[i-1];
         JVExp[i].Use:=TRUE
     END;
 
@@ -244,6 +222,7 @@ END;
 
 PROCEDURE Init_States(VAR prev, curr, new : TState; Vapp : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
 {inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new and prev:=curr}
+VAR g : myReal;
 BEGIN
     WITH new DO 
     BEGIN
@@ -251,8 +230,11 @@ BEGIN
 		dti:=0; {dti: inverse of delta t, so if dti=0, the time-step is infinite => steady-state!}
 		SimType:=1; {1 means that this is steady-state, not open-circuit}
 		Vint:=Vapp; {set applied voltage}
-		Gehp:=par.Gehp*par.Gfrac; {set Gehp equal to the value in parameter file.}
-		Update_Generation_Profile(stv.orgGm, Gm, par.Gehp*par.Gfrac, stv, par); {Set current Gm array to correct value}
+		IF par.Use_gen_profile <> 1 THEN
+			g:=par.Gehp*par.Gfrac {set Gehp equal to the value in parameter file.}
+		ELSE
+			g:=par.Gfrac;
+		Update_Generation_Profile(stv.orgGm, Gm, g, stv, par); {Set current Gm array to correct value}
 		Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, Vint, stv, par); {init. (generalised) potentials and densities}
 	END;
 	
@@ -589,7 +571,7 @@ BEGIN
 		END;
 		WRITELN('Comparing simulated and experimental JV curves:');
 		WRITELN('norm_rms_error: ',rms:6:5);
-		IF disgardedPoints THEN WarnUser('Not all JV points were used in computing the rms-error.');
+		IF disgardedPoints THEN Warn_User('Not all JV points were used in computing the rms-error.');
 		WRITELN;
     END
     ELSE
@@ -615,6 +597,7 @@ BEGIN {main program}
     {Initialisation:}
     Read_Parameters(parameterFile, MsgStr, par, stv, ProgName); {Read parameters from input file}
     Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
+    Set_Number_Digits(par.LimitDigits, SizeOf(myReal)); {limits number of digits in floating point}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
     IF par.AutoTidy THEN Tidy_Up_Parameter_File(parameterFile, FALSE); {clean up file but don't exit!}
 
@@ -622,11 +605,10 @@ BEGIN {main program}
     Define_Layers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
 	Init_Trap_Distribution(log, stv, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
     Init_nt0_And_pt0(stv, par); {inits nt0b and pt0 arrays needed for SRH recombination}
-	
     Init_Voltages_and_Tasks(JVSim, JVExp, VCount, log, stv, par);
+
     Init_Generation_Profile(stv, log, par); {init. the stv.orgGm array. This is the SHAPE of the profile}
 	Init_States(prev, curr, new, JVSim[VCount].Vint, stv, par); {inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new and prev:=curr}
-	
     Prepare_tJV_File(uitv, par.JV_file, FALSE);   {create the JV-file}
     IF par.StoreVarFile THEN Prepare_Var_File(stv, par, FALSE); {Create a new var_file with appropriate heading if required}
 
@@ -660,7 +642,7 @@ BEGIN {main program}
 		BEGIN
 			acceptNewSolution:=TRUE; {new is a keeper, but we'll take care of that later on}
 			{output:}
-			WRITELN('At Vint=', new.Vint:4:3,' converged in',MainIt:4,' loop(s), Jint=',new.Jint:7:4,' convIndex: ',new.convIndex);
+			WRITELN('At Vint=', new.Vint:4:3,' converged in',MainIt:4,' loop(s), Jext=',new.Jext:7:2,' +- ',new.errJ:4:2);
 
 			{we only write the point to the JV_file if Conv_Main and if Store:}
 			IF JVSim[VCount].Store THEN Write_To_tJV_File(uitv, new, curr, stv, par, FALSE);						
