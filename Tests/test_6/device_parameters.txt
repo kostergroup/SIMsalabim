@@ -1,7 +1,7 @@
 ** ZimT Device data
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.50
+** version: 4.51
 
 **General**************************************************************************
 T = 300                                 * K, absolute temperature
@@ -120,10 +120,11 @@ minAcc = 0.05                           * >0, min. acceleration parameter
 maxAcc = 0.95                           * <2, max. acceleration parameter
 IgnoreNegDens = 1                       * whether(1) or not(<>1) to ignore negative densities
 FailureMode = 0                         * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
-grad = 10                                * determines shape of exp. grid, increase grad for smaller h[1]
+grad = 10                               * determines shape of exp. grid, increase grad for smaller h[1]
 TolVint = 1e-6                          * V, tolerance internal voltage (Vint)
 
 **User interface********************************************************************
+timeout = -1                            * s, max run time, use negative value for unlimited run time.
 Pause_at_end = 0                        * pause at the end of the simulation yes(1) or no (0)
 AutoTidy = 0                            * if 1, then the program will always tidy up this file
 AutoStop = 0                            * stop ZimT if change of system stops changing, yes(1) or no (<>1).

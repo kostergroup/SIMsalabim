@@ -48,6 +48,7 @@ const
 	EC_ConverenceFailedHalt = 94;
 	EC_ConverenceFailedNotHalt = 95;
 	EC_FileNotFound = 96;
+	EC_TimeOut = 97;
 	EC_ProgrammingError = 99;
 	
 

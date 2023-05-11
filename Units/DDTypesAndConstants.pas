@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.50'; {version of this unit}
+    DDTypesAndConstantsVersion = '4.51'; {version of this unit}
     defaultParameterFile = 'device_parameters.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -124,7 +124,7 @@ TYPE
 				Bulk_tr, St_L, St_r, GB_tr, 
 				Cn, Cp, ETrapSingle, tolPois, maxDelV,
 				tolDens, couplePC, minAcc, maxAcc, grad, TolVint,
-				Vpre, Vmin, Vmax, Vstep, Vacc, rms_threshold : myReal; 
+				Vpre, Vmin, Vmax, Vstep, Vacc, timeout, rms_threshold : myReal; 
 			    {integers:}		
 				MaxItPois, 
 				mob_n_dep, mob_p_dep,

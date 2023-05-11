@@ -1,3 +1,9 @@
+Version 4.51, 11 May 2023, LJAK
+
+1) Removed a silly bug from NumericalUtils/Calc_RMS_Error: I introduced this routine in version 4.50, but I forgot to divide by the number of datapoints. 
+2) I've introduced a parameter timeout (in the 'user-interface' section) that specifies the maximum runtime in seconds. Use a negative value for unlimited run time. It cannot be zero. The main solver routine checks the time the program has been running in every loop. To warn the outside world of a possible timeout, I've introduced a new exit code: EC_TimeOut.
+
+
 Version 4.50, 3+4 May 2023, LJAK
 
 Improved the routine for computing the current density based on the integral form (DDRoutines/Calc_Curr_Int). This routine is based on the paper by De Mari (Solid-State Elec. vol 11 p.33 (68) eq. 15). Previously, we used a very crude way of computing the integrals (the left Riemann sum), which was only accurate if the grid was sufficiently fine. Now we use the trapezoidal rule to compute the integrals, which is more accurate, also for grids that are not so fine.

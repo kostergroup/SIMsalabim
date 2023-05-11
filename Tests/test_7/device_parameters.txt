@@ -1,7 +1,7 @@
 ** ZimT Device data
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.50
+** version: 4.51
 
 **General**************************************************************************
 T = 300                                 * K, absolute temperature
@@ -124,6 +124,7 @@ grad = 4                                * determines shape of exp. grid, increas
 TolVint = 1e-6                          * V, tolerance internal voltage (Vint)
 
 **User interface********************************************************************
+timeout = -1                            * s, max run time, use negative value for unlimited run time.
 Pause_at_end = 0                        * pause at the end of the simulation yes(1) or no (0)
 AutoTidy = 0                            * if 1, then the program will always tidy up this file
 AutoStop = 0                            * stop ZimT if change of system stops changing, yes(1) or no (<>1).

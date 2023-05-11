@@ -281,10 +281,11 @@ FUNCTION Calc_RMS_Error(y : vector; avy : myReal; istart, ifinish : INTEGER) : m
 VAR i : INTEGER;
     sum : myReal;
 BEGIN
+    IF ifinish <= istart THEN Stop_Prog('Invalid ifinish and istart passed to Calc_RMS_Error.',EC_ProgrammingError);
     sum:=0;
     FOR i:=istart TO ifinish DO
 	sum:=sum + SQR(y[i]-avy);
-    Calc_RMS_Error:=SQRT(sum);
+    Calc_RMS_Error:=SQRT(sum/(ifinish-istart));
 END;
 
 

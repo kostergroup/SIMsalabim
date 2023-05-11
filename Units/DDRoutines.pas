@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.50'; {version of this unit}
+CONST DDRoutinesVersion = '4.51'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -540,6 +540,7 @@ BEGIN
 		END;
 
 {**User interface********************************************************************}
+		Get_Float(inv, msg, 'timeout', timeout); {s, max run time. use negative value for unlimited run time.}
 		Get_Integer(inv, msg, 'Pause_at_end', Pause_at_end);  {pause at the end of the simulation yes(1) or no (0)}
 		Get_Integer(inv, msg, 'AutoTidy', dumint);
 		AutoTidy:=dumint = 1;	{if 1, then we will always tidy up the device_parameter file}
@@ -711,6 +712,7 @@ BEGIN
 		END;
 
 {checks on user-interface:}
+		IF timeout = 0 THEN Stop_Prog('Invalid timeout: either positive number in seconds or negative for unlimited run time.', EC_InvalidInput);
 		IF SimSS 
 		THEN BEGIN
 			IF (Gehp * Gfrac <> 0) AND (stv.V0 <> stv.VL) AND UseExpData AND (rms_mode=logarithmic) {this is a weird combination, warn user}
@@ -2928,7 +2930,11 @@ BEGIN
 		END;	
 		
 		conv:=convDensities AND check_Poisson; {so convergence=true if index is positive}
-
+		
+		{now check if time is up!}
+		IF (par.timeOut > 0) AND (SecondSpan(NOW, TimeStart) > par.timeOut) THEN 
+			Stop_Prog('SIMsalabim terminates due to time-out.', EC_TimeOut)
+		
 	END; {WITH new statement}
 
 	UNTIL conv OR (it = MaxIt); 
