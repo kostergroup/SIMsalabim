@@ -1,7 +1,7 @@
 ** SimSS Device data:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.51
+** version: 4.52
 
 **General**************************************************************************
 T = 295                                 * K, absolute temperature
@@ -131,7 +131,7 @@ Vpre = 0.0                              * V, pre-conditioned voltage
 Vscan = 1                               * integer, 1 for forward sweep direction, -1 for reverse sweep
 Vmin = 0.0                              * V
 Vmax = 1.5                              * V
-Vstep = 0.02                            * V
+Vstep = 0.1                             * V
 Vacc = 0                                * V, point of accumulation of row of V's, note: Vacc should be
                                         * slightly larger than Vmax or slightly lower than Vmin
 NJV = 100                               * number of JV points in logarithmic distribution

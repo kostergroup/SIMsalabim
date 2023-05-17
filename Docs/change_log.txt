@@ -1,6 +1,14 @@
+Version 4.52, 17 May 2023, LJAK
+
+BUG FIX!
+Removed a serious bug in the way we computed the ionic currents if using CurrDiffInt = 2 (option 1 not affected!): This refers to computing the ionic current from an integral over the generation rate and recombination rate of the ions (both are zero as we don't include any ionic reactions). The recombination was correctly set to zero when computing the integral, but the generation rate was simply copied from the electrons and holes, i.e. it was not necessarily zero! 
+
+To fix this, I have introduced a dummy variable GenDum that we set to zero and pass on to the routine that computes the integral.
+
+
 Version 4.51, 11 May 2023, LJAK
 
-1) Removed a silly bug from NumericalUtils/Calc_RMS_Error: I introduced this routine in version 4.50, but I forgot to divide by the number of datapoints. 
+1) Removed a silly bug from NumericalUtils/Calc_RMS_Error: I introduced this routine in version 4.50, but I forgot to divide by the number of data points. 
 2) I've introduced a parameter timeout (in the 'user-interface' section) that specifies the maximum runtime in seconds. Use a negative value for unlimited run time. It cannot be zero. The main solver routine checks the time the program has been running in every loop. To warn the outside world of a possible timeout, I've introduced a new exit code: EC_TimeOut.
 
 

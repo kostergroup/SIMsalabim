@@ -1,7 +1,7 @@
 ** ZimT Device data
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 4.51
+** version: 4.52
 
 **General**************************************************************************
 T = 300                                 * K, absolute temperature

@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.51'; {version of this unit}
+CONST DDRoutinesVersion = '4.52'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -2697,7 +2697,7 @@ END;
 
 PROCEDURE Calc_All_Currents(VAR new : TState; CONSTREF curr : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
 {calculates all the currents for state new}
-VAR mob, Jsum : vector;
+VAR mob, Jsum, GenDum : vector;
 	i, istart, ifinish : INTEGER;
 BEGIN
 	WITH new DO 
@@ -2722,13 +2722,14 @@ BEGIN
 		IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN ifinish:=stv.i2-2 ELSE ifinish:=par.NP;
 
 		FILLCHAR(RecDum, SIZEOF(RecDum), 0); {set all fields of RecDum to zero as ions don't have generation/recombination}
+		FILLCHAR(GenDum, SIZEOF(GenDum), 0); {likewise for the generation rate of ions}
 
 		IF par.negIonsMove AND (dti<>0) THEN {dti=0, then we're in steady-state => ionic currents are zero!}
 		BEGIN 
 			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobnion;
 			CASE par.CurrDiffInt OF
 				1 : Calc_Curr_Diff(-1, istart, ifinish, Jnion, V, nion, mob, RecDum.int, stv, par);		
-				2 : Calc_Curr_Int(-1, istart, ifinish, dti, Jnion, V, nion, curr.nion, mob, gen, RecDum, stv, par);
+				2 : Calc_Curr_Int(-1, istart, ifinish, dti, Jnion, V, nion, curr.nion, mob, GenDum, RecDum, stv, par);
 			END	
 		END
 		ELSE FILLCHAR(Jnion, SIZEOF(Jnion), 0); {set ionic current to zero}
@@ -2738,7 +2739,7 @@ BEGIN
 			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobpion;
 			CASE par.CurrDiffInt OF
 				1 : Calc_Curr_Diff(1, istart, ifinish, Jpion, V, pion, mob, RecDum.int, stv, par);
-				2 : Calc_Curr_Int(1, istart, ifinish, dti, Jpion, V, pion, curr.pion, mob, gen, RecDum, stv, par);
+				2 : Calc_Curr_Int(1, istart, ifinish, dti, Jpion, V, pion, curr.pion, mob, GenDum, RecDum, stv, par);
 			END
 		END
 		ELSE FILLCHAR(Jpion, SIZEOF(Jpion), 0); {set ionic current to zero}
