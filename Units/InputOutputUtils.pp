@@ -145,7 +145,7 @@ procedure Read_XY_Table(var x, y : Row; fileName, header : string; var NumLines 
 procedure Read_XYZ_Table(var x, y, z : Row; fileName, header : string; var NumLines : integer);
 {Wrapper routine for Read_Table. Reads x,y,z data from a file, delimiter: white space. x, y, z are set to the correct length (index starting at 0)}
 
-FUNCTION Count_Char_In_String(ch : CHAR; Str : STRING) : INTEGER;
+FUNCTION Count_Substring_In_String(SubStr, Str : STRING) : INTEGER;
 {counts the number of occurances of character ch in string Str}
 implementation
 
@@ -674,14 +674,14 @@ begin
 	end
 end;
 
-FUNCTION Count_Char_In_String(ch : CHAR; Str : STRING) : INTEGER;
-{counts the number of occurances of character ch in string Str}
+FUNCTION Count_Substring_In_String(SubStr, Str : STRING) : INTEGER;
+{counts the number of occurances of substring in string Str}
 VAR n : INTEGER;
 BEGIN
-	n:=0;
-	WHILE NPos(ch, Str, n+1) > 0 DO
-		INC(n);
-	Count_Char_In_String:=n
+    n:=0;
+    WHILE NPos(SubStr, Str, n+1) > 0 DO
+	INC(n);
+    Count_Substring_In_String:=n
 END;
 
 begin

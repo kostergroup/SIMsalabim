@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '4.52';  
+    version = '4.54';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -115,10 +115,10 @@ BEGIN
 			parstr:=Copy2SpaceDel(varline); {contains the first parameter}
 			{StrToFloat, sysutils: Convert a string to a floating-point value.}
 			astate.tijd:=StrToFloat(parstr); {first part contains the time}
-			IF old_tijd<>astate.tijd
+			IF (old_tijd<>astate.tijd) AND (astate.tijd<>0)
 				THEN astate.dti:=1/(astate.tijd-old_tijd) {dti: inverse of time step}
 				ELSE astate.dti:=0; {old_tijd=tijd, so we're looking at steady-state, so infinite time step}
-			IF astate.dti<0 THEN Stop_Prog('Negative time steps are not allowed', EC_InvalidInput);
+			IF (astate.dti < 0) AND (astate.tijd <> 0) THEN Stop_Prog('Negative time steps are not allowed, unless you go back to t=0 (steady-state).', EC_InvalidInput);
 			parstr:=Copy2SpaceDel(varline); {contains the second parameter}
 			IF LowerCase(parstr)='oc' {now check if we should simulate at open-circuit, or just at some specific value}
 			THEN SimOC:=TRUE

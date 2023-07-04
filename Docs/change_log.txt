@@ -1,3 +1,13 @@
+Version 4.54, 4 July, LJAK, SH
+
+Changed InputOutputUtils routine Count_Char_In_String to Count_Substring_In_String: On windows, the LineEnding constant is a string, so this function needs to accept a string rather than a character. 
+
+
+Version 4.53, 3 July, LJAK
+ZimT only: When reading the tVG_file, ZimT checks the timestep as we cannot meaningfully go back in time, so negative timesteps are not allowed. However, it can be very useful to be able to do a simulation and then to go back to steady-state. Steady-state is indicated by t=0, so that would be going back in to (back to t=0). So I've made this exception: one can go back to a steady-state. 
+An example of where this might prove useful: For example, doing a pertubation of light intensity (like in IMPS) and seeing how the system responds. However, suppose we want to do this at a series of voltages. Then it makes sense to be able to go back to the steady-state (t=0) without having to do a new, freshly started simulation. Instead, we go back to t=0, and use the previous solution as an initial guess. 
+
+
 Version 4.52, 17 May 2023, LJAK
 
 BUG FIX!

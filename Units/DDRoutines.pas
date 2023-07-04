@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.52'; {version of this unit}
+CONST DDRoutinesVersion = '4.54'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -366,7 +366,7 @@ BEGIN
 		THEN Stop_Prog('Could not find file '+parameterFile+'.', EC_FileNotFound);
     ASSIGN(inv, parameterFile);
     RESET(inv);
-	countStart:=Count_Char_In_String(LineEnding, msg); {first, count the number of LineEndings in msg-str.}
+	countStart:=Count_Substring_In_String(LineEnding, msg); {first, count the number of LineEndings in msg-str.}
 
 	WITH par DO BEGIN
 {**General**************************************************************************}
@@ -581,7 +581,7 @@ BEGIN
 
     {we use countStart/Finish to count the number of parameters obtained from the command line}
 	{every time we find such a parameter, a LineEnding is added to msg}
-    countFinish:=Count_Char_In_String(LineEnding, msg);
+    countFinish:=Count_Substring_In_String(LineEnding, msg);
 	
 	{now the number of arguments (bar a dev par file) needs to be 2 x the difference in the counter:}
     IF ParamCount - ORD(UsedSpecialParFile) <> 2*(countFinish-countStart) THEN
