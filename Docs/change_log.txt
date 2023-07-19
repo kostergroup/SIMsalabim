@@ -1,4 +1,7 @@
-Version 4.54, 4 July, LJAK, SH
+Version 4.55, 19 July 2023, LJAK
+BUG FIX: In the JV_file, the columns specifying the interface trap rates (converted to a current density) were incorrect. We used to compute the interface recombination currents by using function Average (DDRoutines), but that function is designed to average only over istart to ifinish. We used to call this routine to average over the 2 points adjacent the interface, but Average would then sum over only 1 point! As a result, JIntLeft and JIntRight were wrong and could be off by orders of magnitude: even larger than the external current. 
+
+Version 4.54, 4 July 2023, LJAK, SH
 
 Changed InputOutputUtils routine Count_Char_In_String to Count_Substring_In_String: On windows, the LineEnding constant is a string, so this function needs to accept a string rather than a character. 
 
