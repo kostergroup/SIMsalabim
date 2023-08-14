@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '4.55'; {version of this unit}
+CONST DDRoutinesVersion = '4.56'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -3019,12 +3019,12 @@ BEGIN
 		
 		{RIGHT interface recombination currents:}
 		IF stv.i2<par.NP+1 THEN {interface rec at right interface for electrons}
-			J1:=0.5*q*par.L*stv.h[stv.i2]*(Rn.int[stv.i2] + Rn.int[stv.i2+1])
+			J1:=0.5*q*par.L*stv.h[stv.i2]*(Rn.int[stv.i2-1] + Rn.int[stv.i2])
 		ELSE J1:=0; 
 		WRITE(uitv,' ',J1:nd); {in steady-state J1 is equal to J2}
 		IF transient THEN BEGIN
 			IF stv.i2<par.NP+1 THEN 
-				J2:=0.5*q*par.L*stv.h[stv.i2]*(Rp.int[stv.i2] + Rp.int[stv.i2+1]) 
+				J2:=0.5*q*par.L*stv.h[stv.i2]*(Rp.int[stv.i2-1] + Rp.int[stv.i2]) 
 			ELSE J2:=0; {for transient, we also need the interface rec for holes}
 			WRITE(uitv,' ',J2:nd);
 		END;

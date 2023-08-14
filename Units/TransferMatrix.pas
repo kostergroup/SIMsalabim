@@ -42,7 +42,7 @@ USES
 	SysUtils,
     Ucomplex;
 
-CONST   TransferMatrixVersion = '4.55'; {version of this unit}
+CONST   TransferMatrixVersion = '4.56'; {version of this unit}
 
         lambda_step = 1E-9; {lambda step size}
         xstep = 1E-9; {grid step size (not TLs o and active layer)}
