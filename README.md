@@ -24,6 +24,7 @@ The project folder is structured as follows:
 - Units: this is where the heart of the code resides. These units are shared between SimSS and ZimT
 - ZimT: the transient equivalent of SimSS
 
+SIMsalabim is also available with a user interface at [www.simsalabim-online.com](http://simsalabim-online.com).
 
 ## Quickstart guide
 There are two ways to get SimSS or ZimT running on your machine:
@@ -164,6 +165,7 @@ M. Koopmans, V.M. Le Corre, and L.J.A. Koster, SIMsalabim: An open-source drift-
 
 The SIMsalabim project is licensed under the GNU Lesser General Public Licence version 3. The details of this licence can be found in the files COPYING.txt and COPYING.LESSER.txt. 
 Several authors (all from the University of Groningen) have contributed to the code: 
+- S. (Sander) Heester
 - Dr T.S. (Tejas) Sherkar
 - Dr V.M. (Vincent) Le Corre
 - Dr M. (Marten) Koopmans
@@ -179,11 +181,13 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
+-  E. Salamkaya, S. M. Hosseini, N. Tokmoldin, A. Musiienko, T. Kruger, J. Behrends, M. Raoufi, D. Neher, and S. Shoaee, Self-Doping of the Transport Layers Decreases theBimolecular Recombination by Reducing Static Disorder, Solar RRL (2023)
+
 - C. Liu, L. Lüer, V.M. Le Corre, K. Forberich, P. Weitz, T. Heumüller, X. Du, J. Wortmann, J. Zhang, J. Wagner, L. Ying, J. Hauch, N. Li, and C.J. Brabec, Understanding causalities in organic photovoltaics device degradation in a machine learning driven high-throughput platform, Adv. Mater. (2023)
 
 - M. Koopmans and L.J.A. Koster, Voltage deficit in wide band gap perovskite solar cells: the role of traps, band energies, and effective density of states, Sol. RRL, 2200560 (2022).
 
-M. Koopmans, V.M. Le Corre, and L.J.A. Koster, SIMsalabim: An open-source drift-diffusion simulator for semiconductor devices, J. Open Source Softw. 7, 3727 (2022).
+- M. Koopmans, V.M. Le Corre, and L.J.A. Koster, SIMsalabim: An open-source drift-diffusion simulator for semiconductor devices, J. Open Source Softw. 7, 3727 (2022).
 
 - A. Rahimichatri, J. Liu, F. Jahani, L. Qiu, R.C. Chiechi, J.C. Hummelen, and L.J.A. Koster, A method for identifying the cause of inefficient salt-doping in organic semiconductors, J. Mater. Chem. C 10, 13093 (2022).
 
