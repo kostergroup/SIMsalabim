@@ -1,6 +1,6 @@
 we are going to simulate an RC circuit
 
-t	Vext	Gehp
+t	Vext	G_frac
 0	0	0
 1E-7	1.0	0
 3E-7	1.0	0

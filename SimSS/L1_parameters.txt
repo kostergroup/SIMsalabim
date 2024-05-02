@@ -1,0 +1,60 @@
+** SIMsalabim Layer parameters:
+** Don't change the order of the parameters, comments can be added anywhere,
+** but only after an '*'. Use '**' if you want your comment to be left-justified.
+** version: 5.11
+
+**General**************************************************************************
+L = 3E-8                       * m, device length/thickness
+eps_r = 5                      * relative dielectric constant
+E_c = 3                        * eV, conduction band edge
+E_v = 5.5                      * eV, valence band edge
+N_c = 1E26                     * m^-3, DOS of conduction and valence bands
+N_D = 0                        * m^-3, ionised n-doping
+N_A = 0                        * m^-3, ionised p-doping
+
+**Mobilities************************************************************************
+mu_n = 1E-6                    * m^2/Vs, zero field mobility
+mu_p = 1E-6                    * m^2/Vs, zero field mobility
+mobnDep = 0                    * 0 : const. mob, 1 : field-dependent
+mobpDep = 0                    * 0 : const. mob, 1 : field-dependent
+gamma_n = 0                    * (m/V)^0.5, field dependence of mob, Poole-Frenkel form
+gamma_p = 0                    * (m/V)^0.5, field dependence of mob, Poole-Frenkel form
+
+**Interface-layer-to-right**********************************************************
+nu_int_n = 1E3                 * m/s, interface transfer velocity of electrons, to layer to the right
+nu_int_p = 1E3                 * m/s, interface transfer velocity of holes, to layer to the right
+N_t_int = 0                    * m^-2, trap density at interface with layer to the right
+E_t_int = 4                    * eV, energy level of traps at interface
+intTrapFile = none             * name of file with interface trap energy profile (or 'none'). If specified, overrides E_t_int
+intTrapType = -1               * Trap type for the right interface: -1: acceptor, 0: neutral, 1: donor
+C_n_int = 1E-13                * m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)
+C_p_int = 1E-13                * m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)
+
+**Ions******************************************************************************
+N_anion = 0                    * m^-3, concentration of negative ions
+N_cation = 0                   * m^-3, concentration of positive ions
+mu_anion = 1E-14               * m^2/Vs, mobility of negative ions (take 0 if they don't move)
+mu_cation = 1E-14              * m^2/Vs, mobility of positive ions (take 0 if they don't move)
+ionsMayEnter = 0               * may ions enter from other layers? yes(1) or no(<>1)
+
+**Generation and recombination******************************************************
+G_ehp = 0                      * m^-3 s^-1, generation rate of electron-hole pairs in this layer
+layerGen = 0                   * does this layer generate electron/hole pairs? yes(1) or no (0)
+nkLayer = ../Data/nk_PEDOT.txt * name of file with n,k values of this layer
+fieldDepG = 0                  * field dependent generation yes (1) or no (0)
+P0 = 0                         * 0<=P0<1, fraction of quenched excitons that direcltly yield free carriers
+a = 1E-9                       * m, charge separation distance, Braun model used
+thermLengDist = 2              * distribution of a, 1 for delta function, 2 for Gaussian
+                               * 3 for exponential and 4 for r^2 exponential 5 for r^4 Gaussian
+k_f = 1E6                      * 1/s, decay rate
+k_direct = 1E-18               * m3/s, direct (band-to-band, bimolecular) recombination rate
+preLangevin = 1                * Langevin recombination prefactor
+useLangevin = 1                * (1) use Langevin to calc. recombination or not (<>1, kdirect is used)
+
+**Bulk trapping**************************************************************************
+N_t_bulk = 0                   * m^-3, trap density (in bulk)
+C_n_bulk = 1E-13               * m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)
+C_p_bulk = 1E-13               * m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)
+E_t_bulk = 4                   * eV, energy level of all traps
+bulkTrapFile = none            * name of file with bulk trap energy profile (or 'none'). If specified, overrides E_t_bulk
+bulkTrapType = -1              * Trap type of bulk traps: -1: acceptor, 0: neutral, 1: donor

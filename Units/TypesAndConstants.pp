@@ -3,7 +3,7 @@ unit TypesAndConstants;
 
 {
 SIMsalabim: a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
+Copyright (c) 2020, 2021, 2022, 2023, 2024, S. Heester, Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -37,7 +37,6 @@ uses Ucomplex;
 
 const
     Max_NP	 = 1000;     {max number of grid points except contacts}
-	Max_NEtr = 20;	     {max number of trap levels}
 
 	{exit codes:}
 	EC_Warning = 3;
@@ -56,14 +55,12 @@ type myReal = EXTENDED;
 	{note: you can put myReal = single, double, or extended. However, extended may not be available in which case the compiler
 	 will simply take double. The size of the real type is saved in the log file, so you can check}
 	 vector			= ARRAY[0..Max_NP + 1] OF myReal;
-	 TrapArray		= ARRAY[0..Max_NP + 1, 1..Max_NEtr] OF myReal;
-	 TrapEnArray	= ARRAY[1..Max_NEtr] OF myReal;
      ShortIntVector	= ARRAY[0..Max_NP + 1] OF ShortInt;
      Row			= ARRAY OF myReal; 
      Table			= ARRAY OF ARRAY OF myReal; {used to store mob_tab, table with elec. mob. as a function of F and n}
      MathFunc		= FUNCTION(x : myReal) : myReal;
      MathFuncValues = FUNCTION(x : myReal; vals : Row) : myReal;
-     intArray 		= ARRAY OF ShortInt;
+     intArray 		= ARRAY OF INTEGER;
      StringArray 	= ARRAY OF STRING;
      ComplexMatrix 	= ARRAY OF ARRAY OF COMPLEX;
 

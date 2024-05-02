@@ -140,10 +140,14 @@ zimt.exe
 </code></pre>
 Alternatively, the programs can be double clicked in the file manager on both Windows and Linux to run.
 
-- all parameters listed in device_parameters.txt can also be changed via the command line. This will override the respective parameter value in device_parameters.txt. Simply add the parameter name and value to the command line after a dash (-).
-Example: change of thickness (L) and JV output file (JV_file):
+- all parameters listed in simulation_setup.txt can also be changed via the command line. This will override the respective parameter value in simulation_setup.txt. Simply add the parameter name and value to the command line after a dash (-).
+Example: change of surface recombination of electrons at the left electrode (S_n_L) and JV output file (JV_file):
 <pre><code>
-./simss -L 345E-9 -JV_file anotherJV.dat
+./simss -S_n_L 0.01 -JV_file anotherJV.dat
+</code></pre>
+- any parameters specific to a layer can also be changed via the command line (again overriding the value in the file). For example, if you want to change the electron mobility (mu_n) of the second layer (l2), then use:
+<pre><code>
+./simss -l2.mu_n 1e-4
 </code></pre>
 - multiple output files will be generated (see device_parameters) and log file.
 
@@ -181,9 +185,19 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
--  E. Salamkaya, S. M. Hosseini, N. Tokmoldin, A. Musiienko, T. Kruger, J. Behrends, M. Raoufi, D. Neher, and S. Shoaee, Self-Doping of the Transport Layers Decreases theBimolecular Recombination by Reducing Static Disorder, Solar RRL (2023)
+- B. Akbar, H. Tayara, and K.T. Chong, Unveiling dominant recombination loss in perovskite solar cells with a XGBoost-based machine learning approach, iScience 27, 109200 (2024).
 
-- C. Liu, L. Lüer, V.M. Le Corre, K. Forberich, P. Weitz, T. Heumüller, X. Du, J. Wortmann, J. Zhang, J. Wagner, L. Ying, J. Hauch, N. Li, and C.J. Brabec, Understanding causalities in organic photovoltaics device degradation in a machine learning driven high-throughput platform, Adv. Mater. (2023)
+- N. Rodkey, G. Fernandez, M. Inmaculada, F. Ventosinos. C Roldán-Carmona, L.J.A. Koster, and H.J. Bolink, Close-Space Sublimation as a Scalable Method for Perovskite Solar Cells, ACS Engery Lett. 9, 927 (2024).
+
+- S. Qiu, M. Majewski, L. Dong, D. Jang, V.M. Le Corre, J. Garcia Cerrillo, O.J.J. Ronsin, F. Yang, F. Guo, K. Zhang, L. Lüer, J. Harting, T. Du, C.J. Brabec, and H.J. Egelhaaf, In Situ Probing the Crystallization Kinetics in Gas-Quenching-Assisted Coating of Perovskite Films, Adv. Energy Mater. 2303210 (2024).
+
+- M. Wagner, A. Distler, V.M. Le Corre, S. Zapf, B. Baydar, H.D. Schmidt, M. Heyder, K. Forberich, L. Lüer, C.J. Brabeck, and, H.J. Egelhaaf, Cutting “lab-to-fab” short: high throughput optimization and process assessment in roll-to-roll slot die coating of printed photovoltaics,  Energy Environ. Sci. 16, 5454 (2023).
+
+- C. Dreessen, K.P.S. Zanoni, L. Gil-Escrig, N. Rodkey, J.I. Khan, F. Laquai, M. Sessolo, C. Roldán-Carmona, and H.J. Bolink, When JV Curves Conceal Material Improvements: The Relevance of Photoluminescence Measurements in the Optimization of Perovskite Solar Cells, Adv. Optical Mater. 2301019 (2023).
+
+-  E. Salamkaya, S. M. Hosseini, N. Tokmoldin, A. Musiienko, T. Kruger, J. Behrends, M. Raoufi, D. Neher, and S. Shoaee, Self-Doping of the Transport Layers Decreases the Bimolecular Recombination by Reducing Static Disorder, Solar RRL 2300423 (2023).
+
+- C. Liu, L. Lüer, V.M. Le Corre, K. Forberich, P. Weitz, T. Heumüller, X. Du, J. Wortmann, J. Zhang, J. Wagner, L. Ying, J. Hauch, N. Li, and C.J. Brabec, Understanding causalities in organic photovoltaics device degradation in a machine learning driven high-throughput platform, Adv. Mater. 2300259 (2023).
 
 - M. Koopmans and L.J.A. Koster, Voltage deficit in wide band gap perovskite solar cells: the role of traps, band energies, and effective density of states, Sol. RRL, 2200560 (2022).
 
@@ -193,7 +207,7 @@ List of publications (not complete):
 
 - K. Zhang, K. Forberich, L. Lüer, J. Garcia Cerrillo, W. Meng, X. Du, V.M. Le Corre, Y. Zhao, T. Niu, Q. Xue, L.J.A. Koster, N. Li, and C.J. Brabec, Understanding the limitations of charge transporting layers in mixed lead-tin halide perovskite solar cells, Adv. Energy Sustainability Res. 2100156 (2021).
 
-- V.M. Le Corre, E.A. Duijnstee, O.  El Tambouli, J.M. Ball, H.J. Snaith, J. Lim, and L.J.A. Koster, Revealing Charge Carrier Mobility and Defect Densities in Metal Halide Perovskites via Space-Charge-Limited Current Measurements, ACS Energy Lett. 6, 1087 (2021).
+- V.M. Le Corre, E.A. Duijnstee, O. El Tambouli, J.M. Ball, H.J. Snaith, J. Lim, and L.J.A. Koster, Revealing Charge Carrier Mobility and Defect Densities in Metal Halide Perovskites via Space-Charge-Limited Current Measurements, ACS Energy Lett. 6, 1087 (2021).
 
 - V.M. Le Corre, T.S. Sherkar, M. Koopmans, and L.J.A. Koster, Identification of the Dominant Recombination Process for Perovskite Solar Cells Based on Machine Learning, Cell Rep. Phys. Sci. 2, 100346 (2021).
 
@@ -242,7 +256,9 @@ List of publications (not complete):
 - G. A. H. Wetzelaer, L. J. A. Koster, and P. W. M. Blom, Validity of the Einstein relation in disordered organic semiconductors, Phys. Rev. Lett. 107, 066605 (2011).
 
 - L.J.A. Koster, S. E. Shaheen, and J. C. Hummelen, Pathways to a new efficiency regime for organic solar cells, Adv. Energy Mater. 2, 1246 (2012). Listed in Adv. Energy Mater. top-5 most accessed articles in May 2012
+
 - D.J. Wehenkel, L.J.A. Koster, M. M. Wienk, and R. A. J. Janssen, Influence of injected charge carriers on photocurrents in polymer solar cells, Phys. Rev. B 85, 125203 (2012).
+
 - M. Kuik, L. J. A. Koster, A. G. Dijkstra, G. A. H. Wetzelaer, and P. W. M. Blom, Non-radiative recombination losses in polymer light-emitting diodes, Org. Elec. 13, 969 (2012).
 
 - M. Kuik, L. J. A. Koster, G. A. H. Wetzelaer, and P. W. M. Blom, Trap-assisted recombination in disordered organic semiconductors, Phys. Rev. Lett. 107, 256805 (2011).

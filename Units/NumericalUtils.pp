@@ -2,7 +2,7 @@ unit NumericalUtils;
 
 {
 SIMsalabim: a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2022, 2023 Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
+Copyright (c) 2020, 2021, 2022, 2023, 2024, S. Heester, Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 

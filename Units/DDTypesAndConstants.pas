@@ -3,7 +3,7 @@ unit DDTypesAndConstants;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023 Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
+Copyright (c) 2021, 2022, 2023, 2024, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -36,21 +36,21 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '4.56'; {version of this unit}
-    defaultParameterFile = 'device_parameters.txt'; {name of file with parameters}
+    DDTypesAndConstantsVersion = '5.11'; {version of this unit}
+    defaultParameterFile = 'simulation_setup.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
     h = 6.62606957e-34; {Js}  {Planck's constant}
     c = 2.99792458e8;	{m/s} {speed of light}
     eps_0 = 8.8542e-12; {F/m} {dielectric constant of vacuum}
-    minExpData = 4;     {min number of experimental JV points}
     tolReal = 1e-6;     {tolerance: when are 2 floats equal?}
 
 {Magic numbers, used in the code:}
     {Name                    Where                        What does it do?}
     threshold_err = 0.1; {IN: Find_Solar_Cell_Parameters, defines max relative error when displaying solar cell parameters}
     MaxInterpolationOrder = 3; {IN: Find_Solar_Cell_Parameters, maximum interpolation order in estimating Jsc, Voc}
-    temp_file = '.temp.txt';{IN: Tidy_up_parameterFile_Exit, a temporary file used to store the device parameters}
+	minExpData = 4; {IN: SimSS /  Read_Experimental_JV, min number of experimental JV points}
+	MinGridPointsPerLayer = 5; {IN: Make_Grid, mininum number of grid points per layer}
     myDelims = [#0..' ', ';', '''', '"', '`', '*', '=']; {IN Tidy_up_parameterFile_Exit, note: not a decimal point or comma!}
     minErr = 1E-4; {IN: Calc_and_Output_Soalr_Cell_Parameters, lower bound to error in parameters}
     tab1 = 6; {IN: Calc_and_Output_Solar_Cell_Parameters, 1st position of tab in table with solar cell parameters}
@@ -63,6 +63,7 @@ CONST
     MaxRombIt = 15; {IN Calc_Dissociation, max. # of iterations in Romberg integration}
     LowerLimBraun = 0.01; {IN Calc_Dissociation, lower limit of integration in Braun model, should be non-zero}
     UpperLimBraun = 20; {IN Calc_Dissociation, upper limit of integration in Braun model }
+    minDeltaLambda = 0.5E-9; {IN: Read_AM_From_File, Read_nk_Material_From_File, minimum spacing between wavelengths in supplied spectrum/n,k files}
 
 
 TYPE 
@@ -74,78 +75,102 @@ TYPE
                         UpdateIons, Store, Use : BOOLEAN
                       END;
 
+	TTrapArray = ARRAY[0..Max_NP + 1] OF ARRAY OF myReal;
+
+	
+	TTrapDistLayer = RECORD {stores the energy and distribution of trap levels in a layer}
+						NLevels, cwe : INTEGER; {cwe: charge of trap when empty}
+						en, Nt : Row; {energy and trap density of a level}
+						nt0, pt0 : Row; {nt0 and pt0 detrapping for bulk}
+						nt0_L, nt0_R, pt0_L, pt0_R : Row {for interfaces, we have a left and right version}
+					 END;
+
+
     TRec = RECORD {for storing the linearization of f_ti and f_tb at a grid point}
-                        direct, bulk, int, {direct (band to band), bulk SRH, interface SRH recombination respectively}
-                        {the rest are auxiliary variables:}
+			direct, bulk, int, {direct (band to band), bulk SRH, interface SRH recombination respectively}
+            {the rest are auxiliary variables:}
 			dir_cont_rhs, dir_cont_m, bulk_cont_rhs, bulk_cont_m,
 			int_cont_lo, int_cont_up, int_cont_m, int_cont_rhs : vector;        
-            END;	
+           END;	
 
     TState = RECORD {stores all variables that either define a state or change in time}
-		    Gehp, tijd : myReal; {set by input}
+		    G_frac, tijd : myReal; {set by input}
 		    dti, Vint, Vext, Jint, Jext, errJ : myReal; {derivative variables or result of simulation}
 		    SimType, convIndex : INTEGER; 
 		    V, Vgn, Vgp, n, p, nion, pion, Gm, 
 		    Jn, Jp, Jnion, Jpion, JD, mun, mup,
 		    gen, Lang, SRH, diss_prob, 
 		    Ntb_charge, Nti_charge : vector; {charge density of bulk/interface trap}
-		    f_tb, f_ti : TrapArray; {f_tb/i: occupancy of bulk/interface trap}
+		    f_tb, f_ti : TTrapArray; {f_tb/i: occupancy of bulk/interface trap}
+		    f_ti_numer, f_ti_inv_denom : TTrapArray; {numerator and inverse of denominator of f_ti}
 		    Rn, Rp : TRec;
 		    UpdateIons : BOOLEAN;
 		END;
 
     TFitMode = (linear, logarithmic);
 
-	
+	TIonicRegions = ARRAY OF RECORD 
+						istart, ifinish : INTEGER;
+						AvC : myReal;
+					END;
+
     TStaticVars = RECORD {stores all parameters that are calculated from input, but don't change during the simulation}
-		    NcLoc, ni, eps, h, x, nid, pid, E_CB, E_VB, orgGm : vector;
-		    nt0b, nt0i, pt0b, pt0i, Ntb, Nti : TrapArray;
-		    ETrapBulk, ETrapInt, BulkTrapDist, IntTrapDist : TrapEnArray;
-		    epsi, V0, VL, Vt, Vti : myReal;
-		    i1, i2, N_Etr, cwe_b, NJV : INTEGER;
-		    cwe_i, q_tr_igb : vector;
-		    Traps, Traps_int, Traps_int_poisson : BOOLEAN;
+		    NcLoc, ni, eps, h, x, nid, pid, E_CB, E_VB, orgGm, mu_n_ion, mu_p_ion : vector;
+		    lid : ShortIntVector;
+		    i0, i1 : intArray;
+		    Ntb, Nti : ARRAY OF TTrapDistLayer; {array over Layers}
+		    Ltot, Lgen, epsi, V0, VL, Vt, Vti : myReal;
+		    NLayers, NJV : INTEGER;
+		    Traps_int_poisson : BOOLEAN;
+		    NegIonRegion, PosIonRegion : TIonicRegions
 		END;												  
+																
+
+    TLayerParameters =  RECORD {all input parameters and ones that are directly derived from the input (e.g. booleans), per layer}
+			    {order of variables: same as in input file, but grouped by type}
+			    {Floating point:}
+				L, eps_r, E_c, E_v, N_c, N_D, N_A, 
+				mu_n, mu_p, gamma_n, gamma_p,
+				nu_int_n, nu_int_p, N_t_int, E_t_int, C_n_int, C_p_int,
+				N_anion, N_cation, mu_anion, mu_cation,
+				G_ehp, P0, a, 
+				k_f, preLangevin, k_direct,
+				N_t_bulk, C_n_bulk, C_p_bulk, E_t_bulk : myReal; 
+			    {integers:}		
+				mobnDep, mobpDep, intTrapType,
+				Use_gen_profile, thermLengDist, bulkTrapType : INTEGER; 
+			    {derived booleans:}
+				layerGen, fieldDepG, negIons, posIons, 
+				ionsMayEnter, useLangevin,
+				bulkTrapFromFile, intTrapFromFile : BOOLEAN;
+			    {filenames and other strings:}
+				layerFile, nkLayer, bulkTrapFile, intTrapFile : ANSISTRING
+			END;																				
+
 
     TInputParameters =  RECORD {all input parameters and ones that are directly derived from the input (e.g. booleans)}
 			    {order of variables: same as in input file, but grouped by type}
+				lyr : ARRAY OF TLayerParameters; {all parameters for a layer}
 			    {Floating point:}
-				T, L, eps_r, CB, VB, Nc, n_0, p_0, 
-				L_TCO, L_BE, lambda_min, lambda_max,
-				mun_0, mup_0, gamma_n, gamma_p,
-				W_L, W_R,
-				Sn_R, Sn_L, Sp_L, Sp_R, Rseries, Rshunt, L_LTL, L_RTL, Nc_LTL, 
-				Nc_RTL, doping_LTL, doping_RTL, mob_LTL, mob_RTL,  
-				nu_int_LTL, nu_int_RTL, eps_r_LTL, eps_r_RTL, 
-				CB_LTL, VB_LTL, CB_RTL, VB_RTL, CNI, CPI,
-				mobnion, mobpion,
-				Gehp, Gfrac, P0, a, 
-				kf, Lang_pre, kdirect,
-				Bulk_tr, St_L, St_r, GB_tr, 
-				Cn, Cp, ETrapSingle, tolPois, maxDelV,
-				tolDens, couplePC, minAcc, maxAcc, grad, TolVint,
-				Vpre, Vmin, Vmax, Vstep, Vacc, timeout, rms_threshold : myReal; 
-			    {integers:}		
-				MaxItPois, 
-				mob_n_dep, mob_p_dep,
-				Use_gen_profile, ThermLengDist, ion_red_rate, num_GBs, Tr_type_L, Tr_type_R, Tr_type_B, 
-				NP, CurrDiffInt, MaxItSS, MaxItTrans, 
-				FailureMode, OutputRatio, Vdistribution, Vscan, 
-				Pause_at_end : INTEGER; 
+				T, W_L, W_R, L_TCO, L_BE, lambda_min, lambda_max, 
+				S_n_R, S_n_L, S_p_L, S_p_R, R_series, R_shunt, G_frac, tolPois, maxDelV,
+				tolDens, couplePC, minAcc, maxAcc, grad, tolVint,
+				Vpre, Vmin, Vmax, Vstep, Vacc, timeout, fitThreshold : myReal;
+			    {integers:}
+				Use_gen_profile, maxItPois, 
+				NP, currDiffInt, maxItSS, maxItTrans, 
+				failureMode, outputRatio, Vdist, Vscan : INTEGER; 
 			    {derived booleans:}
-				Field_dep_G, negIonsMove, posIonsMove, TLsGen,
-				IonsInTLs, TLsTrap, UseLangevin,
-				BulkTrapFromFile, IntTrapFromFile, 
-				IgnoreNegDens, AutoTidy, StoreVarFile, LimitDigits, 
-				PreCond, until_Voc, UseExpData, AutoStop : BOOLEAN;
+				fixIons, ignoreNegDens, autoTidy, StoreVarFile, limitDigits, 
+				preCond, untilVoc, useExpData, autoStop, pauseAtEnd : BOOLEAN;
 			    {filenames and other strings:}
-				nk_substrate, nk_TCO, nk_active, nk_BE, spectrum, 
-				nk_LTL, nk_RTL, Gen_profile, BulkTrapFile, IntTrapFile, 
-				log_file, tVG_file, 
-				Var_file, tj_file, ExpJV, JV_file, scPars_file	: ANSISTRING;
+				nkSubstrate, nkTCO, nkBE, spectrum, 
+				genProfile, logFile, tVGFile, 
+				varFile, tJFile, expJV, JVFile, scParsFile	: ANSISTRING;
 			    {Misc: }
-				rms_mode : TFitMode;
+				fitMode : TFitMode;				
 			END;																				
+
 	
 	TSCPar = RECORD {for storing solar cell parameters}
 			Jsc, Vmpp, MPP, FF, Voc, ErrJsc, ErrVmpp, ErrMPP, ErrFF, ErrVoc : myReal;
@@ -153,8 +178,8 @@ TYPE
 		END;
 
     TLinFt = RECORD {for storing the linearization of f_ti and f_tb at a grid point}
-                        f_ti_lo, f_ti_up, f_ti_m, f_ti_rhs : vector;
-                        f_tb_m, f_tb_rhs : vector;
+				f_ti_lo, f_ti_up, f_ti_m, f_ti_rhs : vector;
+                f_tb_m : vector;
              END;							
 
 

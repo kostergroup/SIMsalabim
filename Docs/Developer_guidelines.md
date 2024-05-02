@@ -27,8 +27,9 @@ In case of bug reports we will need the exact configuration of the 'device_param
 
 ## Notation within the codes
 - Use Linux line-endings
-- Add ample comments to the code, using curly brackets {}. Describe why rather than when formulating comments.
-- Naming of variables: camel case
+- Add ample comments to the code, using curly brackets {}. Describe *why* rather than *what* when formulating comments.
+- Naming of variables that represent a physics unit: snake-case where multiple sub- and superscripts are separated by an underscore, for example: E_t_bulk
+- Naming of other variables: lower camel-case, i.e. camel-case where the first word is always lowercase, for example: bulkTrapType
 - Naming of procedures and function: pascal case combined with snake-case: Calc_Elec_Mob, for example
 - FPC/Pascal key words fully capitalized: IF ... THEN ... ELSE
 - Indentation width: 4

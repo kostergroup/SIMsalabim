@@ -33,20 +33,20 @@ class SIMsalabim():
         if code_name == 'SimSS' or code_name == 'SIMsalabim':
             if include_jv == True:
                 self.output_dic['jv'] = None
-                self.out_fil_nam['-JV_file'] = output_sub_folder +'/JV' + str(file_nr) + '_file.dat'
+                self.out_fil_nam['-JVFile'] = output_sub_folder +'/JV' + str(file_nr) + '_file.dat'
 
             if include_scpars == True:
                 self.output_dic['scpars'] = None
-                self.out_fil_nam['-ScPars_file'] = output_sub_folder + '/SCpars' + str(file_nr) + '_file.dat'
+                self.out_fil_nam['-scParsFile'] = output_sub_folder + '/SCpars' + str(file_nr) + '_file.dat'
 
         if code_name == 'ZimT':
             if include_tj == True:
                 self.output_dic['tj'] = None
-                self.out_fil_nam['-tj_file'] = output_sub_folder + '/tj' + str(file_nr) + '_file.dat'
+                self.out_fil_nam['-tJFile'] = output_sub_folder + '/tj' + str(file_nr) + '_file.dat'
                 
         if include_var == True:
             self.output_dic['var'] = None
-            self.out_fil_nam['-var_file'] = output_sub_folder +'/var' + str(file_nr) + '_file.dat'
+            self.out_fil_nam['-varFile'] = output_sub_folder +'/var' + str(file_nr) + '_file.dat'
 
         self.make_command_list()
 
@@ -95,9 +95,9 @@ class SIMsalabim():
         output = None
         try:
             output = subprocess.run(self.cmd_list, encoding='utf8', capture_output=True, cwd=self.work_dir, shell=self.windows)
+            return(output)
         except subprocess.CalledProcessError as err:
             print('{} exited with non-zero status.'.format(self.code_name))
-            sys.exit(1)
 
     def set_work_dir(self, working_directory, output_subdir):
         work_path = os.path.dirname(working_directory)
@@ -117,7 +117,7 @@ class SIMsalabim():
                 file_path = os.path.join(self.work_dir, self.out_fil_nam[file])
                 
                 with open(file_path) as out_fil:
-                    dic_entry = file[1:].split('_')[0].lower()
+                    dic_entry = file[1:].split('File')[0].lower()
 
                     data = pd.read_csv(out_fil, delim_whitespace=True)
                     if data.empty:

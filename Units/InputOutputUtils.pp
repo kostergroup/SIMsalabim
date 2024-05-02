@@ -3,7 +3,7 @@ unit InputOutputUtils;
 
 {
 SIMsalabim: a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2023 Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
+Copyright (c) 2020, 2021, 2023, 2024, S. Heester, Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -29,7 +29,8 @@ Zernike Institute for Advanced Materials
 Nijenborgh 4, 9747 AG Groningen, the Netherlands
 }
 
-{$MODE DELPHI} {force DELPHI mode}
+{$MODE OBJFPC} {force OBJFPC mode}
+{$LONGSTRINGS ON} {we need this as some functions rely on ansi strings}
 
 interface
 
@@ -47,6 +48,9 @@ function DelWhite(str : string) : string;
 
 function DelWhite1(str : string) : string;
 {returns a copy of str with all white spaces (ASCII code 9,..13, and 32) reduced to 1 space}
+
+function ConvertStrToFloat(str : string; var r : myReal) : boolean;
+{First, determines the decimal separator in str (if any), then converts str to its value in r. Returns TRUE (FALSE) if (un)successful.}
 
 procedure getRealfromCL(ch : String; var foundit : boolean; var r : myReal; CaseSensitive : boolean = false);
 {retrieves real number put after option ch in command line}
@@ -85,50 +89,50 @@ OVERLOAD;
 PROCEDURE Read_Integer(VAR inxut : TEXT; VAR k : INTEGER);
 {reads an integer from file inxut using proc. Read_Number}
 
-PROCEDURE Get_Float(VAR inv, log : TEXT; name_variable : STRING; VAR r : myReal); 
+PROCEDURE Get_Float(VAR inv, log : TEXT; name_variable : STRING; VAR r : myReal; CLprefix : STRING = ''); 
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be written in file log.}
 OVERLOAD;
 
-PROCEDURE Get_Float(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : myReal);
+PROCEDURE Get_Float(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : myReal; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
 OVERLOAD;
 
-PROCEDURE Get_Integer(VAR inv, log : TEXT; name_variable : STRING; VAR r : INTEGER);
+PROCEDURE Get_Integer(VAR inv, log : TEXT; name_variable : STRING; VAR r : INTEGER; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be written in file log.}
 OVERLOAD;
 
-PROCEDURE Get_Integer(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : INTEGER);
+PROCEDURE Get_Integer(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : INTEGER; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
 OVERLOAD;
 
-PROCEDURE Get_String(VAR inv, log : TEXT; name_variable : STRING; VAR r : STRING);
+PROCEDURE Get_String(VAR inv, log : TEXT; name_variable : STRING; VAR r : STRING; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be written in file log.} 
 OVERLOAD;
 
-PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : STRING);
+PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : STRING; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
 OVERLOAD;
 
-PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : SHORTSTRING);
+PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : SHORTSTRING; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
 OVERLOAD;
 
 procedure Read_Table(fileName : string; var data : Table; NumCol : integer; var NumLines : integer;
-					 Delims : TSetChar = [#0..' ', ',', ';']; 
+					 Delims : TSetChar = [#0..' ', ';']; 
 					 CommentSym : char = '*'; ErrorHandling : integer = 2;
 					 header : string = '');
 {Reads data from a file in a table format. Comments (after CommentSym) are ignored. Delims define the delimiters}
@@ -187,24 +191,23 @@ procedure getRealfromCL(ch : String; var foundit : boolean; var r : myReal; Case
 var i : integer;
 	foundkey : boolean;
 begin
-     i:=1;
-     foundit:=false;
-     while (i <= ParamCount) and (not foundit) do
-     begin
-          {did we find the key?}
-          foundkey:= (ParamStr(i)=ch) or ((not CaseSensitive) and (LowerCase(ParamStr(i))=LowerCase(ch)));
-          if foundkey and (i < ParamCount) then {we have found ch and there's something coming...}
-          begin
-               Try
-                  r:=StrToFloat(ParamStr(i+1));
-                  foundit:=true;
-               except {note that if an exception occurs foundit stays false}
-                     On val : Exception do
-                     Stop_Prog('Exception when reading from command line : '+val.Message, EC_InvalidCLInput);
-               end;
-          end;
-          i:=i+1;
-     end;
+	i:=0;
+    foundit:=false;
+    foundkey:=false;
+    
+    while (i < ParamCount) and (not foundkey) do
+    begin
+		inc(i);
+		{did we find the key?}
+        foundkey:= (ParamStr(i)=ch) or ((not CaseSensitive) and (LowerCase(ParamStr(i))=LowerCase(ch)));
+	end;
+
+    if foundkey then {we have found ch and there's something coming...}
+	begin
+		foundit:=ConvertStrToFloat(ParamStr(i+1), r); {now attempt to convert the string to its float value}
+		if not foundit then	
+			Stop_Prog('Error when reading value of '+ch+' from command line.', EC_InvalidCLInput)
+	end
 end;
 
 procedure getStringfromCL(ch : String; var foundit : boolean; var r : string; CaseSensitive : boolean = false);
@@ -282,6 +285,31 @@ begin
      FindClose(Info);
 end;
 
+FUNCTION ConvertStrToFloat(str : STRING; VAR r : myReal) : BOOLEAN;
+{First, determines the decimal separator in str (if any), then converts str to its value in r. Returns TRUE (FALSE) if (un)successful.}
+VAR posComma, posStop : INTEGER;
+BEGIN
+	{first check which decimal separator (if any) was used:}
+	posComma:=POS(',',str);
+	posStop:=POS('.',str);
+	
+	IF posComma*posStop=0 THEN 
+	BEGIN
+		{OK, now we can set the DecimalSeparator:}
+		IF POS(',',str)>0 THEN DefaultFormatSettings.DecimalSeparator:=',';
+		IF POS('.',str)>0 THEN DefaultFormatSettings.DecimalSeparator:='.';
+		{note: if the input numer (in str_num) is an integer, then we don't know and don't change the DecimalSeparator}		
+		{now try to convert str to r:}
+		TRY
+			r:=StrToFloat(str);
+			ConvertStrToFloat:=TRUE
+		EXCEPT
+			ConvertStrToFloat:=FALSE
+		END	
+	END
+	ELSE {we cannot have both , and . in the string!}
+		ConvertStrToFloat:=FALSE	
+END;
 PROCEDURE Read_Number(VAR input : TEXT; VAR r : myReal);
 {This procedure reads a number from the file input and puts it into the var r}
 {The input file may contain comment lines starting with '*' or other characters
@@ -306,7 +334,7 @@ BEGIN
             WHILE (ch<>'*') AND (NOT EOLN(input)) DO
             BEGIN {read the rest of the number until further comment or eoln}
                 READ(input, ch);
-                IF (ch IN numerical) OR (ch='E') OR (ch='e') OR (ch='.') {e for exponent}
+                IF (ch IN numerical) OR (ch='E') OR (ch='e') OR (ch='.') OR (ch=',') {e for exponent}
                     THEN str_num:=str_num + ch
             END;
         END
@@ -315,7 +343,7 @@ BEGIN
     IF got_number
     THEN BEGIN
             READLN(input); {file position is at beginning of next line}
-            VAL(str_num, r, code); {this converts the string into it's value}
+            VAL(str_num, r, code); {this converts the string into its value}
             IF code=0 THEN okay:=TRUE    {reading of number is successful}
          END
     ELSE r:=0;  {reading of number is unsuccessful}
@@ -395,7 +423,7 @@ BEGIN
 	k:=ROUND(dummy);
 END;
 
-PROCEDURE Get_Float(VAR inv, log : TEXT; name_variable : STRING; VAR r : myReal);
+PROCEDURE Get_Float(VAR inv, log : TEXT; name_variable : STRING; VAR r : myReal; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be written in file log.}
@@ -404,16 +432,16 @@ VAR gotit : BOOLEAN;
 BEGIN
 	Read_Number(inv, r); {FIRST get value from parameter_file}
 	{note: if we do not read r from dev.par. file, then the program crashes as it has lost its way in the file}
-	getRealfromCL('-'+name_variable, gotit, dum); {try to get it from command line}
+	getRealfromCL('-'+CLprefix+name_variable, gotit, dum); {try to get it from command line}
 	{note: getRealfromCL is not case-sensitive by default}
 	IF gotit
 		THEN BEGIN
 			r:=dum; {if we got it, then assign dum to r}
-			WRITELN(log, name_variable,' = ',r); {and write value in log file}
+			WRITELN(log, CLprefix, name_variable,' = ',r); {and write value in log file}
 		END;
 END;
 
-PROCEDURE Get_Float(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : myReal);
+PROCEDURE Get_Float(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : myReal; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
@@ -422,17 +450,17 @@ VAR gotit : BOOLEAN;
 BEGIN
 	Read_Number(inv, r); {FIRST get value from parameter_file}
 	{note: if we do not read r from dev.par. file, then the program crashes as it has lost its way in the file}
-	getRealfromCL('-'+name_variable, gotit, dum); {try to get it from command line}
+	getRealfromCL('-'+CLprefix+name_variable, gotit, dum); {try to get it from command line}
 	{note: getRealfromCL is not case-sensitive by default}
 	IF gotit
 		THEN BEGIN
 			r:=dum; {if we got it, then assign dum to r}
-			msgstr:=msgstr + name_variable + ' = '+FloatToStr(r) + LineEnding;
+			msgstr:=msgstr + CLprefix + name_variable + ' = '+FloatToStr(r) + LineEnding;
 			{and store its name and value in the msgstr}
 		END;
 END;
 
-PROCEDURE Get_Integer(VAR inv, log : TEXT; name_variable : STRING; VAR r : INTEGER);
+PROCEDURE Get_Integer(VAR inv, log : TEXT; name_variable : STRING; VAR r : INTEGER; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be written in file log.}
@@ -441,16 +469,16 @@ VAR gotit : BOOLEAN;
 BEGIN
 	Read_Integer(inv, r); {FIRST get value from parameter_file}
 	{note: if we do not read r from dev.par. file, then the program crashes as it has lost its way in the file}
-	getRealfromCL('-'+name_variable, gotit, dum); {try to get it from command line}
+	getRealfromCL('-'+CLprefix+name_variable, gotit, dum); {try to get it from command line}
 	{note: getRealfromCL is not case-sensitive by default}
 		IF gotit
 		THEN BEGIN
 			r:=ROUND(dum); {if we got it, then assign dum to r}
-			WRITELN(log, name_variable,' = ',r); {and write value in log file}
+			WRITELN(log, CLprefix, name_variable,' = ',r); {and write value in log file}
 		END;
 END;
 
-PROCEDURE Get_Integer(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : INTEGER);
+PROCEDURE Get_Integer(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : INTEGER; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
@@ -459,17 +487,17 @@ VAR gotit : BOOLEAN;
 BEGIN
 	Read_Integer(inv, r); {FIRST get value from parameter_file}
 	{note: if we do not read r from dev.par. file, then the program crashes as it has lost its way in the file}
-	getRealfromCL('-'+name_variable, gotit, dum); {try to get it from command line}
+	getRealfromCL('-'+CLprefix+name_variable, gotit, dum); {try to get it from command line}
 	{note: getRealfromCL is not case-sensitive by default}
 		IF gotit
 		THEN BEGIN
 			r:=ROUND(dum); {if we got it, then assign dum to r}
-			msgstr:=msgstr + name_variable + ' = '+IntToStr(r) + LineEnding
+			msgstr:=msgstr + CLprefix + name_variable + ' = '+IntToStr(r) + LineEnding
 			{and store its name and value in the msgstr}
 		END;
 END;
 
-PROCEDURE Get_String(VAR inv, log : TEXT; name_variable : STRING; VAR r : STRING);
+PROCEDURE Get_String(VAR inv, log : TEXT; name_variable : STRING; VAR r : STRING; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be written in file log.} 
@@ -478,16 +506,16 @@ VAR gotit : BOOLEAN;
 BEGIN
 	Read_Name(inv, name_variable, r); {FIRST get value from parameter_file}
 	{note: if we do not read r from dev.par. file, then the program crashes as it has lost its way in the file}
-	getStringfromCL('-'+name_variable, gotit, dum); {try to get it from command line}
+	getStringfromCL('-'+CLprefix+name_variable, gotit, dum); {try to get it from command line}
 	{note: getStringfromCL is not case-sensitive by default}
 	IF gotit
 		THEN BEGIN
 			r:=dum; {if we got it, then assign dum to r}
-			WRITELN(log, name_variable,' = ',r); {and write value in log file}
+			WRITELN(log, CLprefix, name_variable,' = ',r); {and write value in log file}
 		END;
 END;
 
-PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : STRING);
+PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : STRING; CLprefix : STRING = '');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
@@ -496,17 +524,17 @@ VAR gotit : BOOLEAN;
 BEGIN
 	Read_Name(inv, name_variable, r); {FIRST get value from parameter_file}
 	{note: if we do not read r from dev.par. file, then the program crashes as it has lost its way in the file}
-	getStringfromCL('-'+name_variable, gotit, dum); {try to get it from command line}
+	getStringfromCL('-'+CLprefix+name_variable, gotit, dum); {try to get it from command line}
 	{note: getStringfromCL is not case-sensitive by default}
 	IF gotit
 		THEN BEGIN
 			r:=dum; {if we got it, then assign dum to r}
-			msgstr:=msgstr + name_variable + ' = '+ r + LineEnding
+			msgstr:=msgstr + CLprefix + name_variable + ' = '+ r + LineEnding
 			{and store its name and value in the msgstr}
 		END;
 END;
 
-PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : SHORTSTRING);
+PROCEDURE Get_String(VAR inv : TEXT; VAR msgstr : ANSISTRING; name_variable : STRING; VAR r : SHORTSTRING; CLprefix : STRING ='');
 {Reads variable 'name_variable' from input file 'inv' and assigns its value to 'r'
 Next, it tries to get this value from the command line. If a command line value is
 found, its name and value will be stored in the msgstr.}
@@ -515,12 +543,12 @@ VAR gotit : BOOLEAN;
 BEGIN
 	Read_Name(inv, name_variable, r); {FIRST get value from parameter_file}
 	{note: if we do not read r from dev.par. file, then the program crashes as it has lost its way in the file}
-	getStringfromCL('-'+name_variable, gotit, dum); {try to get it from command line}
+	getStringfromCL('-'+CLprefix+name_variable, gotit, dum); {try to get it from command line}
 	{note: getStringfromCL is not case-sensitive by default}
 	IF gotit
 		THEN BEGIN
 			r:=dum; {if we got it, then assign dum to r}
-			msgstr:=msgstr + name_variable + ' = '+ r + LineEnding
+			msgstr:=msgstr + CLprefix + name_variable + ' = '+ r + LineEnding
 			{and store its name and value in the msgstr}
 		END;
 END;
@@ -543,7 +571,7 @@ begin
 end;
 
 procedure Read_Table(fileName : string; var data : Table; NumCol : integer; var NumLines : integer;
-					 Delims : TSetChar = [#0..' ', ',', ';']; 
+					 Delims : TSetChar = [#0..' ', ';']; 
 					 CommentSym : char = '*'; ErrorHandling : integer = 2;
 					 header : string = '');
 {Reads data from a file in a table format. Comments (after CommentSym) are ignored. Delims define the delimiters}
@@ -556,7 +584,7 @@ procedure Read_Table(fileName : string; var data : Table; NumCol : integer; var 
 
 var inp : text;
 	i, j, lineCount : integer;
-	aline : string; {here we store a string line from the file}
+	aline, part : string; {here we store a string line from the file}
 	dataRow : array of myReal; {this is where we store a line of the data}
 	FoundHeader : boolean;
 	
@@ -573,6 +601,9 @@ var inp : text;
 	
 begin
 
+	{first ensure that the delimiters do not contain a decimal separator (. or ,):}
+	if ['.', ','] * Delims <> [] then Stop_Prog('Read_Table does not accept a . or , as a field-delimiter.', EC_ProgrammingError); 
+	
 	if not FileExists(fileName) 
         then Stop_Prog('Cannot find file '+fileName, EC_FileNotFound);
     assign(inp, fileName); {once we get here, we're sure the file exists}
@@ -607,13 +638,14 @@ begin
 		Clean_Line(aline, CommentSym); {removes excess white space and anything after CommentSym}
 	
 		{check if number of fields equals number of columns we're supposed to find:}
-		if WordCount(aline, Delims) >= NumCol then begin {extract fields/numbers from the line}
+		if WordCount(aline, Delims) >= NumCol then {extract fields/numbers from the line}
+		begin
 			{OK, let's try to extract the data:}
-			try
-				for j:=0 to NumCol-1 do
-					dataRow[j]:=StrToFloat(ExtractWord(j+1, aline, Delims)); {now extract the fields and convert to float:}
-			except
-				Handle_Error('Cannot process line '+IntToStr(lineCount)+' in '+filename+'.', ErrorHandling);
+			for j:=0 to NumCol-1 do
+			begin
+				part:=ExtractWord(j+1, aline, Delims);
+				if not ConvertStrToFloat(part, dataRow[j]) then
+					Handle_Error('Cannot process line '+IntToStr(lineCount)+' in '+filename+'.', ErrorHandling)
 			end;
 			
 			{now the data are there, we need to copy it to the main table: data}
