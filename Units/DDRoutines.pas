@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.11'; {version of this unit}
+CONST DDRoutinesVersion = '5.12'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -3016,7 +3016,7 @@ BEGIN
     
     WHILE LENGTH(temp) <> 0 DO
     BEGIN
-		line:=Copy2SymbDel(temp, LineEnding); {Deletes and returns all characters in a string till a given character (not included).}
+		line:=Copy2StringDel(temp, LineEnding); {Deletes and returns all characters in a string till a given string (not included).}
 		IF (LeftStr(line, 2)<>'**') AND (LENGTH(line)<>0) THEN {we should have a line that contains a parameter}
 		BEGIN
 			pos_asterix:=POS('*', line); {now we know there must be an asterix}

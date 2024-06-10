@@ -43,6 +43,10 @@ type TSetChar = Set of Char;
 function myBoolStr(val : boolean) : string;
 {my implementation of BoolToStr. Returns 'TRUE' or 'FALSE'}
 
+function Copy2StringDel(var str : ansistring; key : ansistring) : ansistring;
+{Deletes and returns all characters in a string (str) till a given string (key) (not included).}
+{This is similar to strutils/Copy2SymbDel, but takes a string instead of a char}
+
 function DelWhite(str : string) : string;
 {returns a copy of str with all white spaces (ASCII code 9,..13, and 32) removed from it.}
 
@@ -159,6 +163,27 @@ begin
     if val 
         then myBoolStr:='TRUE'
         else myBoolStr:='FALSE'
+end;
+
+function Copy2StringDel(var str : ansistring; key : ansistring) : ansistring;
+{Deletes and returns all characters in a string (str) till a given string (key) (not included).}
+{This is similar to strutils/Copy2SymbDel, but takes a string instead of a char}
+var i, k : integer;
+begin
+	
+	{first: try to find key in str:}
+	i:=Pos(key, str);
+	
+	if i>1 then begin {so key is in str, and some substr preceeds it}
+		Copy2StringDel:=LeftStr(str, i-1); {i-1 as we don't copy any part of key}
+		{now we keep the last k characters of str, the ones AFTER key:}
+		k:=Length(str) - Length(key) - Length(Copy2StringDel);
+		str:=RightStr(str, k)
+	end
+	else begin {key is not in str, or it is the only part}
+		Copy2StringDel:=str;
+		str:=''
+	end
 end;
 
 function DelWhite(str : string) : string;
