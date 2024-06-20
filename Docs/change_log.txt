@@ -1,3 +1,7 @@
+Version 5.13, 20 June 2024, LJAK
+Fixed another small bug that was introduced in v5.12: When using autoTidy, the input files were corrupted by SIMsalabim due to a bug in InputOutputUtils/Copy2StringDel. 
+
+
 Version 5.12, 10 June 2024, LJAK
 Fixed a small bug: Version 5.11 did not compile on windows as the LineEnding constant is not a single character on windows, but a combination of LF and CR, making it a string. Thus, on windows you can't use LineEnding as an input in Copy2SymbDel, which we use in DDRoutines/Tidy_Up_File. So, I have introduced a new function in InputOutputUtils, called Copy2StringDel, which is very similar to strutils/Copy2SymbDel in that it deletes and returns all characters in a string till a given string (not included).
 

@@ -174,7 +174,7 @@ begin
 	{first: try to find key in str:}
 	i:=Pos(key, str);
 	
-	if i>1 then begin {so key is in str, and some substr preceeds it}
+	if i>0 then begin {so key is in str, and some substr preceeds it}
 		Copy2StringDel:=LeftStr(str, i-1); {i-1 as we don't copy any part of key}
 		{now we keep the last k characters of str, the ones AFTER key:}
 		k:=Length(str) - Length(key) - Length(Copy2StringDel);

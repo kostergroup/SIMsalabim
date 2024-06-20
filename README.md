@@ -185,6 +185,8 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
+- B. Sun, B. Gerber, S. Shoaee, and D. Neher, An Analytical Model for Describing Transient Photocurrents in Bias-Assisted Charge Extraction for Low-Mobility Organic Solar Cells, Sol. RRL, 2400211 (2024).
+
 - B. Akbar, H. Tayara, and K.T. Chong, Unveiling dominant recombination loss in perovskite solar cells with a XGBoost-based machine learning approach, iScience 27, 109200 (2024).
 
 - N. Rodkey, G. Fernandez, M. Inmaculada, F. Ventosinos. C Roldán-Carmona, L.J.A. Koster, and H.J. Bolink, Close-Space Sublimation as a Scalable Method for Perovskite Solar Cells, ACS Engery Lett. 9, 927 (2024).
