@@ -1,3 +1,7 @@
+Version 5.14, 10 July 2024, SH, LJAK
+Fixed a small bug: specifying a name of the first layer via the command line did not function properly.
+
+
 Version 5.13, 20 June 2024, LJAK
 Fixed another small bug that was introduced in v5.12: When using autoTidy, the input files were corrupted by SIMsalabim due to a bug in InputOutputUtils/Copy2StringDel. 
 

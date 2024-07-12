@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.13'; {version of this unit}
+CONST DDRoutinesVersion = '5.14'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -522,7 +522,7 @@ BEGIN
 		UNTIL NOT FoundLayer;
 
 		{now see if the command line specifies any other names of the layers:}
-		FOR i:=1 TO stv.NLayers DO
+		FOR i:=2 TO stv.NLayers DO {exclude layer 1 as we treated that one as per usual}
 		BEGIN
 			dumstr:='-l' + IntToStr(i);
 			getStringfromCL(dumstr, FoundLayer, dumstr2); {try to get it from command line}
