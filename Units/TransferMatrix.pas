@@ -3,7 +3,7 @@ unit TransferMatrix;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -42,14 +42,17 @@ USES
 	SysUtils,
     Ucomplex;
 
-CONST   TransferMatrixVersion = '5.14'; {version of this unit}
+CONST   TransferMatrixVersion = '4.58'; {version of this unit}
 
         lambda_step = 1E-9; {lambda step size}
-        xstep = 1E-9; {grid step size (Only for the TCO and BE layers.)}
+        xstep = 1E-9; {grid step size (not TLs o and active layer)}
+
+        MaxNoOfLayers = 6; {Max Number of Layers in device. Needs to be defined here untill move to N layers}
+
 TYPE 
     TFMatrix = ARRAY[0..1,0..1] OF COMPLEX;
 
-PROCEDURE Calc_TransferMatrix(VAR stv : TSTaticVars; VAR log : TEXT; CONSTREF par : TInputParameters);
+PROCEDURE Calc_TransferMatrix(VAR stv : TSTaticVars; CONSTREF par : TInputParameters);
 {Main procedure to calculate a generation profile based on input n,k values and spectrum}
 
 IMPLEMENTATION
@@ -159,34 +162,55 @@ VAR a,b: INTEGER;
     retAbs : Table;
 BEGIN
     SetLength(retAbs, SizeLayers+1, sizeLambdas); {Initialize array size}    
-    FOR a:=0 TO SizeLayers DO
+    FOR a:=1 TO SizeLayers DO
     BEGIN
         FOR b:=0 TO sizeLambdas-1 DO
             retAbs[a][b] := (4*PI*nTotal[a][b].im)/(lambdas[b]);
     END;
     Calc_Absorption_Coefficient := retAbs;
 END;
- 
-PROCEDURE Init_Layers_Thicknesses(CONSTREF par : TInputParameters; VAR stv : TSTaticVars; VAR Thicknesses : Row; VAR Layers : StringArray; VAR StartIdx : INTEGER );
-{ Create arrays with all layer thicknesses and layer names. Add the TCO layer and BE layer. 
-If the thickness of the TCO layer is 0 the StartIdx indictor is set to 1. 
-When this is this case, the TCO layer idx/row/column is skipped/ignored for the rest of the Calc_TransferMatrix procedure.}
-    
-VAR i : INTEGER;
+
+PROCEDURE Init_Layers_Thicknesses(CONSTREF par : TInputParameters; VAR Thicknesses : Row; VAR Layers : StringArray; VAR NoOfLayers, posA, posLTL, posRTL, posTCO, posBE : INTEGER );
+{Build Arrays with the layer names and thicknesses based on the input parameters. If a layer thickness = 0 (except substrate layer), skip it and do not add it to either array. 
+Array size is recorded with NoOfLayers and position indicators if relevant. If such a layer is not present, positon indicator remains 0}
 BEGIN
-    Thicknesses[0] := par.L_TCO;
-    Layers[0] := par.nkTCO;
+    Thicknesses[NoOfLayers] := 0; {Substrate}
+    layers[NoOfLayers] := par.nk_substrate; 
+    INC(NoOfLayers);
 
-    IF par.L_TCO > 0 THEN StartIdx := 0;
-
-    FOR i := 1 TO stv.NLayers DO
+    IF par.L_TCO > 0 THEN  {TCO}
     BEGIN
-        Thicknesses[i] := par.lyr[i].L;
-        Layers[i]:= par.lyr[i].nkLayer;
+        Thicknesses[NoOfLayers] := par.L_TCO;
+        layers[NoOfLayers] := par.nk_TCO;
+        posTCO := NoOfLayers;
+        INC(NoOfLayers);
     END;
 
-    Thicknesses[i+1] := par.L_BE;
-    Layers[i+1] := par.nkBE;
+    IF par.L_LTL > 0 THEN {LTL}
+    BEGIN
+        Thicknesses[NoOfLayers] := par.L_LTL;
+        layers[NoOfLayers] := par.nk_LTL;
+        posLTL := NoOfLayers;
+        INC(NoOfLayers);
+    END;
+
+    Thicknesses[NoOfLayers] := (par.L - par.L_LTL - par.L_RTL); {Active}
+    layers[NoOfLayers] := par.nk_active; 
+    posA := NoOfLayers;
+    INC(NoOfLayers);
+
+    IF par.L_RTL > 0 THEN {LTL}
+    BEGIN
+        Thicknesses[NoOfLayers] := par.L_RTL;
+        layers[NoOfLayers] := par.nk_RTL;
+        posRTL := NoOfLayers;
+        INC(NoOfLayers);
+    END;
+
+    Thicknesses[NoOfLayers] := par.L_BE; {Back electrode}
+    layers[NoOfLayers] := par.nk_BE; 
+    posBE := NoOfLayers;
+    INC(NoOfLayers);
 END;
 
 PROCEDURE Read_nk_Material_From_File(idx, NoOfLambdas: INTEGER; Material : STRING; lambdas : row; VAR nTotal : ComplexMatrix);
@@ -195,7 +219,6 @@ Interpolate the read values to assign n,k values for each lambda provided. Store
 VAR l,NumValues : INTEGER;
     nInt, kInt, lFile, nFile, kFile : Row;
 BEGIN
-    writeln('Reading nk file: ',Material);
     Read_XYZ_Table(lFile, nFile, kFile, Material, 'lambda n k', NumValues);
 
     {Check the whether the spacing between wavelenths is at least the minimal value as defined in the DDTypesAndConstants unit}
@@ -221,7 +244,6 @@ Interpolate the read value to assign AMvalue for each lambda provided }
 VAR l, numAMValues : INTEGER;
     amInt,lFile,vFile : Row;
 BEGIN
-    writeln('Reading spectrum: ',filename);
     Read_XY_Table(lFile, vFile, filename, 'lambda I', NumAMValues);
 
     {Check the whether the spacing between wavelenths is at least the minimal value as defined in the DDTypesAndConstants unit}
@@ -236,9 +258,9 @@ BEGIN
         AMValue[l] := AMInt[l]; 
 END;
 
-PROCEDURE Make_Grid_TM(CONSTREF par : TInputParameters; CONSTREF stv : TSTaticVars; StartIdx : INTEGER; VAR NoOfXPos : INTEGER; VAR xPos : Row; VAR xMat : intArray);
-{Create a grid consisting of the existing grid from SIMsalabim, extended with additional layers needed for the TransferMatrix Model. }
-VAR f, NoOfXPosTCO, NoOfXPosBE : INTEGER;
+PROCEDURE Make_Grid_TM(CONSTREF par : TInputParameters; CONSTREF stv : TSTaticVars; posA, posLTL, posRTL, posTCO, posBE : INTEGER; VAR NoOfXPos : INTEGER; VAR xPos : Row; VAR xMat : intArray);
+{Create a grid consisting of the existing grid for the TLs and active layer, extended with additional layers needed for the TransferMatrix Model. }
+VAR f, NoOfXPosTCO, NoOfXPosBE, count : INTEGER;
 BEGIN
     {Determine the number of grid points per layer and sum them to get the total number of grid points}
     NoOfXPosTCO := 0;
@@ -248,37 +270,49 @@ BEGIN
         IF NoOfXPosTCO*xstep = par.L_TCO THEN {When the last x position of the TCO layer matches the layer boundary, exclude it because it will be taken into account in the next layer }
             NoOfXPosTCO := NoOfXPosTCO - 1;
     END;
-    NoOfXPosBE := Array_Size(0,par.L_BE,xstep) +1; {Back electrode, include the very last point}
-    NoOfXPos := NoOfXPosTCO + (par.NP + 2) + NoOfXPosBE; {Total number of grid points}
-    {Create an Array (grid) with x positions. For the TCO and BE layers, create an unifrom grid.  
-    Create matching xMat array (same length and indices) which contains the layer idx for the grid point. Idx 0 is reserved for the TCO, even when it has a thickness of 0.}
+    NoOfXPosBE := Array_Size(0,par.L_BE,xstep); {Back electrode}
+    NoOfXPos := NoOfXPosTCO + par.NP + 1 + NoOfXPosBE; {Total number of grid points}
+    {Create an Array with x positions. Use existing grid for Active layer and TLs. For all other layers, create a uniform grid. 
+    Create matching xMat array (same length and indices) which contains the layer idx for the grid point.}
     SetLength(xPos,NoOfXPos);
     SetLength(xMat,NoOfXPos);
 
+    count:=0;
     IF NoOfXPosTCO <> 0 THEN {TCO layer, uniform grid}
     BEGIN
         FOR f:=0 TO NoOfXPosTCO-1 DO
         BEGIN
-            xPos[f] := f*xstep;
-            xMat[f] := 0;
+            xPos[count] := f*xstep;
+            xMat[count] := posTCO;
+            INC(count);
         END;
     END;
 
-    FOR f:=0 TO par.NP +1 DO {The existing grid from SIMsalabim}
+    FOR f := 0 TO par.NP DO {TLs and active layer, exponential symmetric grid}
     BEGIN
-        xPos[f+NoOfXPosTCO] := stv.x[f] + par.L_TCO;
-        xMat[f+NoOfXPosTCO] := stv.lid[f];
+        {i1 is the last point in the left insulator (or 0 if there isn't any)
+        i2 is the first point in the right insulator (or NP+1 if there is none)}
+        xPos[count] := stv.x[f] + par.L_TCO;
+        IF f <= stv.i1 THEN 
+            xMat[count] := posLTL
+        ELSE IF (f > stv.i1) AND (f < stv.i2) THEN
+            xMat[count] := posA
+        ELSE
+            xMat[count] := posRTL;
+
+        INC(count);
     END;
 
-    FOR f := 1 TO NoOfXPosBE DO {Back electrode, uniform grid}
+    FOR f := 0 TO NoOfXPosBE -1 DO {Back electrode, uniform grid}
     BEGIN
-        xPos[f+NoOfXPosTCO + par.NP +1] := par.L_TCO + stv.Ltot + (f)*xstep;
-        xMat[f+NoOfXPosTCO + par.NP +1] := stv.NLayers +1;
+        xPos[count] := par.L_TCO + par.L + (f)*xstep;
+        xMat[count] := posBE;
+        INC(count);
     END;
 END;
 
-PROCEDURE Calc_E(sizeLambdas, sizeLayers, sizeX, StartIdx : INTEGER; nTotal, nSubstrate : ComplexMatrix; lambdas, RGlass : Row; xPos, thicknesses, TCumSum : Row; xMat : intArray; VAR E: ComplexMatrix);
-{Calculate the optical electric field for an array of lambdas for the entire device based on the Transfer Matrix method}
+PROCEDURE Calc_E(sizeLambdas, sizeLayers, sizeX : INTEGER; nTotal : ComplexMatrix; lambdas, RGlass : Row; xPos, thicknesses, TCumSum : Row; xMat : intArray; VAR E: ComplexMatrix);
+{Calculate the optical electric field for an array of lambdas for the entire device based on the Transfer Matrices method}
 VAR a,j,k,m, matIdx, posE, xCount : INTEGER;
     S, SPrime, SDPrime : TFMatrix;
     R, T,x : Row;
@@ -288,20 +322,21 @@ BEGIN
     {Initialise array sizes}
     SetLength(R,sizeLambdas);
     SetLength(T,sizeLambdas);
-    SetLength(x,sizeX+1);
+    SetLength(x,sizeX);
 
     FOR k:=0 TO sizeLambdas-1 DO {Calculate each lambda individually}
     BEGIN
         posE:=0; {Reset E Array idx for each layer}
 
         {First interface}
-        S := I_Matrix(nSubstrate[0][k],nTotal[StartIdx][k]); {Initial S matrix for first interface}
-        FOR j:=StartIdx TO (sizeLayers-2) DO
+        S := I_Matrix(nTotal[0][k],nTotal[1][k]); {Initial S matrix for first interface}
+
+        FOR j:=1 TO (sizeLayers-1) DO
             S := Matrix_Product(S,Matrix_Product(L_Matrix(nTotal[j][k],thicknesses[j],lambdas[k]),I_Matrix(nTotal[j][k],nTotal[j+1][k])));
         R[k] := (cmod(S[1][0]/S[0][0]))**2; {Reflection}
-        T[k] := cmod((2/(1+nSubstrate[0,k])))/(csqrt(1-(RGlass[k]*R[k]))).re; {Transmission, Returns COMPLEX type but we only need the real part of the number}
+        T[k] := cmod((2/(1+nTotal[0,k])))/(csqrt(1-(RGlass[k]*R[k]))).re; {Transmission, Returns COMPLEX type but we only need the real part of the number}
         {Other interfaces/layers}
-        FOR m:=StartIdx TO sizeLayers - 1 DO {Exclude the first layer, because we already handled it}
+        FOR m:=1 TO sizeLayers DO {Exclude the first layer, because we already handled it}
         BEGIN
             xi := 2*PI*nTotal[m,k]/Lambdas[k]; 
             dj := thicknesses[m]; {layer thickness}
@@ -313,20 +348,16 @@ BEGIN
             BEGIN
                 IF (xMat[a] = m) THEN {x position material index matches looped material, thus x position must be used for this run }
                 BEGIN
-                    IF (m = StartIdx) THEN
-                        {The first layer starts at x = 0 anyway, so no need to shift the x position.}
-                        x[xCount] := xPos[a]
-                    ELSE
-                        x[xCount] := xPos[a]-TCumSum[m -1];{Store original pos left shifted to 0 of material in a new array}
+                    x[xCount] := xPos[a]-TCumSum[m -1];{Store original pos left shifted to 0 of material in a new array}
                     INC(xCount); {Count the number of x positions for this layer. Used for looping over all x positions in the current layer}
                 END;
             END;
 
             {Calculate S'}
-            SPrime := I_Matrix(nSubstrate[0][k],nTotal[StartIdx][k]); {m = 1 (we excluded the first substrate/glass layer already)}
-            IF m <> StartIdx THEN
+            SPrime := I_Matrix(nTotal[0][k],nTotal[1][k]); {m = 1 (we excluded the first substrate/glass layer already)}
+            IF m <> 1 THEN
             BEGIN
-                FOR matIdx := StartIdx + 1 TO m DO
+                FOR matIdx := 2 TO m DO
                     SPrime := Matrix_Product(SPrime,Matrix_Product(L_Matrix(nTotal[matIdx-1][k],thicknesses[matIdx-1],lambdas[k]),I_Matrix(nTotal[matIdx-1][k],nTotal[matIdx][k])));
             END;
 
@@ -335,9 +366,9 @@ BEGIN
             SDPrime[1][0] := 0;
             SDPrime[0][1] := 0;
             SDPrime[1][1] := 1;
-            IF m <> sizeLayers-1 THEN {Skip last iteration, because there is no layer beyond the last layer.}
+            IF m <> sizeLayers THEN {Skip last iteration, because there is no layer beyond the last layer.}
             BEGIN
-                FOR matIdx := m TO (sizeLayers - 2) DO
+                FOR matIdx := m TO (sizeLayers - 1) DO
                     SDPrime := Matrix_Product(SDPrime,Matrix_Product(I_Matrix(nTotal[matIdx][k],nTotal[matIdx+1][k]),L_Matrix(nTotal[matIdx+1][k],thicknesses[matIdx+1],lambdas[k])));
             END;
 
@@ -354,8 +385,8 @@ BEGIN
     END;
 END;
 
-PROCEDURE Calc_Generation_Rate(CONSTREF stv : TSTaticVars; CONSTREF par : TInputParameters; sizeLambdas, sizeX : INTEGER; lambdastep : myReal; xMat : intArray; lambdas, AMValue : Row; AbsCoef : Table; nTotal : ComplexMatrix; VAR NoOfGenRatePos : INTEGER; VAR genRate : vector);
-{Calculate the generation rate based on the Electric Field / Q for all layer. Do not return the TCO and BE layer.}
+PROCEDURE Calc_Generation_Rate(sizeLambdas, sizeX, posA, posLTL, posRTL : INTEGER; lambdastep : myReal; xMat : intArray; lambdas, AMValue : Row; AbsCoef : Table; nTotal : ComplexMatrix; VAR NoOfGenRatePos : INTEGER; VAR genRate : vector);
+{Calculate the generation rate based on the Electric Field / Q for all layer. Return only the transport and active layers}
 VAR a,k : INTEGER;
     Q, genRateFull : Row;
 BEGIN
@@ -369,43 +400,47 @@ BEGIN
             Q[a] := Q[a] + lambdastep*(AbsCoef[xMat[a]][k]*nTotal[xMat[a]][k].re*AMvalue[k]*(cmod(E[a][k])**2)*lambdas[k])/(h*c); {Calculate and Sum Q over lambda for all x positions}
         genRateFull[a]:= Q[a]; {Set the generation rate for a xpos for full device}
         {If the x position is in either the transport layers or active layers, it must be written to the generation profile file}
-        IF (xMat[a] <> 0) AND (xMat[a] <> stv.NLayers+1) THEN {When a layer is not present, position indicator is 0, which cannot exist and is thus skipped}
+        IF (xMat[a] = posA) OR (xMat[a] = posLTL) OR (xMat[a] = posRTL) THEN {When a layer is not present, position indicator is 0, which cannot exist and is thus skipped}
+        //IF (xMat[a] = posA) THEN {When a layer is not present, position indicator is 0, which cannot exist and is thus skipped}
         BEGIN
-            IF par.lyr[xMat[a]].layerGen THEN
-				genRate[NoOfGenRatePos] := genRateFull[a] {Shift the index of the genRate variable to exclude irrelevant layers}
-			ELSE genRate[NoOfGenRatePos] := 0; {layer does not absorb/generate electron-hole pairs}
-            INC(NoOfGenRatePos); {Count number of entries}
+            genRate[NoOfGenRatePos] := genRateFull[a]; {Shift the index of the genRate variable to exclude irrelevant layers}
+            INC(NoOfGenRatePos); {Count number of values in both the transport and the active layers}
         END;
     END;
 END;
 
-PROCEDURE Calc_TransferMatrix(VAR stv : TSTaticVars; VAR log : TEXT; CONSTREF par : TInputParameters);
+PROCEDURE Calc_TransferMatrix(VAR stv : TSTaticVars; CONSTREF par : TInputParameters);
 {Main procedure to calculate a generation profile based on input n,k values and spectrum}
 
-{Calculate the generation profile for the device defined in the device parametes file, including the substrate, TCO and BE.} 
-VAR j,k,NoOfLambdas, NoOfXPos, NoOfGenRatePos,StartIdx : INTEGER;
+{Calculate the generation profile for the device defined in the device parametes file. 
+This method takes a 6 layer device as input, but can handle fewer layers. However the substrate, active layer and back electrode must always be defined}
+VAR j,k,NoOfLayers,NoOfLambdas, NoOfXPos, NoOfGenRatePos, posA, posLTL, posRTL, posTCO, posBE : INTEGER;
     Layers : StringArray;
-    nTotal, nSubstrate : ComplexMatrix;
+    nTotal : ComplexMatrix;
     Thicknesses, TCumSum, lambdas, AMValue, xPos, RGlass : Row;
     xMat : intArray;
     AbsCoef : Table;
     genRate : vector;
+    uitv : TEXT;
+    ii: INTEGER;
     lambdaInd, lambdaFormat : myReal;
-
 BEGIN
-    WRITELN;
-    WRITELN('Started calculation of the generation profile.');
+    SetLength(Layers,MaxNoOfLayers);
+    SetLength(Thicknesses, MaxNoOfLayers);
+    SetLength(TCumSum, MaxNoOfLayers);
 
-    SetLength(Layers,stv.NLayers+2); {Add 2 to account for the TCO and BE}
-    SetLength(Thicknesses, stv.NLayers+2);
-    SetLength(TCumSum, stv.NLayers+2);
-    StartIdx := 1; {Indicate whether TCO is defined. 1 means the TCO is not defined. Set in Init_Layers_Thicknesses procedure }
+    NoOfLayers := 0; {Total number of layers in the device. Minimum 3 (front,active,back)}
+    posTCO := 0; {Position of the TCO layer. 0 if not present in the device}
+    posBE := 0; {Position of thwhich is used as input for SimSS or ZimT.e back}
+    posA := 0; {Position of the active layer}
+    posLTL := 0; {Position of the left transport layer. 0 if not present in the device}
+    posRTL := 0; {Position of the right transport layer. 0 if not present in the device}
 
-    Init_Layers_Thicknesses(par, stv, Thicknesses, Layers, StartIdx); {Create an array with layer thicknesses from input parameters.}
+    Init_Layers_Thicknesses(par, Thicknesses, Layers, NoOfLayers, posA, posLTL, posRTL, posTCO, posBE); {Create an array with layer thicknesses from input parameters. Identify the position of active and transport layers}
 
     IF par.lambda_min <> par.lambda_max THEN {Range of lambdas defined, create an evenly spaced array}
     BEGIN
-        NoOfLambdas := Array_Size(par.lambda_min, par.lambda_max, lambda_step)+1; {Get the number of elements for lambda/wavelength}
+        NoOfLambdas := Array_Size(par.lambda_min, par.lambda_max, lambda_step); {Get the number of elements for lambda/wavelength}
         SetLength(lambdas,NoOfLambdas); {Set size of lambdas array}
         FOR k:=0 TO NoOfLambdas-1 DO {Fill the evenly spaced lambdas array}
         BEGIN
@@ -420,51 +455,41 @@ BEGIN
         SetLength(lambdas,NoOfLambdas); {Size of lambdas array = 1}
         lambdas[0]:=par.lambda_min;
     END;
-
-    SetLength(AbsCoef, stv.NLayers+2, NoOfLambdas); {Initialise Absorption coefficient Matrix}
-    SetLength(nTotal, stv.NLayers+2, NoOfLambdas); {Initialise nTotal Matrix}
-    SetLength(nSubstrate, 1, NoOfLambdas); {Initialise nSubstrate Matrix}
+    SetLength(AbsCoef, NoOfLayers+1, NoOfLambdas); {Initialise Absorption coefficient Matrix}
+    SetLength(nTotal, NoOfLayers+1, NoOfLambdas); {Initialise nTotal Matrix}
     SetLength(RGlass, NoOfLambdas); {Initialise RGlass array}
 
-    {The nk vlaues for the substrate are need for the calculation, but are not treated as a layer. They require a seperate parameter.}
-    Read_nk_Material_From_File(0, NoOfLambdas, par.nkSubstrate, lambdas, nSubstrate); {Sets complex index of refraction(n+ik) for all lambdas in Lambdas Array}
-
-    FOR j:=StartIdx TO stv.NLayers+1 DO {Calculate complex refracive index based on the material type/name and material data files}
+    FOR j:=0 TO NoOfLayers-1 DO {Calculate complex refracive index based on the material type/name and material data files}
         Read_nk_Material_From_File(j, NoOfLambdas, Layers[j], lambdas, nTotal); {Sets complex index of refraction(n+ik) for all lambdas in Lambdas Array}
 
     FOR k:=0 TO NoOfLambdas-1 DO {Calculate Reflection/Transmission Coefficient for every lambda}
-        RGlass[k] := cmod(((1-nSubstrate[0,k])/(1+nSubstrate[0,k]))**2);
+        RGlass[k] := cmod(((1-nTotal[0,k])/(1+nTotal[0,k]))**2);
 
-    TCumSum := Cumulative_Sum(stv.NLayers +1, Thicknesses); {Create Array with cumulative sum of Thicknesses}
+    Thicknesses[0] := 0; {Force the first layer size to 0 (Glass)}
+    TCumSum := Cumulative_Sum(NoOfLayers - 1, Thicknesses); {Create Array with cumulative sum of Thicknesses}
 
-    Make_Grid_TM(par, stv, StartIdx, NoOfXPos, xPos, xMat); {Create a new temporary grid to include all layers}
-
+    Make_Grid_TM(par, stv, posA, posLTL, posRTL, posTCO, posBE, NoOfXPos, xPos, xMat); {Create a new temporary grid to include all layers}
+ 
     SetLength(E, NoOfXPos, NoOfLambdas); {Initialise size E matrix}
-
-    Calc_E(NoOfLambdas, stv.Nlayers + 2, NoOfXPos, StartIdx, nTotal, nSubstrate, lambdas, RGlass, xPos, Thicknesses, TCumSum, xMat, E); {Calcualte total optical electric field at every position xPos for all lambdas}
+    Calc_E(NoOfLambdas, NoOfLayers - 1, NoOfXPos, nTotal, lambdas, RGlass, xPos, Thicknesses, TCumSum, xMat, E); {Calcualte total optical electric field at every position xPos for all lambdas}
 
     NoOfGenRatePos := 0; {Init number of xpos for generation profile}
-    AbsCoef := Calc_Absorption_Coefficient(NoOfLambdas, stv.NLayers + 1, lambdas, nTotal); {Absorption Coefficient per layer}
+    AbsCoef := Calc_Absorption_Coefficient(NoOfLambdas, NoOfLayers - 1, lambdas, nTotal); {Absorption Coefficient per layer}
 
     SetLength(AMValue,NoOfLambdas); {Initialise AM values Array}
     Read_AM_From_File(par.spectrum, NoOfLambdas, lambdas, AMValue);  {Read AM File}
 
-    Calc_Generation_Rate(stv, par, NoOfLambdas, NoOfXPos, lambda_step, xMat, lambdas, AMValue, AbsCoef, nTotal, NoOfGenRatePos, genRate); {Calculate generation rate (genRate)}
+    Calc_Generation_Rate(NoOfLambdas, NoOfXPos, posA, posLTL, posRTL, lambda_step, xMat, lambdas, AMValue, AbsCoef, nTotal, NoOfGenRatePos, genRate); {Calculate generation rate (genRate)}
     
     stv.orgGm := genRate; {Fits on the existing grid (par.NP + 1)}
 
-    WRITELN(log);
-    WRITELN(log, 'Files used to calculate the generation profile:');
-    
-    FOR j:=StartIdx TO stv.NLayers+1 DO
-        WRITELN(log, '- ' + Layers[j]);
-     WRITELN(log, '- ' + par.spectrum);
-     WRITELN(log);
-
-    WRITELN('Calculation of the generation profile was successful');
-    WRITELN;
 END;
-
+{CHANGELOG
+Added a procedure to calculate the generation profile based on the device structure and properties and placed it in the unit TransferMatrix.
+The procedure is derived from the TransferMatrix method from Burkhard (2011). The standard device strucure is: Substrate | ITO | LTL | Active | RTL | Back, but not all layers are mandatory, only the Substrate, active and back layer are.
+Each layer is characterised by a thickness and material n,k values, defined in the device parametes.
+The result of this procedure is a generation profile (with only the LTL, RTL and active layer, if present) with the real value of Gehp, not just the profile.
+}
 BEGIN
 END.
 

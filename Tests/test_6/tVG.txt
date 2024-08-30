@@ -1,13 +1,13 @@
-t 	Vext 	G_frac 	comments
-0   oc      0.0001
-0   oc      0.0003
-0   oc      0.001
-0   oc      0.003
-0   oc      0.01
-0   oc      0.03
-0   oc      0.1
-0   oc      0.3
-0   oc      1
+t 	Vext 	Gehp 	comments
+0   oc      1e24
+0   oc      3e24
+0   oc      1e25
+0   oc      3e25
+0   oc      1e26
+0   oc      3e26
+0   oc      1e27
+0   oc      3e27
+0   oc      1e28
 
 
 

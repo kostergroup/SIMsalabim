@@ -1,4 +1,4 @@
-import sys,os,shutil
+import sys
 from os.path import normpath as path
 from shutil import copy2
 try:
@@ -49,7 +49,7 @@ def calc_rmse(y_sim, y_test):
 
 
 def calc_selected_rmse(dat_sim, dat_test, log_x=False, log_y=False, x_min=None, x_max=None):
-    
+
     if log_x == False:
         x_sim, x_test = dat_sim.x, dat_test.x
     else:
@@ -67,7 +67,7 @@ def calc_selected_rmse(dat_sim, dat_test, log_x=False, log_y=False, x_min=None, 
         y_sim, y_test = dat_sim.y, dat_test.y
     else:
         y_sim, y_test = dat_sim.log_y, dat_test.log_y
-    
+
     y_interp = interp1d(x_test, y_test, fill_value="extrapolate")
 
     if x_min != None:
@@ -82,7 +82,6 @@ def calc_selected_rmse(dat_sim, dat_test, log_x=False, log_y=False, x_min=None, 
 
     y_test_int = y_interp(x_sim)
     rmse = calc_rmse(y_sim, y_test_int)
-    rmse = rmse/max(y_sim)
 
     if log_x == True:
         x_sim = exp10(x_sim)
@@ -93,25 +92,35 @@ def calc_selected_rmse(dat_sim, dat_test, log_x=False, log_y=False, x_min=None, 
     selected_pts = Data(x_sim, y_test_int)
     return rmse, selected_pts
 
+
 def get_data_from_sim(simulation, test_idx, x='Vext', y='Jext', output_file='jv'):
-    result = simulation.run()
-    if result.returncode != 0 & result.returncode != 95:
-        print(f'Test {test_idx} failed to execute. SIMsalabim retuned with error code {result.returncode}')
-        return None
+    test_dev_par_path = 'test_{:n}/device_parameters.txt'.format(test_idx)
+    test_trap_path = 'test_{:n}/traps.txt'.format(test_idx)
+    try:
+        copy2(path(test_trap_path), path(simulation.work_dir))
+    except FileNotFoundError:
+        pass
+    copy2(path(test_dev_par_path), path(simulation.work_dir))
+    if simulation.code_name.lower() == 'zimt':
+        test_tvg_path = 'test_{:n}/tVG.txt'.format(test_idx)
+        copy2(path(test_tvg_path), simulation.work_dir)
+    simulation.run()
     data = simulation.return_out_dic()[output_file]
     sim_data = Data(data[x], data[y])
-    
+
     return sim_data
 
+
 def get_data_from_file(test_idx, x_test, y_test):
-    test_data_path = f'test_{test_idx}/test{test_idx}.dat'
-    test_data = pd.read_csv(path(test_data_path), delim_whitespace=True)
+    test_data_path = 'test_{:n}/test{:n}.dat'
+    test_data = pd.read_csv(path(test_data_path.format(
+        test_idx, test_idx)), delim_whitespace=True)
     test_data = Data(test_data[x_test], test_data[y_test])
     return test_data
 
 
 def plot_test_results(test_idx, dat_sim, ax_lab, dat_tests=[], log_x=False, log_y=False, dat_err=[]):
-    figure_path = f'test_{test_idx}/test_{test_idx}_result.png'
+    figure_path = 'test_{:n}/test_{:n}_result.png'
     fig = plt.figure()
     plt.plot(dat_sim.x, dat_sim.y, 'o', ms=4, color='black',
              markerfacecolor='white', markeredgewidth=0.8, label='Simulation')
@@ -131,64 +140,15 @@ def plot_test_results(test_idx, dat_sim, ax_lab, dat_tests=[], log_x=False, log_
     plt.xlabel(ax_lab['x'])
     plt.ylabel(ax_lab['y'])
     plt.tight_layout()
-    plt.savefig(path(figure_path))
+    plt.savefig(path(figure_path.format(test_idx, test_idx)))
+    print('Test {:n} finished'.format(test_idx))
+
 
 def print_test_results(test_results):
     all_tests_passed = True
     for result in test_results:
-        if result['passed'] == False or result['passed'] == None:
-            res = result['test nr']
-            if result['passed'] == None:
-                print(f'Test {res} did not execute successfully.')
-            else:
-                print(f'Test {res} FAILED!')
+        if result['passed'] == False:
+            print('Test {:n} FAILED!'.format(result['test nr']))
             all_tests_passed = False
     if all_tests_passed:
         print('All tests passed successfully!')
-
-def copy_SIMsalabim_to_cwd():
-    """Create a copy of SIMsalabim folders in the current directory. This keeps the SIMsalabim source folders clean and intact.
-
-    Raises:
-        FileNotFoundError: One of the SIMsalabim folders is not found in the parent directory.
-    """
-    folder_list = ['SimSS','ZimT','Units','Data']
-
-    for folder in folder_list:
-        if not os.path.exists('../'+folder):
-            raise FileNotFoundError(folder+' folder not found in parent directory.')
-        else:
-            shutil.copytree('../'+folder,folder,dirs_exist_ok=True)
-
-def clean_cwd():
-    """Remove the SIMsalabim folders from the current directory.
-    """
-    folder_list = ['SimSS','ZimT','Units','Data']
-    for folder in folder_list:
-        if os.path.exists(folder):
-            shutil.rmtree(folder)
-
-def setup_workdir_test(simulation, test_idx):
-    """Setup the test directory. Copy the SimSS/ZimT executable to the test folder 
-    and set the working directory of the simulation object to the test folder.
-
-    Args:
-        simulation (SIMsalabim): SIMsalabim object
-        test_idx (int): Test index number
-    """
-    # simulation.set_work_dir('test_{:n}/'.format(test_idx),'.temp')
-    simulation.set_work_dir(f'test_{test_idx}/','.temp')
-
-    copy2(os.path.join(simulation.code_name,simulation.code_name.lower()), path(simulation.work_dir))
-
-def clean_test_dir(simulation, test_idx):
-    """Clean up the test directory. Remove the output folder and the executable. When present remove the simsalabim log file.
-
-    Args:
-        simulation (SIMsalabim): SIMsalabim object
-        test_idx (int): Test index number
-    """
-    shutil.rmtree(os.path.join(f'test_{test_idx}','.temp'))
-    os.remove(os.path.join(f'test_{test_idx}',simulation.code_name.lower()))
-    if os.path.isfile(f'test_{test_idx}/log.txt'):
-        os.remove(f'test_{test_idx}/log.txt')

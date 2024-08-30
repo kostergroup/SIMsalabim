@@ -4,7 +4,7 @@
 
 {
 ZimT:a transient 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '5.14';  
+    version = '4.58';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -98,7 +98,7 @@ VAR parameterFile : ShortString;
 	StatusStr : ANSISTRING; 
 
 PROCEDURE Read_tVG(VAR astate : TState; old_tijd : myReal; VAR inv : TEXT; VAR foundtVG : BOOLEAN);
-{try to read a line of tijd, Vext, G_frac}
+{try to read a line of tijd, Va, Gehp}
 VAR varline, orgline, parstr : STRING;
 	SimOC : BOOLEAN;
 BEGIN
@@ -126,7 +126,7 @@ BEGIN
 			BEGIN
 				SimOC:=FALSE;
 				Vext:=StrToFloat(parstr);
-				{Note: ZimT takes the voltage in the tVGFile (in parstr) to be the external voltage, Vext}
+				{Note: ZimT takes the voltage in the tVG_file (in parstr) to be the external voltage, Vext}
 				{if simtype=1, then Vint=Vext.}
 				{if simytype=2,3, then we're simulating Voc, so Vint&Vext will need to be solved, thus the exact value doesn't matter}
 				{if simtype=4, then we only know Vext and need to solve for Vint.}
@@ -138,17 +138,17 @@ BEGIN
 			END;
 			parstr:=Copy2SpaceDel(varline); {contains the third parameter}
 
-			astate.G_frac:=StrToFloat(Copy2SpaceDel(parstr));
+			astate.Gehp:=StrToFloat(Copy2SpaceDel(parstr));
 			foundtVG:=TRUE;
 		
 			{now determine which kind of simulation we have to do:}
-			astate.SimType:=1; {default: we know the internal voltage and it's equal to the external one (R_series=0)}
+			astate.SimType:=1; {default: we know the internal voltage and it's equal to the external one (Rseries=0)}
 			IF SimOC AND (astate.tijd=0) THEN astate.SimType:=2; {steady-state, open-circuit}
 			IF SimOC AND (astate.tijd>0) THEN astate.SimType:=3; {transient, open-circuit}
-			IF (NOT SimOC) AND (par.R_series>0) THEN astate.SimType:=4; {steady-state or transient, not open-circuit, R_series important}
+			IF (NOT SimOC) AND (par.Rseries>0) THEN astate.SimType:=4; {steady-state or transient, not open-circuit, Rseries important}
 		END;
 	EXCEPT {reading didn't work, raise exception}
-		WRITELN('Error while reading from file ',par.tVGFile);
+		WRITELN('Error while reading from file ',par.tVG_file);
 		WRITELN('Offending line: ');
 		WRITELN(orgline);
 		Stop_Prog('See Reference Manual for details.', EC_InvalidInput);
@@ -156,27 +156,42 @@ BEGIN
 END;
 
 PROCEDURE Open_and_Read_tVG_file(VAR inv : TEXT; VAR new : TState; CONSTREF par : TInputParameters); 
-{open tVG file, read header and first time/voltage/G_ehp|G_frac}
+{open tVG file, read header and first time/voltage/Gehp|Gfrac}
 VAR foundHeader : BOOLEAN;
 BEGIN
 	{open input file with times, voltage and generation rate}
-	IF NOT FileExists(par.tVGFile) {the file with input par. is not found}
-        THEN Stop_Prog('Could not find file '+par.tVGFile, EC_FileNotFound);
-	ASSIGN(inv, par.tVGFile);
+	IF NOT FileExists(par.tVG_file) {the file with input par. is not found}
+        THEN Stop_Prog('Could not find file '+par.tVG_file, EC_FileNotFound);
+	ASSIGN(inv, par.tVG_file);
 	RESET(inv);
 
-	WRITELN('Reading t, Vext, G_frac from file ',par.tVGFile);
-	{now try to read from input file until we find 't Vext G_frac'}
-	REPEAT
-		READLN(inv, dumstr);
-		foundHeader:=LeftStr(DelWhite(LowerCase(dumstr)),11) ='tvextg_frac'; {cut relevant part of string}
-		{DelWhite removes all white spaces (incl. tabs, etc.) from a string, see myUtils}
-	UNTIL foundHeader OR EOF(inv);
+	IF par.Use_gen_profile = 1 THEN {we will calculate the generation profile using unit TransferMatrix}
+	BEGIN
+		WRITELN('Reading t, Vext, Gfrac from file ',par.tVG_file);
+		{now try to read from input file until we find 't Vext Gfrac'}
+		REPEAT
+			READLN(inv, dumstr);
+			foundHeader:=LeftStr(DelWhite(LowerCase(dumstr)),10) ='tvextgfrac'; {cut relevant part of string}
+		UNTIL foundHeader OR EOF(inv);
 		
-	IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext G_frac'' in ' + par.tVGFile + '.', EC_InvalidInput);
+		IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext Gfrac'' in ' + par.tVG_file + '.', EC_InvalidInput);
+	END
+	ELSE 
+	BEGIN
+		WRITELN('Reading t, Vext, Gehp from file ',par.tVG_file);
+		{now try to read from input file until we find 't Vext Gehp'}
+		REPEAT
+			READLN(inv, dumstr);
+			foundHeader:=LeftStr(DelWhite(LowerCase(dumstr)),9) ='tvextgehp'; {cut relevant part of string}
+		UNTIL foundHeader OR EOF(inv);
 
-	Read_tVG(new, 0, inv, foundtVG); {try to read a line of t, Va, G_ehp}
-	IF NOT(foundtVG) OR (new.tijd<>0) THEN Stop_Prog('tVGFile did not specify steady-state (t=0)', EC_InvalidInput)
+		IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext Gehp'' in ' + par.tVG_file + '.', EC_InvalidInput);
+	END;
+
+	{DelWhite removes all white spaces (incl. tabs, etc.) from a string, see myUtils}
+	Read_tVG(new, 0, inv, foundtVG); {try to read a line of t, Va, Gehp}
+	IF NOT(foundtVG) OR (new.tijd<>0) THEN Stop_Prog('tVG_file did not specify steady-state (t=0)', EC_InvalidInput);
+	IF new.SimType=2 THEN new.SimType:=3; {both 2 and 3 are open-circuit, but 2 = S-S and 3 = transient. that doesn't matter and we take 3}
 END;
 
 FUNCTION Residual_Current_Voltage(Vint : myReal; VAR curr, new : TState; VAR conv : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : myReal;
@@ -197,7 +212,7 @@ BEGIN
 	CASE new.SimType OF
 		2,3 :  {steady-state, resp. transient open-circuit}
 				Residual_Current_Voltage:=new.Jext; {residual current is simply equal to device current}
-		4 	:  {SS or transient, not open-circuit, R_series significant}
+		4 	:  {SS or transient, not open-circuit, Rseries significant}
 				BEGIN
 					Residual_Current_Voltage:=new.Vext - VextTarget;	{what we should be calculating is the difference between the target Vext and the realised one}
 					new.Vext:=VextTarget; {restore Vext in state new}
@@ -221,8 +236,8 @@ VAR
 
 BEGIN
 	{start with a guess for Vmin,max around Vguess}
-	Vmin:=Vguess - 20*par.tolVint;
-	Vmax:=Vguess + 20*par.tolVint;
+	Vmin:=Vguess - 20*par.TolVint;
+	Vmax:=Vguess + 20*par.TolVint;
 	{calc. the corresponding currents:}
 	ResJMin:=Residual_Current_Voltage(Vmin, curr, new, conv, stv, par);
 	ResJMax:=Residual_Current_Voltage(Vmax, curr, new, conv, stv, par);
@@ -253,36 +268,37 @@ BEGIN {main program}
     {if '-h' or '-H' option is given then display some help and exit:}
     IF hasCLoption('-h') THEN Display_Help_Exit(ProgName);
     Determine_Name_Parameter_File(parameterFile); {either default or user-specified file with all the parameters}
-    IF NOT Correct_Version_Parameter_File(parameterFile, version, TRUE, ProgName) THEN Stop_Prog('Version of ZimT and '+parameterFile+' do not match.', EC_DevParCorrupt);
+    IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(parameterFile, TRUE); {tidy up file and exit}
+    IF NOT Correct_Version_Parameter_File(ProgName, parameterFile, version) THEN Stop_Prog('Version of ZimT and '+parameterFile+' do not match.', EC_DevParCorrupt);
 
 {Initialisation:}
     Read_Parameters(parameterFile, MsgStr, par, stv, ProgName); {Read parameters from input file}
     Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
-    Set_Number_Digits(par.limitDigits, SizeOf(myReal)); {limits number of digits in floating point}
+    Set_Number_Digits(par.LimitDigits, SizeOf(myReal)); {limits number of digits in floating point}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
-    IF par.autoTidy THEN Tidy_Up_Parameter_Files(parameterFile, FALSE, stv, par); {clean up file but don't exit!}
+    IF par.AutoTidy THEN Tidy_Up_Parameter_File(parameterFile, FALSE); {clean up file but don't exit!}
     
-    Make_Grid(stv, par); {Initialize the grid}
+    Make_Grid(stv.h, stv.x, stv.i1, stv.i2, par); {Initialize the grid}
     Define_Layers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
-	Init_Trapping(log, stv, par); {Inits all variables needed for trapping and SRH recombination}
+	Init_Trap_Distribution(log, stv, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
+    Init_nt0_And_pt0(stv, par); {inits nt0b and pt0 arrays needed for SRH recombination}
 
-	Open_and_Read_tVG_file(inv, new, par); {open tVG file, read header and first time/voltage/G_ehp}
+	Open_and_Read_tVG_file(inv, new, par); {open tVG file, read header and first time/voltage/Gehp}
 
-	WITH new DO Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Vint, stv, par); {init. (generalised) potentials and densities}
-
+	WITH new DO Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, Vint, stv, par); {init. (generalised) potentials and densities}
 	new.UpdateIons:=TRUE; {in ZimT this is always true as we don't artificially fix the ions like we can in SimSS}
 	{just to make sure these are initialised!}
 	curr:=new;
 	prev:=curr;
 
-	Prepare_tJV_File(uitv, par.tJFile, TRUE, stv);   {create the tJV-file}
+	Prepare_tJV_File(uitv, par.tJ_file, TRUE);   {create the tJV-file}
 	IF par.StoreVarFile THEN Prepare_Var_File(stv, par, TRUE); {create a new var_file with appropriate heading}
 
 	WRITELN('The calculation has started, please wait.');
 
     {Init all parameters and start solving for steady-state (tijd=0)}
 	Init_Generation_Profile(stv, log, par); {init. the stv.orgGm array. This is the SHAPE of the profile}
-	Update_Generation_Profile(stv.orgGm, new.Gm, new.G_frac, stv, par); {update current Gm array to correct value}
+	Update_Generation_Profile(stv.orgGm, new.Gm, new.Gehp, stv, par); {update current Gm array to correct value}
 	CountAcceptedSolutions:=0; {counts the number of solutions that were accepted}
 	CounttVGPoints:=0; {count number of transient (t,V,G) points}
 	countStatic:=0;
@@ -291,16 +307,16 @@ BEGIN {main program}
 
 	WHILE keepGoing DO
 	BEGIN {main loop over times and t,V,G from input file:}
-		Update_Generation_Profile(stv.orgGm, new.Gm, new.G_frac, stv, par); {update current Gm array to correct value}
+		Update_Generation_Profile(stv.orgGm, new.Gm, new.Gehp, stv, par); {update current Gm array to correct value}
 		Extrapolate_Solution(prev, curr, new, CountAcceptedSolutions, stv, par);
 	
 		IF new.SimType = 1 
-		THEN Main_Solver(curr, new, MainIt, conv, StatusStr, stv, par) {easy: Vint = Vext, Vext is in input tVGFile}
-		ELSE BEGIN {SimType > 1: Voc or R_series <> 0: in both cases, we don't know Vint}
+		THEN Main_Solver(curr, new, MainIt, conv, StatusStr, stv, par) {easy: Vint = Vext, Vext is in input tVG_file}
+		ELSE BEGIN {SimType > 1: Voc or Rseries <> 0: in both cases, we don't know Vint}
 			{first find Vmn and Vmx, voltages that bracket the device voltage new.Vint}
 			Bracket_device_voltage(Vmn, Vmx, curr.Vint, ResVmn, curr, new, stv, par);
 			{then use bisection to find Vint}
-			MaxItVint:=ROUND(LN((Vmx-Vmn)/par.tolVint)/LN(2)); {max. number of required bisection steps}
+			MaxItVint:=ROUND(LN((Vmx-Vmn)/par.TolVint)/LN(2)); {max. number of required bisection steps}
 			FOR ItVint:=0 TO MaxItVint DO {bisection loop}
 			BEGIN
 				new.Vint:=0.5*(Vmx + Vmn); {new guess}
@@ -323,7 +339,7 @@ BEGIN {main program}
 			WRITELN(log, StatusStr);
 			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
-			CASE par.failureMode OF
+			CASE par.FailureMode OF
 				0 : Stop_Prog('Convergence failed at time = ' + FloatToStrF(new.tijd, ffGeneral,10,0)+ '. Maybe try smaller time steps.', EC_ConverenceFailedHalt);
 				1 : acceptNewSolution:=TRUE;
 				2 : acceptNewSolution:=(new.dti=0) {is true if steady-state, false otherwise}
@@ -334,36 +350,36 @@ BEGIN {main program}
 
 		IF acceptNewSolution {OK, new solution is good (even if conv might be FALSE)}
 		THEN BEGIN
-			prev:=Copy_State(curr, par); {we move the current solution to the previous one}
-			curr:=Copy_State(new, par); {and we keep the newest solution}
+			prev:=curr; {we move the current solution to the previous one}
+			curr:=new; {and we keep the newest solution}
 			{output:}
 			Write_To_tJV_File(uitv, curr, prev, stv, par, TRUE)
 		END
 		ELSE BEGIN 
-			WRITELN(log, 'Skipping (t,Vext,G_ehp) point at time ',FloatToStrF(new.tijd, ffGeneral,10,0)); 
+			WRITELN(log, 'Skipping (t,Vext,Gehp) point at time ',FloatToStrF(new.tijd, ffGeneral,10,0)); 
 			FLUSH(log) 
 		END;
 
-		IF CounttVGPoints MOD par.outputRatio = 0 THEN {output to screen and var_file every outputRatio timesteps}
+		IF CounttVGPoints MOD par.OutputRatio = 0 THEN {output to screen and var_file every OutputRatio timesteps}
         BEGIN
 			IF NOT Conv THEN TextColor(LightRed) ELSE TextColor(LightGray); {Reset to default font colour: it's not white, it's light grey!}
-			WITH new DO WRITELN('Time:',tijd:12,' Vext: ',Vext:6:4,' G_frac:',G_frac:11,' Jext:',Jext  :7:2,' +- ',errJ:4:2);
+			WITH new DO WRITELN('Time:',tijd:12,' Vext: ',Vext:6:4,' Gehp:',Gehp:11,' Jext:',Jext  :7:2,' +- ',errJ:4:2);
 			IF par.StoreVarFile AND acceptNewSolution THEN Write_Variables_To_File(curr, stv, par, TRUE)
         END;
 	
 		INC(CounttVGPoints);
 		
-		{is the state (Vext, G_frac, ...) still changing significantly?}
+		{is the state (Va, Gehp, ...) still changing significantly?}
 		{count the number of points in time where the system hardly changes:}
-		IF acceptNewSolution AND (curr.dti*ABS(prev.Vint-curr.Vint)<1) AND (prev.G_frac=curr.G_frac) AND (curr.dti*ABS(prev.Jint-curr.Jint)<1)
+		IF acceptNewSolution AND (curr.dti*ABS(prev.Vint-curr.Vint)<1) AND (prev.Gehp=curr.Gehp) AND (curr.dti*ABS(prev.Jint-curr.Jint)<1)
 			THEN INC(CountStatic)
 			ELSE CountStatic:=0; {reset counter}
 
 		staticSystem:=(CountStatic >= MinCountStatic) AND (par.Autostop);
 		
-		{now see if there's more in the tVGFile:}
-		Read_tVG(new, curr.tijd, inv, foundtVG); {try to read a line of t, Va, G_ehp}
-		IF staticSystem AND par.autoStop AND foundtVG THEN {we're going to stop prematurely}
+		{now see if there's more in the tVG_file:}
+		Read_tVG(new, curr.tijd, inv, foundtVG); {try to read a line of t, Va, Gehp}
+		IF staticSystem AND par.AutoStop AND foundtVG THEN {we're going to stop prematurely}
 		BEGIN
 			WRITELN(log, 'Stopping ZimT as the system does not change anymore.');
 			TextColor(LightRed); {switch to different colour}
@@ -380,14 +396,14 @@ BEGIN {main program}
 	IF CountAcceptedSolutions < CounttVGPoints THEN
 		WRITELN(CounttVGPoints-CountAcceptedSolutions,' did not converge.');
 
-    WRITE('Output written in file(s) ', par.tJFile);
-	IF par.StoreVarFile THEN WRITE(' and ',par.varFile);
+    WRITE('Output written in file(s) ', par.tj_file);
+	IF par.StoreVarFile THEN WRITE(' and ',par.Var_file);
 	WRITELN('.');
 
 	MsgStr:=IntToStr(CounttVGPoints-CountAcceptedSolutions) + ' did not converge.' + LineEnding;
 	Finalize_Log_File(log, MsgStr); {writes final comments, date, time, run time and closes log file.}
 
     WRITELN('Finished, press enter to exit');
-    IF par.pauseAtEnd THEN READLN {pause at the end of the program}
+    IF par.Pause_at_end = 1 THEN READLN {pause at the end of the program}
 
 END.

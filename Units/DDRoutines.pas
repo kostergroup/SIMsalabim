@@ -3,7 +3,7 @@ unit DDRoutines;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -44,13 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.14'; {version of this unit}
-
-{now check to see if the versions of the units match that of this code:}
-{$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
-	{$STOP Wrong version of one or more units!}
-{$ENDIF}
-
+CONST DDRoutinesVersion = '4.58'; {version of this unit}
 
 PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 {Prints a welcome message, lists the authors and shows the name and verion of the program.}
@@ -69,11 +63,11 @@ depending on the size of the floating point type}
 PROCEDURE Determine_Name_Parameter_File(VAR parameterFile : STRING);
 {Determines which parameter file should be used}
 
-FUNCTION Correct_Version_Parameter_File(parameterFile, version : STRING; CheckProgName : BOOLEAN = FALSE; ProgName : TProgram = ZimT) : BOOLEAN;
-{checks if the version and the parameter file match. Stops program if not! If CheckProgName, then we also check this.}
+FUNCTION Correct_Version_Parameter_File(ProgName : TProgram; parameterFile, version : STRING) : BOOLEAN;
+{checks if the version and name of the program and the parameter file match. Stops program if not!}
 
 PROCEDURE Prepare_Log_File(VAR log : TEXT; MsgStr : ANSISTRING; CONSTREF par : TInputParameters; version : STRING);
-{opens a logFile for later use and writes date/time and MsgStr to the log file.}
+{opens a log_file for later use and writes date/time and MsgStr to the log file.}
 
 PROCEDURE Finalize_Log_File(VAR log : TEXT; MsgStr : ANSISTRING);
 {writes final comments, date, time, run time and closes log file.}
@@ -85,29 +79,33 @@ PROCEDURE Check_Parameters(CONSTREF stv : TStaticVars; CONSTREF par : TInputPara
 {performs a number of checks on the parameters. Just to ensure that they are valid, consistent, make sense}
 {Some bits are specific to either ZimT or SimSS}
 
-PROCEDURE Make_Grid(VAR stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Make_Grid(VAR k, x : vector; VAR i1, i2 : INTEGER; CONSTREF par : TInputParameters);
 {Makes an exponential symmetric grid, for every layer}
-{h[i] = (x[i+1] - x[i])/Ltot and initialises the array with x-positions}
-{we also define an array stv.lid: the Layer ID. This allows us to determine in which layer a grid point falls.}
-{and 2 arrays (i0 and i1) that contain the first and last grid point of each layer}
+{k[i] = (x[i+1] - x[i])/L and initialises the array with x-positions}
+{i1 is the last point in the left insulator (or 0 if there isn't any)
+i2 is the first point in the right insulator (or NP+1 if there is none)}
 
 PROCEDURE Define_Layers(VAR stv : TStaticVars; CONSTREF par : TInputParameters);
 {Note, stv are not CONSTREF as we need to change them}
 {Sets layer dependent properties}
 
 PROCEDURE Init_Generation_Profile(VAR stv : TStaticVars; VAR log : TEXT; CONSTREF par : TInputParameters);
-{Inits the generation profile, either constant, calculated by the transfer matrix unit, or from a file. 
-This is the SHAPE of the profile. Also inits stv.Lgen: the sum of the lengths/thicknesses of all layers that can generate elec-hole pairs.}
+{Inits the generation profile, either constant or from a file. This is the SHAPE of the profile}
 {When using a profile from file, a message is written on screen and in the log file.}
 
-PROCEDURE Update_Generation_Profile(org: vector; VAR new : vector; G_frac : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Rescales generation profile (org) by factor G_frac to obtain new profile}
+PROCEDURE Update_Generation_Profile(org: vector; VAR new : vector; Geff : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Rescale profile such that Geff equals the average of the profile over the length of the absorber. 
+The latter equals L if TLsGen or there are no transport layers, and L-L_LTL-L_RTL otherwise. }
 
-PROCEDURE Init_Pot_Dens_Ions_Traps(VAR V, Vgn, Vgp, n, p, nion, pion : vector; VAR f_tb, f_ti, f_ti_numer, f_ti_inv_denom : TTrapArray; Va : myReal; VAR stv : TStaticVars; CONSTREF par : TInputParameters);
-{init. for V, Vgn,p, n, p, ion densities at bias voltage Va. Also sets lengths of f_tb/i arrays}
+PROCEDURE Init_Pot_Dens_Ions_Traps(VAR V, Vgn, Vgp, n, p, nion, pion : vector; VAR f_tb, f_ti : TrapArray; Va : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{init. for V, Vgn,p, n, p, ion densities and trap parameters at bias voltage Va}
 
-PROCEDURE Init_Trapping(VAR log : TEXT; VAR stv : TStaticVars; CONSTREF par : TInputParameters); 
-{Inits all variables needed for trapping and SRH recombination}
+PROCEDURE Init_Trap_Distribution(VAR log : TEXT; VAR stv : TStaticVars; CONSTREF par : TInputParameters);
+{Places all types of traps (bulk and interface) in the device at places deterined by define_layers.}
+
+PROCEDURE Init_nt0_And_pt0(VAR stv : TStaticVars; CONSTREF par : TInputParameters);
+{inits nt0 and pt0 arrays needed for SRH recombination}
+{note: stv are changed here (nt0 and pt0), so they are VAR parameters}
 
 PROCEDURE Extrapolate_Solution(CONSTREF prev, curr : TState; VAR new : TState; AccSols : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Obtains a guess for state new based on an extrapolation of states prev and curr}
@@ -117,7 +115,7 @@ PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLE
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
 {can be used in steady-state and transient cases}
 
-PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN; CONSTREF stv : TStaticVars); 
+PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN); 
 {create a new tJV_file with appropriate heading
 after running this, the TEXT file 'uitv' is still open and ready for writing}
 
@@ -129,13 +127,11 @@ PROCEDURE Prepare_Var_File(CONSTREF stv : TStaticVars; CONSTREF par : TInputPara
 {create a new var_file with appropriate heading}
 
 PROCEDURE Write_Variables_To_File(VAR CurrState : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
-{writes the internal variables (astate) to file par.varFile. It assumes the file has a header produced by Prepare_Var_File}
+{writes the internal variables (astate) to file par.Var_file. It assumes the file has a header produced by Prepare_Var_File}
 
-PROCEDURE Tidy_Up_Parameter_Files(parameterFile : STRING; QuitWhenDone : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure cleans up the parameter files: the main file and the files with the parameters of each layer}
-
-FUNCTION Copy_State(CONSTREF a : TState; CONSTREF par : TInputParameters) : TState;
-{Returns a copy of state a. We need this because of the dynamic arrays in TState.}
+PROCEDURE Tidy_Up_Parameter_File(parameterFile : STRING; QuitWhenDone : BOOLEAN);
+{This procedure cleans up the parameter file: it makes sure that all the * are aligned, that every parameter has a 
+unit or other description/comment and left-aligns any line that starts with **.}
 
 IMPLEMENTATION
 
@@ -152,7 +148,7 @@ VAR strprogname : STRING;
 BEGIN
     Str(ProgName, strprogname); {convert variable ProgName to a string}
     WRITELN('Welcome to ',strprogname,' version ',version,'.');
-    WRITELN('Copyright (C) 2020, 2021, 2022, 2023, 2024, S. Heester, Dr T.S. Sherkar,'); 
+    WRITELN('Copyright (C) 2020, 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar,'); 
     WRITELN('Dr V.M. Le Corre, Dr M. Koopmans, F. Wobben,');
     WRITELN('and Prof L.J.A. Koster, University of Groningen.');
     WRITELN;
@@ -168,7 +164,9 @@ BEGIN
     WRITELN;
     WRITELN('All parameters can be defined in a parameter file');
     WRITELN('or via the command line, which overrides the values in the file.');
-    WRITELN('Example: ./',strprogname,' -T 400 -varFile Var.dat');
+    WRITELN('Example: ./',strprogname,' -T 400 -Var_file Var.dat');
+    WRITELN;
+    WRITELN('To tidy-up the parameter file, use ''-tidy''');
     WRITELN;
     Stop_Prog('''-h''     : displays this help message', EC_Warning);
 END;
@@ -281,8 +279,8 @@ BEGIN
 		parameterFile:=key
 END;
 
-FUNCTION Correct_Version_Parameter_File(parameterFile, version : STRING; CheckProgName : BOOLEAN = FALSE; ProgName : TProgram = ZimT) : BOOLEAN;
-{checks if the version and the parameter file match. Stops program if not! If CheckProgName, then we also check this.}
+FUNCTION Correct_Version_Parameter_File(ProgName : TProgram; parameterFile, version : STRING) : BOOLEAN;
+{checks if the version and name of the program and the parameter file match. Stops program if not!}
 {check for programe name: we take the variable ProgName and convert this to a lower-case string strprogname. This
 will be either 'zimt' or 'simsalabim'. Then we check if either 'zimt' or 'simsalabim' appears (at least once) in the 
 parameter file.}
@@ -316,13 +314,13 @@ BEGIN
         {POS returns the index of Substr in S, if S contains Substr. In case Substr isn't found, 0 is returned.}
     END;
     CLOSE(inp);
-    Correct_Version_Parameter_File:=found_version AND (NOT CheckProgName OR found_progname);
+    Correct_Version_Parameter_File:=found_version AND found_progname;
 END;
 
 PROCEDURE Prepare_Log_File(VAR log : TEXT; MsgStr : ANSISTRING; CONSTREF par : TInputParameters; version : STRING);
-{opens a logFile for later use and writes date/time and MsgStr to the log file.}
+{opens a log_file for later use and writes date/time and MsgStr to the log file.}
 BEGIN
-    ASSIGN(log, par.logFile); 
+    ASSIGN(log, par.log_file); 
     REWRITE(log);
     WRITELN(log,'Version ', version);
     WRITELN(log,'Size of reals used in simulation: ',SizeOf(myReal),' bytes');
@@ -332,7 +330,7 @@ BEGIN
     {Read_Parameters may have added something to MsgStr (values from the command line):}
     IF Length(MsgStr) > 0 THEN
     BEGIN
-		WRITELN(log, 'Reading in of parameters:');
+		WRITELN(log, 'Values from command line:');
 		WRITE(log, MsgStr) {MsgStr contains any messages from Read_Parameter. No need for writeln as it either empty, or end with LineEnding}
     END;
     FLUSH(log);
@@ -352,135 +350,13 @@ BEGIN
 	CLOSE(log)
 END;
 
-
-PROCEDURE Read_Layer_Parameters(VAR layerPar : TLayerParameters; layerNumber : INTEGER; VAR msg : ANSISTRING; VAR stv : TStaticVars);
-{Reads-in parameters of layer layerNumber}
-
-VAR dumint : INTEGER; {a dummy integer variable}
-    dumstr, CLpre : STRING; 
-    inv : TEXT;
-BEGIN
-    
-    IF NOT FileExists(layerPar.layerFile) {the file with input par. is not found}
-		THEN Stop_Prog('Could not find file '+layerPar.layerFile+'.', EC_FileNotFound);
-    
-    {now check if the version is correct. For the main simulation setup file, we do this in the main simss/zimt code.}
-    IF NOT Correct_Version_Parameter_File(layerPar.layerFile, DDRoutinesVersion) THEN Stop_Prog('Version of SIMsalabim and '+layerPar.layerFile+' do not match.', EC_DevParCorrupt);
-    
-    ASSIGN(inv, layerPar.layerFile);
-    RESET(inv);
-	
-	WRITELN('Reading parameters of layer ',layerNumber,' from file ',layerPar.layerFile);
-	
-	CLpre:='l' + IntToStr(layerNumber) + '.'; {this string (l1, l2, etc) is used as a prefix in the command line}
-	
-	WITH layerPar DO BEGIN
-{**General**************************************************************************}
-		Get_Float(inv, msg, 'L', L, CLpre); {device thickness, m}
-		Get_Float(inv, msg, 'eps_r', eps_r, CLpre);  {relative dielectric constant}
-		Get_Float(inv, msg, 'E_c', E_c, CLpre);  {eV, conduction band edge}
-		Get_Float(inv, msg, 'E_v', E_v, CLpre);  {eV, valence band edge}
-		Get_Float(inv, msg, 'N_c',N_c, CLpre);  {effective DOS, m^-3}
-		Get_Float(inv, msg, 'N_D', N_D, CLpre);  {ionised n-doping density, m^-3}
-		Get_Float(inv, msg, 'N_A', N_A, CLpre);  {ionised p-doping density, m^-3}
-
-{**Mobilities************************************************************************}
-		Get_Float(inv, msg, 'mu_n', mu_n, CLpre); {electron zero-field mobility, m^2/Vs}
-		Get_Float(inv, msg, 'mu_p', mu_p, CLpre); {hole zere-field mobility, m^2/Vs}
-		Get_Integer(inv, msg, 'mobnDep', mobnDep, CLpre);{dependence of elec mobility, 0 : const. mob, 1 : field-dep}
-		Get_Integer(inv, msg, 'mobpDep', mobpDep, CLpre);  {dependence of hole mobility, 0 : const. mob, 1 : field-dep}
-		Get_Float(inv, msg,'gamma_n', gamma_n, CLpre); {field depedence of mobility, eV/(V/m)^0.5}
-		Get_Float(inv, msg, 'gamma_p', gamma_p, CLpre); {field depedence of mobility, eV/(V/m)^0.5}
-
-{**Interface-layer-to-right***********************************************************}
-		Get_Float(inv, msg, 'nu_int_n', nu_int_n, CLpre); {m/s, interface transfer velocity for electrons}
-		Get_Float(inv, msg, 'nu_int_p', nu_int_p, CLpre); {m/s, interface transfer velocity for holes}
-		Get_Float(inv, msg, 'N_t_int', N_t_int, CLpre); {m^-2, interface trap density}
-		Get_Float(inv, msg, 'E_t_int', E_t_int, CLpre); {eV, energy level of traps at interface}
-		Get_String(inv, msg, 'intTrapFile', intTrapFile, CLpre); {name of file with interface trap energy profile (or 'none'). If specified, overrides E_t_int}
-		intTrapFromFile:= lowercase(Trim(intTrapFile)) <> 'none'; {use the profile if intTrapFile isn't 'none'}	
-		Get_Integer(inv, msg, 'intTrapType', intTrapType, CLpre); {Trap type for the interface to the right: -1: acceptor, 0: neutral, 1: donor}	
-		stv.Traps_int_poisson:=stv.Traps_int_poisson OR (N_t_int<>0) AND (intTrapType<>0) AND (layerNumber<stv.NLayers); {note: last layer does not specify interface traps}
-		Get_Float(inv, msg, 'C_n_int', C_n_int, CLpre); {m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)}
-		Get_Float(inv, msg, 'C_p_int', C_p_int, CLpre); {m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)}
-
-{**Ions*******************************************************************}
-		Get_Float(inv, msg, 'N_anion', N_anion, CLpre); {m^-3, concentration of negative ions}
-		Get_Float(inv, msg, 'N_cation', N_cation, CLpre); {m^-3, concentration of positive ions}
-		Get_Float(inv, msg, 'mu_anion', mu_anion, CLpre);{mobility of negative ions}
-		Get_Float(inv, msg, 'mu_cation', mu_cation, CLpre);{mobility of negative ions}
-		Get_Integer(inv, msg, 'ionsMayEnter', dumint, CLpre); {may ions enter from other layers? yes(1) or no(<>1)}
-		ionsMayEnter:=dumint=1;
-
-{**Generation and recombination******************************************************}
-		Get_Float(inv, msg, 'G_ehp', G_ehp, CLpre); {m^-3 s^-1, generation rate of electron-hole pairs in this layer}
-		Get_Integer(inv, msg, 'layerGen', dumint, CLpre); {does this layer generate electron/hole pairs? yes(1) or no (0)')}
-		layerGen:=dumint=1;
-		Get_String(inv, msg, 'nkLayer', nkLayer, CLpre); {name of file with n and k of this layer}
-		Get_Integer(inv, msg, 'fieldDepG', dumint, CLpre);  {field-dependent G, true or false}
-		fieldDepG:=(ROUND(dumint) = 1);
-		Get_Float(inv, msg, 'P0', P0, CLpre); {0<=P0<1, fraction of quenched excitons that directly yield free carriers}
-		Get_Float(inv, msg, 'a', a, CLpre); {thermalization length, Braun model used, m}
-		Get_Integer(inv, msg, 'thermLengDist', thermLengDist, CLpre);
-		Get_Float(inv, msg, 'k_f', k_f, CLpre); {decay rate of CT state, 1/s}
-		Get_Float(inv, msg, 'k_direct', k_direct, CLpre); {m3/s, direct (band-to-band, bimolecular) recombination rate}
-		Get_Float(inv, msg, 'preLangevin', preLangevin, CLpre); {Langevin prefactor}
-		Get_Integer(inv, msg, 'useLangevin', dumint, CLpre);
-		useLangevin:=(ROUND(dumint) = 1); {Calculate recombination using Langevin equation (1) or direct input (<>1, k_direct is used))}
-
-{**Bulk trapping*********************************************************************}
-		Get_Float(inv, msg,'N_t_bulk', N_t_bulk, CLpre); {m^-3, trap density (in bulk)}
-		Get_Float(inv, msg, 'C_n_bulk', C_n_bulk, CLpre); {m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)}
-		Get_Float(inv, msg, 'C_p_bulk', C_p_bulk, CLpre); {m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)}
-		Get_Float(inv, msg, 'E_t_bulk', E_t_bulk, CLpre); {eV, energy level of all traps}
-		Get_String(inv, msg, 'bulkTrapFile', bulkTrapFile, CLpre); {name of file with bulk trap energy profile (or 'none'). If specified, overrides E_t_bulk}
-		bulkTrapFromFile:= lowercase(Trim(bulkTrapFile))<>'none'; {use the profile if bulkTrapFile isn't 'none'}	
-		Get_Integer(inv, msg, 'bulkTrapType', bulkTrapType, CLpre); {Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor}	
-
-    END; {WITH par statement}
-    
-    CLOSE(inv);
-
-    {now write to screen and log (via msg) that we've read from the file:}
-    dumstr:='Read parameters for layer '+IntToStr(layerNumber)+' from '+layerPar.layerFile+LineEnding;
-	msg:=msg + dumstr
-
-END;
-
-FUNCTION ObtainWorkFunction(VAR WF : myReal; dumstr : STRING; CONSTREF lyr : TLayerParameters; CONSTREF stv : TStaticVars) : BOOLEAN;
-{computes the work function of electrode from dumstr: 1) direct input (convert to numerical value), or 2) semi-flat band 
-(dumstr = 'sfb'), then WF follows from net doping at electrode. Returns TRUE if successful.}
-VAR netDoping : myReal;
-	code : WORD;
-BEGIN
-	ObtainWorkfunction:=FALSE;
-	
-	IF LowerCase(dumstr) = 'sfb' THEN {we will have to compute WF from doping}
-	BEGIN 
-		netDoping:=lyr.N_A - lyr.N_D; {be careful, this can be zero!}
-		IF netDoping > 0 THEN {efficively, p-doped}
-			WF:=lyr.E_v - stv.Vt*LN(lyr.N_c/netDoping);
-		IF netDoping < 0 THEN {so efficively n-doped:}
-			WF:=lyr.E_c + stv.Vt*LN(-lyr.N_c/netDoping); 
-		IF netDoping = 0 THEN {intrinsic, or fuly compensated}
-			WF:=0.5 * (lyr.E_c + lyr.E_v);
-		ObtainWorkfunction:=TRUE
-	END
-	ELSE BEGIN {WF's value is simply given}
-		VAL(dumstr, WF, code); {if conversion successful, then code=0}
-		ObtainWorkfunction:=code=0
-	END
-
-END;
-
 PROCEDURE Read_Parameters(parameterFile : STRING; VAR msg : ANSISTRING; VAR par : TInputParameters; VAR stv : TStaticVars; ProgName : TProgram);
 {Reads-in all the parameters. Some bits are specific to either ZimT or SimSS}
-VAR countStart, countFinish, i : INTEGER;
+VAR countStart, countFinish : INTEGER;
     dumint : INTEGER; {a dummy integer variable}
-    dumstr, dumstr2 : ANSISTRING; {again, dummy variables}
+    dumstr : STRING; {again, a dummy variable}
     inv : TEXT;
-    ZimT, SimSS, UsedSpecialParFile, FoundLayer	: BOOLEAN; 
-
+    ZimT, SimSS, UsedSpecialParFile	: BOOLEAN; 
 BEGIN
     {use 2 booleans to check if we're using ZimT or SimSS}
     ZimT:= (ProgName=TProgram.ZimT);
@@ -497,108 +373,158 @@ BEGIN
 		Get_Float(inv, msg,'T',T);  {abs. temperature, K}
 		stv.Vt:=k*T/q;  {thermal voltage}
 		stv.Vti:=1/stv.Vt; {inverse of Vt, we'll use this a lot!}
-
-{**Layers****************************************************************************}
-		{now we try to read the parameter files for each layer.}
-		stv.NLayers:=1;
-		SetLength(lyr, stv.NLayers + 1); {l is the array that contains all layer parameters. First: length is 2 as Layer 0 is reserved for the TCO and layer 1 is the first real layer.}
-		Get_String(inv, msg, 'l1', lyr[1].layerFile); {parameter file for layer 1, mandatory!}
-
-		{this is the only part of the parameter files that is flexible: we'll try to see if there are more layers!}
-		REPEAT
-			readln(inv, dumstr);
-			dumstr:=DelSpace(Trim(dumstr)); {remove all whitespace}
-			{dumstr is either 1) a layer so starts with 'lXX', 2) blank/whitespace, or 3) starts with *}
-			dumstr2:='l' + IntToStr(stv.NLayers+1) + '=';
-			FoundLayer:=LeftStr(LowerCase(dumstr), LENGTH(dumstr2)) = dumstr2;
-			IF FoundLayer THEN TRY
-				dumstr:=ExtractWord(2, dumstr, ['=', '*']); {the file name sits between = and a *}
-				INC(stv.NLayers);
-				SetLength(lyr, stv.NLayers+1); {this adds the layer in the array lyr}
-				lyr[stv.Nlayers].layerFile:=Trim(dumstr);
-			EXCEPT
-				Stop_Prog('Error reading name of layer '+IntToStr(stv.NLayers)+' in file '+parameterFile+'.', EC_DevParCorrupt);
-			END
-		UNTIL NOT FoundLayer;
-
-		{now see if the command line specifies any other names of the layers:}
-		FOR i:=2 TO stv.NLayers DO {exclude layer 1 as we treated that one as per usual}
-		BEGIN
-			dumstr:='-l' + IntToStr(i);
-			getStringfromCL(dumstr, FoundLayer, dumstr2); {try to get it from command line}
-			IF FoundLayer THEN 
-			BEGIN
-				lyr[i].layerFile:=Trim(dumstr2);
-				msg:=msg + 'l' + IntToStr(i) + ' = '+ lyr[i].layerFile + LineEnding
-			END
-		END;
-
-		{read the parameters of all layers:}
-		stv.Traps_int_poisson:=FALSE; {init this field, this can become TRUE if a layer contains interface traps}
-		FOR i:=1 to stv.NLayers DO
-			Read_Layer_Parameters(lyr[i], i, msg, stv); 
-
-{**Contacts**************************************************************************}
-		Get_String(inv, msg, 'W_L', dumstr); {eV, work function left electrode (= cathode), or 'sfb'}
-		IF NOT ObtainWorkFunction(W_L, dumstr, lyr[1], stv) THEN Stop_Prog('Could not convert value of W_L to a numerical value.', EC_InvalidInput);	
-		Get_String(inv, msg, 'W_R', dumstr); {eV, work function right electrode (= anode), or 'sfb'}
-		IF NOT ObtainWorkFunction(W_R, dumstr, lyr[stv.NLayers], stv) THEN Stop_Prog('Could not convert value of W_R to a numerical value.', EC_InvalidInput);
-
-		stv.V0:=0.5*(-W_L + W_R);
-		stv.VL:=0.5*(W_L - W_R);
-		
-		Get_Float(inv, msg, 'S_n_L', S_n_L); {m/s, surface recombination of electrons at the left electrode.}
-		Get_Float(inv, msg, 'S_p_L', S_p_L); {m/s, surface recombination of holes at the left electrode.}
-		Get_Float(inv, msg, 'S_n_R', S_n_R); {m/s, surface recombination of electrons at the right electrode.}
-		Get_Float(inv, msg, 'S_p_R', S_p_R); {m/s, surface recombination of holes at the right electrode.}
-		Get_Float(inv, msg, 'R_shunt', R_shunt); {Ohms m2, shunt resistance. Use negative value for infinite R_shunt}
-		Get_Float(inv, msg, 'R_series', R_series); {Ohms m2, series resistance}
+		Get_Float(inv, msg, 'L', L); {device thickness, m}
+		Get_Float(inv, msg, 'eps_r', eps_r);  {relative dielectric constant}
+		Get_Float(inv, msg, 'CB', CB);  {eV, conduction band edge}
+		Get_Float(inv, msg, 'VB', VB);  {eV, valence band edge}
+		Get_Float(inv, msg, 'Nc',Nc);  {effective DOS, m^-3}
+		Get_Float(inv, msg, 'n_0', n_0);  {ionised n-doping density, m^-3}
+		Get_Float(inv, msg, 'p_0', p_0);  {ionised p-doping density, m^-3}
 
 {**Optics****************************************************************************}
-		IF SimSS THEN Get_Float(inv, msg, 'G_frac', G_frac);
-		Get_String(inv, msg, 'genProfile', genProfile); {name of file generation profile (or lStr+'none')}
-		CASE lowercase(Trim(genProfile)) OF
+		Get_Float(inv, msg, 'L_TCO', L_TCO); {m, thickness of the TCO. Set to 0 if layer is not used}
+		Get_Float(inv, msg, 'L_BE', L_BE); {m, thickness of back electrode, must be >0}
+		Get_String(inv, msg, 'nk_substrate', nk_substrate); {name of file with n,k values of substrate}
+		Get_String(inv, msg, 'nk_TCO', nk_TCO); {name of file with n,k values of TCO}
+		Get_String(inv, msg, 'nk_active', nk_active); {name of file with n,k values of active layer}
+		Get_String(inv, msg, 'nk_BE', nk_BE); {name of file with n,k values of back electrode}
+		Get_String(inv, msg, 'spectrum', spectrum); {name of file that contains the spectrum}
+		Get_Float(inv, msg, 'lambda_min', lambda_min); {m, lower bound wavelength}
+		Get_Float(inv, msg, 'lambda_max', lambda_max); {m, upper bound wavelength}
+
+{**Mobilities************************************************************************}
+		Get_Float(inv, msg, 'mun_0', mun_0); {electron zero-field mobility, m^2/Vs}
+		Get_Float(inv, msg, 'mup_0', mup_0); {hole zere-field mobility, m^2/Vs}
+		Get_Integer(inv, msg, 'mob_n_dep', mob_n_dep);{dependence of elec mobility, 0 : const. mob, 1 : field-dep}
+		Get_Integer(inv, msg, 'mob_p_dep', mob_p_dep);  {dependence of hole mobility, 0 : const. mob, 1 : field-dep}
+		Get_Float(inv, msg,'gamma_n', gamma_n); {field depedence of mobility, eV/(V/m)^0.5}
+		Get_Float(inv, msg, 'gamma_p', gamma_p); {field depedence of mobility, eV/(V/m)^0.5}
+
+{**Contacts**************************************************************************}
+		Get_Float(inv, msg, 'W_L', W_L); {eV, work function left electrode (= cathode)}
+		Get_Float(inv, msg, 'W_R', W_R); {eV, work function right electrode (= anode)}
+	
+		stv.V0:=0.5 * (VB+CB) - W_L;
+		stv.VL:=0.5 * (VB+CB) - W_R;
+
+		Get_Float(inv, msg, 'Sn_L', Sn_L); {m/s, surface recombination of electrons at the left electrode.}
+		Get_Float(inv, msg, 'Sp_L', Sp_L); {m/s, surface recombination of holes at the left electrode.}
+		Get_Float(inv, msg, 'Sn_R', Sn_R); {m/s, surface recombination of electrons at the right electrode.}
+		Get_Float(inv, msg, 'Sp_R', Sp_R); {m/s, surface recombination of holes at the right electrode.}
+		Get_Float(inv, msg, 'Rshunt', Rshunt); {Ohms m2, shunt resistance. Use negative value for infinite Rshunt}
+		Get_Float(inv, msg, 'Rseries', Rseries); {Ohms m2, series resistance}
+
+{**Transport Layers************************************************************************}
+		Get_Float(inv, msg, 'L_LTL', L_LTL); {m, thickness left TL}
+		Get_Float(inv, msg, 'L_RTL', L_RTL); {m, thickness right TL}
+		Get_String(inv, msg, 'nk_LTL', nk_LTL); {name of file with n,k values of the left TL}
+		Get_String(inv, msg, 'nk_RTL', nk_RTL); {name of file with n,k values of the right TL}
+		Get_Float(inv, msg, 'Nc_LTL', Nc_LTL); {m^-3, DOS of left TL}
+		Get_Float(inv, msg, 'Nc_RTL', Nc_RTL); {m^-3, DOS of right TL}
+		Get_Float(inv, msg, 'doping_LTL', doping_LTL);  {m^-3, doping in left TL if >0 p-type doping if <0 n-type doping}
+		Get_Float(inv, msg, 'doping_RTL', doping_RTL);  {m^-3, doping in right TL if >0 p-type doping if <0 n-type doping}
+		Get_Float(inv, msg, 'mob_LTL', mob_LTL); {m2/Vs, mobility of left TL}
+		Get_Float(inv, msg, 'mob_RTL', mob_RTL); {m2/Vs, mobility of right TL}
+		Get_Float(inv, msg, 'nu_int_LTL', nu_int_LTL); {m/s, interface transfer velocity, left TL}
+		Get_Float(inv, msg, 'nu_int_RTL', nu_int_RTL); {m/s, interface transfer velocity, right TL}	
+		Get_Float(inv, msg, 'eps_r_LTL', eps_r_LTL); {relative dielectric constant left TL}
+		Get_Float(inv, msg, 'eps_r_RTL', eps_r_RTL); {relative dielectric constant right TL}
+		Get_Float(inv, msg, 'CB_LTL', CB_LTL); {eV, conduction band left TL}
+		Get_Float(inv, msg, 'CB_RTL', CB_RTL); {eV, conduction band right TL}
+		Get_Float(inv, msg, 'VB_LTL', VB_LTL); {eV, valence left TL}
+		Get_Float(inv, msg, 'VB_RTL', VB_RTL); {eV, valence right TL}
+		Get_Integer(inv, msg, 'TLsGen', dumint); {TLsGen, TLs generate elctrons and holes? yes(1)/no(0), overrides the profile}
+		TLsGen:=ROUND(dumint)=1;
+		Get_Integer(inv, msg, 'TLsTrap', dumint); {TLsTrap, traps in TLs yes(1)/no(0)}
+		TLsTrap:=ROUND(dumint)=1;
+		Get_Integer(inv, msg, 'IonsInTLs', dumint); {can ions, if any, move into the TLs? yes(1)/no(<>1)}
+		IonsInTLs:=ROUND(dumint)=1;
+
+{**Ions*******************************************************************}
+		Get_Float(inv, msg, 'CNI', CNI); {m^-3, concentration of negative ions}
+		Get_Float(inv, msg, 'CPI', CPI); {m^-3, concentration of positive ions}
+		IF ZimT THEN Get_Float(inv, msg, 'mobnion', mobnion);{mobility of negative ions}
+		IF ZimT THEN Get_Float(inv, msg, 'mobpion', mobpion);{mobility of negative ions}
+		IF SimSS THEN Get_Integer(inv, msg, 'mob_ion_spec', dumint);{mobile ion species: -1: negative, 0: both, 1: positive ions}
+		IF ZimT THEN negIonsMove:=(CNI>0) AND (mobnion>0); {are there any moving negative ions?}
+		IF ZimT THEN posIonsMove:=(CPI>0) AND (mobpion>0); {are there any moving positive ions?}
+		IF SimSS THEN negIonsMove:=(CNI>0) AND (dumint <= 0); {do the negative ions move?}
+		IF SimSS THEN posIonsMove:=(CPI>0) AND (dumint >= 0); {do the positive ions move?}
+		IF SimSS THEN Get_Integer(inv, msg, 'ion_red_rate', ion_red_rate);{number of voltage steps after which ions redistribute, }
+
+{**Generation and recombination******************************************************}
+		IF SimSS 
+		THEN BEGIN
+			Get_Float(inv, msg, 'Gehp', Gehp);  {generation rate of electron-hole pairs, m^-3/s}
+			Get_Float(inv, msg, 'Gfrac', Gfrac);
+		END;
+		Get_String(inv, msg, 'Gen_profile', Gen_profile); {name of file generation profile (or 'none')}
+		CASE lowercase(Trim(Gen_profile)) OF
 			'none' : Use_gen_profile := 0; {Uniform generation}
 			'calc' : Use_gen_profile := 1; {Calculate generation profile using the Transfermatrix method}
 		ELSE
 			Use_gen_profile := 2; {Use an user-defined generation profile}
 		END;
-		Get_Float(inv, msg, 'L_TCO', L_TCO); {m, thickness of the TCO. Set to 0 if layer is not used}
-		Get_Float(inv, msg, 'L_BE', L_BE); {m, thickness of back electrode, must be >0}
-		Get_String(inv, msg, 'nkSubstrate', nkSubstrate); {name of file with n,k values of substrate}
-		Get_String(inv, msg, 'nkTCO', nkTCO); {name of file with n,k values of TCO}
-		Get_String(inv, msg, 'nkBE', nkBE); {name of file with n,k values of back electrode}
-		Get_String(inv, msg, 'spectrum', spectrum); {name of file that contains the spectrum}
-		Get_Float(inv, msg, 'lambda_min', lambda_min); {m, lower bound wavelength}
-		Get_Float(inv, msg, 'lambda_max', lambda_max); {m, upper bound wavelength}
+		Get_Integer(inv, msg, 'Field_dep_G', dumint);  {field-dependent G, true or false}
+		Field_dep_G:=(ROUND(dumint) = 1);
+    	Get_Float(inv, msg, 'P0', P0); {0<=P0<1, fraction of quenched excitons that directly yield free carriers}
+		Get_Float(inv, msg, 'a', a); {thermalization length, Braun model used, m}
+		Get_Integer(inv, msg, 'ThermLengDist', ThermLengDist);
+		Get_Float(inv, msg, 'kf', kf); {decay rate of CT state, 1/s}
+		Get_Float(inv, msg, 'kdirect', kdirect); {m3/s, direct (band-to-band, bimolecular) recombination rate}
+		Get_Float(inv, msg, 'Lang_pre', Lang_pre); {Langevin prefactor}
+		Get_Integer(inv, msg, 'UseLangevin', dumint);
+		UseLangevin:=(ROUND(dumint) = 1); {Calculate recombination using Langevin equation (1) or direct input (<>1, kdirect is used))}
+
+{**Trapping**************************************************************************}
+		{** Bulk traps}
+		Get_Float(inv, msg,'Bulk_tr', Bulk_tr); {m^-3, trap density (in bulk)}
+		{** Interface traps}
+		Get_Float(inv, msg, 'St_L', St_L); {m^-2, left interface trap density}
+		Get_Float(inv, msg, 'St_R', St_R); {m^-2, right interface trap density}
+		{** Grain boundaries}
+		Get_Integer(inv, msg,'num_GBs',num_GBs); {number of grain boundaries}
+		Get_Float(inv, msg, 'GB_tr', GB_tr); {m^-2, grain boundary trap density per grain boundary}
+		{** traps coefficients}
+		Get_Float(inv, msg, 'Cn', Cn); {m^3/s, capture coefficient for electrons (put to 0 to exclude capture from and emission to the conduction band)}
+		Get_Float(inv, msg, 'Cp', Cp); {m^3/s, capture coefficient for holes (put to 0 to exclude capture from and emission to the valence band)}
+		Get_Float(inv, msg, 'ETrapSingle', ETrapSingle); {eV, energy level of all traps}
+		Get_String(inv, msg, 'BulkTrapFile', BulkTrapFile); {name of file with bulk trap energy profile (or 'none'). If specified, overrides ETrapSingle}
+		BulkTrapFromFile:= lowercase(Trim(BulkTrapFile))<>'none'; {use the profile if BulkTrapFile isn't 'none'}	
+		Get_String(inv, msg, 'IntTrapFile', IntTrapFile); {name of file with interface trap energy profile (or 'none'). If specified, overrides ETrapSingle}
+		IntTrapFromFile:= lowercase(Trim(IntTrapFile))<>'none'; {use the profile if IntTrapFile isn't 'none'}	
+		Get_Integer(inv, msg, 'Tr_type_L', Tr_type_L); {Trap type for the left interface: -1: acceptor, 0: neutral, 1: donor}	
+		Get_Integer(inv, msg, 'Tr_type_R', Tr_type_R); {Trap type for the right interface: -1: acceptor, 0: neutral, 1: donor}	
+		Get_Integer(inv, msg, 'Tr_type_B', Tr_type_B); {Trap type of bulk and grain boundary traps: -1: acceptor, 0: neutral, 1: donor}	
+		stv.Traps:=(Bulk_tr<>0) OR (St_L<>0) OR (St_R<>0) OR ((GB_tr<>0) AND (num_GBs>0)); {are there any traps?}
+		stv.Traps_int:=(St_L<>0) OR (St_R<>0) OR ((GB_tr<>0) AND (num_GBs>0)); {are there any interface traps?}
+		stv.Traps_int_poisson:=((St_L<>0) AND (Tr_type_L<>0)) OR ((St_R<>0) AND (Tr_type_R<>0)) OR ((GB_tr<>0) AND (num_GBs>0) AND (Tr_type_B<>0));
 
 {**Numerical Parameters**************************************************************}
 		Get_Integer(inv, msg, 'NP', NP); {number of grid points}
 		Get_Float(inv, msg, 'tolPois', tolPois); {abs. tolerance of Poisson solver}
 		Get_Float(inv, msg, 'maxDelV', maxDelV); {maximum change (in Vt) of the potential per loop}
-		Get_Integer(inv, msg, 'maxItPois', maxItPois); {Max. number of loops Poisson solver}
-		Get_Integer(inv, msg, 'maxItSS', maxItSS); {max. number it. steady-state loops}
-		IF ZimT THEN Get_Integer(inv, msg, 'maxItTrans', maxItTrans); {max. number it. transient solver}
-		Get_Integer(inv, msg, 'currDiffInt', currDiffInt); {Calc. current from differential (1) or integral (2) expression}
+		Get_Integer(inv, msg, 'MaxItPois', MaxItPois); {Max. number of loops Poisson solver}
+		Get_Integer(inv, msg, 'MaxItSS', MaxItSS); {max. number it. steady-state loops}
+		IF ZimT THEN Get_Integer(inv, msg, 'MaxItTrans', MaxItTrans); {max. number it. transient solver}
+		Get_Integer(inv, msg, 'CurrDiffInt', CurrDiffInt); {Calc. current from differential (1) or integral (2) expression}
 		Get_Float(inv, msg, 'tolDens', tolDens); {relative tolerance of density solver}
 		Get_Float(inv, msg, 'couplePC', couplePC); {>= 0, coupling between Poisson equation and continuity equations}
 		Get_Float(inv, msg, 'minAcc', minAcc); {>0, min. acceleration parameter}
 		Get_Float(inv, msg, 'maxAcc', maxAcc); {<2, max. acceleration parameter}
-		Get_Integer(inv, msg, 'ignoreNegDens', dumint);
-		ignoreNegDens:= dumint=1; {whether(1) or not(<>1) to ignore negative densities}
-		Get_Integer(inv, msg, 'failureMode', failureMode); {how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip}
+		Get_Integer(inv, msg, 'IgnoreNegDens', dumint);
+		IgnoreNegDens:= dumint=1; {whether(1) or not(<>1) to ignore negative densities}
+		Get_Integer(inv, msg, 'FailureMode', FailureMode); {how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip}
 		Get_Float(inv, msg, 'grad', grad); {gradient of grid, increase grad for smaller h[1]}
-		IF ZimT THEN Get_Float(inv, msg, 'tolVint', tolVint); {V, tolerance in internal voltage (Vint)}
+		IF ZimT THEN Get_Float(inv, msg, 'TolVint', TolVint); {V, tolerance in internal voltage (Vint)}
 
 {**Voltage range of simulation*******************************************************}
 		IF SimSS {this entire block is only relevant to SimSS}
 		THEN BEGIN
-			Get_Integer(inv, msg, 'Vdist', Vdist); {type of V distribution, 1=linear, 2=logarithmic}
-			Get_Integer(inv, msg, 'preCond', dumint); {Pre-condition in light(1)/dark(0)}
-			preCond:=ROUND(dumint)=1;
+			Get_Integer(inv, msg, 'Vdistribution', Vdistribution); {type of V distribution, 1=linear, 2=logarithmic}
+			Get_Integer(inv, msg, 'PreCond', dumint); {Pre-condition in light(1)/dark(0)}
+			PreCond:=ROUND(dumint)=1;
 			Get_Float(inv, msg, 'Vpre', Vpre); {V, pre-conditioned voltage}
-			Get_Integer(inv, msg, 'fixIons', dumint); {fix ions at first applied voltage? yes(1) or no (0).}
-			fixIons:= (dumint=1);			
 			Get_Integer(inv, msg, 'Vscan', Vscan); {integer, direction of voltage scan: up = 1, down = -1}
 			Get_Float(inv, msg, 'Vmin', Vmin); {V, minimum voltage in JV characteristic}
 			Get_Float(inv, msg, 'Vmax', Vmax); {V, max. voltage in JV}
@@ -606,50 +532,49 @@ BEGIN
 			Get_Float(inv, msg, 'Vacc', Vacc); {accumulation voltage for logarithmic JV, should be outside [Vmin, Vmax]}
 			Get_Integer(inv, msg, 'NJV', stv.NJV); {Number of JV points, for logarithmic JV}
 			{Note: NJV is TStaticVars as we sometimes need to calculate it, so it's not a direc input parameter}
-			IF (Vstep<>0) AND (Vdist=1) THEN
+			IF (Vstep<>0) AND (Vdistribution=1) THEN
 				stv.NJV:=TRUNC((Vmax - Vmin)/Vstep + 1e-10) + 1; {needed for setting length of Jdat and Vdat}
 			{1e-10 is needed to get right value}
-			Get_Integer(inv, msg, 'untilVoc', dumint); {if 1 then SimSS stops at Voc}
-			untilVoc:=(dumint=1);
+			Get_Integer(inv, msg, 'until_Voc', dumint); {if 1 then SimSS stops at Voc}
+			until_Voc:=(dumint=1);
 		END;
 
 {**User interface********************************************************************}
 		Get_Float(inv, msg, 'timeout', timeout); {s, max run time. use negative value for unlimited run time.}
-		Get_Integer(inv, msg, 'pauseAtEnd', dumint);
-		pauseAtEnd:=dumint = 1;  {pause at the end of the simulation yes(1) or no (0)}
-		Get_Integer(inv, msg, 'autoTidy', dumint);
-		autoTidy:=dumint = 1;	{if 1, then we will always tidy up the device_parameter file}
+		Get_Integer(inv, msg, 'Pause_at_end', Pause_at_end);  {pause at the end of the simulation yes(1) or no (0)}
+		Get_Integer(inv, msg, 'AutoTidy', dumint);
+		AutoTidy:=dumint = 1;	{if 1, then we will always tidy up the device_parameter file}
 		IF SimSS 
 		THEN BEGIN
-			Get_Integer(inv, msg, 'useExpData', dumint);
-			useExpData:=dumint = 1; {if 1 then  SimSS will try to read expJV and use it}
-			Get_String(inv, msg, 'expJV', expJV); {name of file with experimental JV points}
-			Get_String(inv, msg, 'fitMode', dumstr); {lin or log: use J or log(J) in calc. of fit error}
+			Get_Integer(inv, msg, 'UseExpData', dumint);
+			UseExpData:=dumint = 1; {if 1 then  SimSS will try to read ExpJV and use it}
+			Get_String(inv, msg, 'ExpJV', ExpJV); {name of file with experimental JV points}
+			Get_String(inv, msg, 'rms_mode', dumstr); {lin or log: use J or log(J) in calc. of rms error}
 			dumstr:=lowercase(dumstr);
-			IF NOT ((dumstr='lin') OR (dumstr='log')) THEN Stop_Prog('fitMode has to be either lin or log.', EC_InvalidInput);
-			IF dumstr='lin' THEN fitMode:=linear ELSE fitMode:=logarithmic;
-			Get_Float(inv, msg, 'fitThreshold', fitThreshold); {threshold of fraction converged points in calc. fit error}
+			IF NOT ((dumstr='lin') OR (dumstr='log')) THEN Stop_Prog('rms_mode has to be either lin or log.', EC_InvalidInput);
+			IF dumstr='lin' THEN rms_mode:=linear ELSE rms_mode:=logarithmic;
+			Get_Float(inv, msg, 'rms_threshold', rms_threshold); {threshold of fraction converged points in calc. rms error}
 		END;		
 		IF ZimT THEN
 		BEGIN
-			Get_Integer(inv, msg, 'autoStop', dumint);
-			autoStop:= dumint=1; {stop ZimT if change of system stops chaning, yes(1) or no (<>1).	}
-			Get_String(inv, msg, 'tVGFile', tVGFile); {name of file that specifies time t, voltage V and gen. rate G}
-			Get_String(inv, msg, 'tJFile', tJFile); {name of file with (t, J, V, G)}
+			Get_Integer(inv, msg, 'AutoStop', dumint);
+			AutoStop:= dumint=1; {stop ZimT if change of system stops chaning, yes(1) or no (<>1).	}
+			Get_String(inv, msg, 'tVG_file', tVG_file); {name of file that specifies time t, voltage V and gen. rate G}
+			Get_String(inv, msg, 'tj_file', tj_file); {name of file with (t, J, V, G)}
 		END;
-		IF SimSS THEN Get_String(inv, msg, 'JVFile', JVFile); {name of file with simulated JV points}
-		Get_String(inv, msg, 'varFile', varFile); {name of file with internal variables}
-		Get_Integer(inv, msg, 'limitDigits', dumint); {if 1, then number of digits in output is limited}
-		limitDigits:=dumint = 1;
-		Get_Integer(inv, msg, 'outputRatio', outputRatio); {output (ZimT: J to screen and) variables to var_file every outputRatio timesteps/voltages}	
-		IF SimSS THEN StoreVarFile:=outputRatio>0;
-		IF ZimT THEN StoreVarFile:=lowercase(Trim(varFile))<>'none'; {only store var_file if varFile isn't 'none'}    
-		IF SimSS THEN Get_String(inv, msg, 'scParsFile', scParsFile); {name of file with solar cell parameters}
-		Get_String(inv, msg, 'logFile', logFile); { name of log file}
+		IF SimSS THEN Get_String(inv, msg, 'JV_file', JV_file); {name of file with simulated JV points}
+		Get_String(inv, msg, 'Var_file', Var_file); {name of file with internal variables}
+		Get_Integer(inv, msg, 'LimitDigits', dumint); {if 1, then number of digits in output is limited}
+		LimitDigits:=dumint = 1;
+		Get_Integer(inv, msg, 'OutputRatio', OutputRatio); {output (ZimT: J to screen and) variables to var_file every OutputRatio timesteps/voltages}	
+		IF SimSS THEN StoreVarFile:=OutputRatio>0;
+		IF ZimT THEN StoreVarFile:=lowercase(Trim(Var_file))<>'none'; {only store var_file if Var_file isn't 'none'}    
+		IF SimSS THEN Get_String(inv, msg, 'scPars_file', scPars_file); {name of file with solar cell parameters}
+		Get_String(inv, msg, 'log_file', log_file); { name of log file}
     END; {WITH par statement}
 
     CLOSE(inv);
-    WRITELN('Read simulation setup from ',parameterFile);
+    WRITELN('Read parameters from ',parameterFile);
     {now check if all parameters that were in the command line have been used:}
 	{did we use a special parameter file or not?}
 	UsedSpecialParFile:=NOT( (ParamCount=0) OR StartsStr('-', TRIM(ParamStr(1))) );
@@ -657,67 +582,18 @@ BEGIN
     {we use countStart/Finish to count the number of parameters obtained from the command line}
 	{every time we find such a parameter, a LineEnding is added to msg}
     countFinish:=Count_Substring_In_String(LineEnding, msg);
-
-	{now the number of arguments (bar a dev par file) needs to be 2 x the difference in the counter:}
-    IF ParamCount - ORD(UsedSpecialParFile) <> 2*(countFinish-countStart-stv.NLayers) THEN
-		Stop_Prog('The command line contains invalid arguments, see the manual.', EC_InvalidCLInput);
-    msg:=msg + 'Read simulation setup from ' + parameterFile + LineEnding
-END;
-
-PROCEDURE Check_Parameters_Layer(CONSTREF layerPar : TLayerParameters; layerNumber : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{performs a number of checks on the parameters of an individual layer}
-VAR dumStr : STRING;
-BEGIN
-	dumStr:='Error in layer ' + IntToStr(layerNumber) +': ';
 	
-	WITH layerPar DO BEGIN
-{checks on general parameters:}
-		IF L <=0 THEN Stop_Prog(dumStr+'Thickness L should be positive.', EC_InvalidInput);
-		IF (N_D < 0) OR (N_A < 0) THEN Stop_Prog(dumStr+'Doping densities cannot be negative.', EC_InvalidInput);
-		IF E_c >= E_v THEN Stop_Prog(dumStr+'E_c should be smaller than E_v.', EC_InvalidInput);
-		IF (E_c<0) OR (E_v<0) THEN Stop_Prog(dumStr+'E_c and E_v should be positive.', EC_InvalidInput);
-		
-{checks on mobilities:}
-		IF (mu_n<=0) OR (mu_p<=0) THEN Stop_Prog(dumStr+'Mobilities mu_n and mu_p must be positive.', EC_InvalidInput); 
-		IF NOT (mobnDep IN [0, 1]) THEN Stop_Prog(dumStr+'Invalid mob_dep_n selected.', EC_InvalidInput);
-		IF NOT (mobpDep IN [0, 1]) THEN Stop_Prog(dumStr+'Invalid mob_dep_p selected.', EC_InvalidInput);
-
-{checks on interface parameters:}
-		IF (nu_int_n <= 0) OR (nu_int_p <= 0) THEN Stop_Prog(dumStr+'Interface transfer velocity nu_int_n/p must be positive.', EC_InvalidInput);
-		
-{checks on ions:}
-		IF (N_anion <0) OR (N_cation<0) THEN Stop_Prog(dumStr+'Ionic concentrations cannot be negative.', EC_InvalidInput);
-		IF (mu_anion<0) OR (mu_cation<0) THEN Stop_Prog(dumStr+'Ion mobilities cannot be negative.', EC_InvalidInput);
-		IF ((N_anion>0) OR (N_cation>0)) AND NOT ionsMayEnter THEN Stop_Prog('If a layer contains ions, then ionsMayEnter (of that layer) must be 1.', EC_InvalidInput);
-		IF ionsMayEnter AND (mu_anion*mu_cation = 0) THEN Stop_Prog('If ionsMayEnter = 1, then the ion mobilities cannot be 0.', EC_InvalidInput);
-		
-{checks on generation and recombination parameters}
-		IF G_ehp < 0 THEN Stop_Prog('G_ehp cannot be negative.', EC_InvalidInput);
-		IF (P0>=1) OR (P0<0) THEN Stop_Prog(dumStr+'Invalid value of P0, should be: 0<=P0<1', EC_InvalidInput);
-		IF (P0<>0) AND (fieldDepG = FALSE) THEN Stop_Prog(dumStr+'P0 should be zero if not using field dependent generation', EC_InvalidInput);
-		IF NOT (thermLengDist IN [1,2,3,4,5]) THEN Stop_Prog(dumStr+'Invalid thermLengDist selected.', EC_InvalidInput);
-		IF (k_f<=0) AND fieldDepG THEN Stop_Prog(dumStr+'k_f must be positive.', EC_InvalidInput);
-		
-{checks on bulk traps}
-		{check whether there are a possible number of traps (negative not allowed)}
-		IF N_t_bulk < 0 THEN Stop_Prog(dumStr+'Negative bulk trap density not allowed.', EC_InvalidInput);
-		IF (N_t_bulk > 0) AND (bulkTrapFile = 'none') AND ((E_t_bulk > E_v) OR (E_t_bulk < E_c)) THEN Stop_Prog(dumStr+'E_t_bulk must fall within E_c and E_v.', EC_InvalidInput);
-		{Only Cn OR Cp = 0 are allowed, if both are zero, no charge can reach the traps, this makes no sense.}
-		IF (N_t_bulk>0) AND (C_n_bulk = 0) AND (C_p_bulk = 0) THEN Stop_Prog(dumStr+'C_n_bulk and C_p_bulk cannot BOTH be zero, change parameters please.', EC_InvalidInput);	
-		{trap types: -1, 0 or 1. Sets in pascal are an ordinal type with a range between 0 and 255, hence the ABS:}
-		IF NOT (ABS(bulkTrapType) IN [0, 1]) THEN Stop_Prog(dumStr+'Invalid bulk trap type.', EC_InvalidInput);        
-		{more checks on the energies of the traps are performed in proc Init_Trap_Distribution}
-
-	END {with statement}
+	{now the number of arguments (bar a dev par file) needs to be 2 x the difference in the counter:}
+    IF ParamCount - ORD(UsedSpecialParFile) <> 2*(countFinish-countStart) THEN
+		Stop_Prog('The command line contains invalid arguments, see the manual.', EC_InvalidCLInput);
+    msg:=msg + 'Read parameters from ' + parameterFile + LineEnding
 END;
 
 PROCEDURE Check_Parameters(CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; ProgName : TProgram);
 {performs a number of checks on the parameters. Just to ensure that they are valid, consistent, make sense}
 {Some bits are specific to either ZimT or SimSS}
 VAR ZimT, SimSS	: BOOLEAN;
-	i : INTEGER;
 BEGIN
-  
     {use 2 booleans to check if we're using ZimT or SimSS}
     ZimT:= (ProgName=TProgram.ZimT);
     SimSS:= (ProgName=TProgram.SimSS);
@@ -726,20 +602,65 @@ BEGIN
     {Check first if stv.Vt has been initialised. This should have happened in Read_Parameters}
     IF (stv.Vt=0) THEN Stop_Prog('stv.Vt needs to be initialised before calling Check_Parameters.', EC_ProgrammingError);
 
-{now we check all parameters in 3 blocks: 1) general, 2) layer specific, 3) at interfaces}
-
 	WITH par DO BEGIN
+{checks on general parameters:}
+		IF CB >= VB THEN Stop_Prog('CB should be smaller than VB.', EC_InvalidInput);
+		IF (CB<0) OR (VB<0) THEN Stop_Prog('CB and VB should be positive.', EC_InvalidInput);
+
+{checks on mobilities:}
+		IF NOT (mob_n_dep IN [0, 1]) THEN Stop_Prog('Invalid mob_dep_n selected.', EC_InvalidInput);
+		IF NOT (mob_p_dep IN [0, 1]) THEN Stop_Prog('Invalid mob_dep_p selected.', EC_InvalidInput);
 {checks on contacts:}
 		{part of this can only be done after checking the TLs!}
-		IF R_series<0 THEN Stop_Prog('R_series cannot be negative.', EC_InvalidInput);
-		IF R_shunt=0 THEN Stop_Prog('R_shunt cannot be zero, use positive (negative) value for finite (infinite) shunt resistance.', EC_InvalidInput);
+		IF Rseries<0 THEN Stop_Prog('Rseries cannot be negative.', EC_InvalidInput);
+		IF SimSS AND (Rshunt=0) THEN Stop_Prog('Rshunt cannot be zero, use positive (negative) value for finite (infinite) shunt resistance.', EC_InvalidInput);
+{checks on transport layers:}
+		IF L_LTL+L_RTL>=L THEN Stop_Prog('Sum of L_LTL and L_RTL (transport layers) should be less than total thickness L.', EC_InvalidInput);
+		{more checks on the energy levels of the TLs:}
+		{first check left:}
+		IF L_LTL>0 THEN
+		BEGIN
+			IF W_L<CB_LTL THEN Stop_Prog('W_L cannot be smaller than CB_LTL.', EC_InvalidInput);
+			IF W_L>VB_LTL THEN Stop_Prog('W_L cannot be larger than VB_LTL.', EC_InvalidInput);
+			IF CB_LTL>= VB_LTL THEN Stop_Prog('CB_LTL must be smaller than VB_LTL', EC_InvalidInput);
+		END
+		ELSE BEGIN {no TLs:}
+			IF W_L<CB THEN Stop_Prog('W_L cannot be smaller than CB.', EC_InvalidInput);
+			IF W_L>VB THEN Stop_Prog('W_L cannot be larger than VB.', EC_InvalidInput);
+		END;
+		{check the right:}
+		IF L_RTL > 0 THEN
+		BEGIN
+			IF W_R<CB_RTL THEN Stop_Prog('W_R cannot be smaller than CB_RTL.', EC_InvalidInput);
+			IF W_R>VB_RTL THEN Stop_Prog('W_R cannot be larger than VB_RTL.', EC_InvalidInput);
+			IF CB_RTL>= VB_RTL THEN Stop_Prog('CB_RTL must be smaller than VB_RTL', EC_InvalidInput);
+		END
+		ELSE
+		BEGIN
+			IF W_R<CB THEN Stop_Prog('W_R cannot be smaller than CB.', EC_InvalidInput);
+			IF W_R>VB THEN Stop_Prog('W_R cannot be larger than VB.', EC_InvalidInput);
+		END;
 
-{checks on energy levels:}
-		IF W_L < lyr[1].E_c THEN Stop_Prog('W_L cannot be smaller than E_c of leftmost layer.',EC_InvalidInput);
-		IF W_L > lyr[1].E_v THEN Stop_Prog('W_L cannot be larger than E_v of leftmost layer.', EC_InvalidInput);
-		IF W_R < lyr[stv.NLayers].E_c THEN Stop_Prog('W_R cannot be smaller than E_c of rightmost layer.', EC_InvalidInput);
-		IF W_R > lyr[stv.NLayers].E_v THEN Stop_Prog('W_R cannot be larger than E_v of rightmost layer.', EC_InvalidInput);
+{checks on traps}
+		{check whether there are a possible number of traps (negative not allowed)}
+		IF (St_L < 0) OR (St_R < 0) OR (Bulk_tr < 0) OR (GB_tr < 0) THEN Stop_Prog('Negative trap density not allowed.', EC_InvalidInput);
+		IF (St_L > 0) AND (L_LTL=0) THEN Stop_Prog('You cannot have interface traps (St_L>0) without a TL (L_LTL=0).', EC_InvalidInput);
+		IF (St_R > 0) AND (L_RTL=0) THEN Stop_Prog('You cannot have interface traps (St_R>0) without a TL (L_RTL=0).', EC_InvalidInput);
+		IF num_GBs<0 THEN Stop_Prog('The number of grain boundaries (num_GBs) cannot be negative.', EC_InvalidInput);
+		IF (num_GBs>0) AND (GB_tr=0) THEN Stop_Prog('Trap density at grain boundaries (GB_tr) must be > 0 if num_GBs>0', EC_InvalidInput);
 		
+		{Only Cn OR Cp = 0 are allowed, if both are zero, no charge can reach the traps, this makes no sense.}
+		IF (Cn = 0) AND (Cp = 0) THEN Stop_Prog('Cn and Cp cannot both be zero, change parameters please.', EC_InvalidInput);	
+
+		{trap types: -1, 0 or 1. Sets in pascal are an ordinal type with a range between 0 and 255, hence the ABS:}
+		IF NOT (ABS(Tr_type_L) IN [0, 1]) THEN Stop_Prog('Invalid left interface trap type.', EC_InvalidInput);
+		IF NOT (ABS(Tr_type_R) IN [0, 1]) THEN Stop_Prog('Invalid right interface trap type.', EC_InvalidInput);
+		IF NOT (ABS(Tr_type_B) IN [0, 1]) THEN Stop_Prog('Invalid bulk trap type.', EC_InvalidInput);        
+
+		{check on the energies of the traps are performed in proc Init_Trap_Distribution}
+		
+{checks on ions:}
+		IF SimSS AND (ion_red_rate<0) THEN Stop_Prog('Ion redistribution rate cannot be lower than zero, should be: 0 <= ion_red_rate < NJV', EC_InvalidInput);
 {checks on optics, generation and recombination parameters}
 		IF Use_gen_profile = 1 THEN BEGIN
 			IF L_TCO < 0 THEN Stop_Prog('L_TCO cannot be negative.', EC_InvalidInput);
@@ -748,11 +669,12 @@ BEGIN
 			IF lambda_min <= 0 THEN Stop_Prog('lambda_min must be positive.', EC_InvalidInput); 
 			{note, now we are sure that lambda_max is also positive!}		
 		END;
-
+		IF NOT (ThermLengDist IN [1,2,3,4,5]) THEN Stop_Prog('Invalid ThermLengDist selected.', EC_InvalidInput);
+		IF (P0>=1) OR (P0<0) THEN Stop_Prog('Invalid value of P0, should be: 0<=P0<1', EC_InvalidInput);
+		IF (P0<>0) AND (Field_dep_G = FALSE) THEN Stop_Prog('P0 should be zero if not using field dependent generation', EC_InvalidInput);
 {checks on numerical parameters:}
-		IF (NP<=15) OR (NP>Max_NP) THEN Stop_Prog('Invalid number of grid points (NP) selected, must be >=15 and <='+IntToStr(Max_NP)+'.', EC_InvalidInput);
-		IF MinGridPointsPerLayer * stv.NLayers > NP THEN Stop_Prog('Not enough grid points (NP) to put the minimum number of grid points per layer.', EC_InvalidInput);
-		IF (currDiffInt <> 1) AND (currDiffInt <> 2) THEN Stop_Prog('currDiffInt can only be 1 or 2.', EC_InvalidInput);
+		IF (NP<=15) OR (NP>Max_NP) THEN Stop_Prog('Invalid number of grid points (NP) selected, must be >=15 and <'+IntToStr(Max_NP)+'.', EC_InvalidInput);
+		IF (CurrDiffInt <> 1) AND (CurrDiffInt <> 2) THEN Stop_Prog('CurrDiffInt can only be 1 or 2.', EC_InvalidInput);
 		IF maxDelV<=0 THEN Stop_Prog('maxDelV should be positive.', EC_InvalidInput);
 		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog('maxDelV*Vt should be (much) larger than tolPois.', EC_InvalidInput);
 		IF tolDens <= 0 THEN Stop_Prog('tolDens must be larger than zero.', EC_InvalidInput);
@@ -761,60 +683,49 @@ BEGIN
 		IF maxAcc >= 2 THEN Stop_Prog('maxAcc must be smaller than 2.', EC_InvalidInput);  
 		IF minAcc <= 0 THEN Stop_Prog('minAcc must be positive.', EC_InvalidInput);  
 		IF minAcc > maxAcc THEN Stop_Prog('minAcc cannot be larger than maxAcc.', EC_InvalidInput);  
-		IF NOT (failureMode IN [0,1,2]) THEN Stop_Prog('Invalid failureMode selected.', EC_InvalidInput);
-
+		IF NOT (FailureMode IN [0,1,2]) THEN Stop_Prog('Invalid FailureMode selected.', EC_InvalidInput);
 {checks on voltages, SimSS only:}
 		IF SimSS THEN
 		BEGIN
-			IF NOT (Vdist IN [1,2]) THEN Stop_Prog('Invalid voltage distribution selected.', EC_InvalidInput);
+			IF NOT (Vdistribution IN [1,2]) THEN Stop_Prog('Invalid voltage distribution selected.', EC_InvalidInput);
 			IF ABS(Vscan) <> 1 THEN Stop_Prog('Vscan must be either -1 or 1.', EC_InvalidInput);
 			{check if Vmin and Vmax are not too small or large:}
 			IF Vmin*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog('Vmin is too small.', EC_InvalidInput);
 			IF Vmax*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('Vmax is too large.', EC_InvalidInput);
 			IF Vmin > Vmax THEN Stop_Prog('Vmin should not be greater than Vmax.', EC_InvalidInput);
 			{now check for redundancy of pre-bias:}
-			IF preCond THEN
+			IF PreCond THEN
 			BEGIN
-				IF R_series>0 THEN Warn_User('Pre-bias voltage does not take R_series into account, so Vpre=Vint.');
+				IF Rseries>0 THEN Warn_User('Pre-bias voltage does not take Rseries into account, so Vpre=Vint.');
 				IF ABS(Vpre)*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('|Vpre| is too large.', EC_InvalidInput);
+				IF ((CNI=0) AND (CPI=0)) THEN Stop_Prog('Do not use a pre-bias without any ions, makes no sense.', EC_InvalidInput);
 				IF (Vscan=1) AND (Vpre=Vmin) THEN Stop_Prog('Pre-bias voltage is equal to Vmin, makes no sense.', EC_InvalidInput);
 				IF (Vscan=-1) AND (Vpre=Vmax) THEN Stop_Prog('Pre-bias voltage is equal to Vmax, makes no sense.', EC_InvalidInput);
 			END;
-			IF (Vacc >= Vmin) AND (Vacc <= Vmax) AND (Vdist = 2) THEN {Vacc is not valid} 
+			IF ((CNI<>0) OR (CPI<>0))AND (NOT (ion_red_rate in [0,1])) AND (Vdistribution =2) THEN 
+				Stop_Prog('Do not use Vdistribution=2 with ion_red_rate other than 0 or 1.', EC_InvalidInput);
+			IF (Vacc >= Vmin) AND (Vacc <= Vmax) AND (Vdistribution = 2) THEN {Vacc is not valid} 
 				Stop_Prog('Invalid Vacc selected, must be outside [Vmin, Vmax].', EC_InvalidInput);
-			IF (Vdist=1) AND (Vstep <= 0) THEN Stop_Prog('Vstep should be positive.', EC_InvalidInput);	
-			IF (ABS(Vmin-Vmax) < 1e-10) AND (Vdist=2) {to avoid infinite loop of Va}
-			THEN Stop_Prog('Do not use Vdist=2 when Vmin = Vmax.', EC_InvalidInput);	
+			IF (Vdistribution=1) AND (Vstep <= 0) THEN Stop_Prog('Vstep should be positive.', EC_InvalidInput);	
+			IF (ABS(Vmin-Vmax) < 1e-10) AND (Vdistribution=2) {to avoid infinite loop of Va}
+			THEN Stop_Prog('Do not use Vdistribution=2 when Vmin = Vmax.', EC_InvalidInput);	
 		END;
 
 {checks on user-interface:}
 		IF timeout = 0 THEN Stop_Prog('Invalid timeout: either positive number in seconds or negative for unlimited run time.', EC_InvalidInput);
 		IF SimSS 
 		THEN BEGIN
-			IF (G_frac <> 0) AND (stv.V0 <> stv.VL) AND useExpData AND (fitMode=logarithmic) {this is a weird combination, warn user}
-				THEN Warn_User('You are fitting a solar cell with fitMode=log.');
-			IF useExpData AND untilVoc THEN Stop_Prog('You cannot use untilVoc = 1 and useExpData = 1 at the same time.', EC_InvalidInput);
-			IF useExpData AND preCond THEN Stop_Prog('You cannot use pre-conditioning (preCond) and useExpData = 1 at the same time.', EC_InvalidInput);
-			IF ((fitThreshold<=0) OR (fitThreshold>1)) AND useExpData THEN
-				Stop_Prog('fitThreshold has to be larger than 0 but not larger than 1.', EC_InvalidInput);
+			IF (Gehp * Gfrac <> 0) AND (stv.V0 <> stv.VL) AND UseExpData AND (rms_mode=logarithmic) {this is a weird combination, warn user}
+				THEN Warn_User('You are fitting a solar cell with rms_mode=log.');
+			IF UseExpData AND until_Voc THEN Stop_Prog('You cannot use until_Voc = 1 and UseExpData = 1 at the same time.', EC_InvalidInput);
+			IF UseExpData AND PreCond THEN Stop_Prog('You cannot use pre-conditioning (PreCond) and UseExpData = 1 at the same time.', EC_InvalidInput);
+			IF PreCond AND (ion_red_rate=1) THEN Stop_Prog('You cannot use PreCond and have ion_red_rate=1 at the same time as that defeats the purpose.', EC_InvalidInput);
+			IF ((rms_threshold<=0) OR (rms_threshold>1)) AND UseExpData THEN
+				Stop_Prog('rms_threshold has to be larger than 0 but not larger than 1.', EC_InvalidInput);
 		END;		
-		IF SimSS AND (outputRatio < 0) THEN Stop_Prog('outputRatio should be 0 (no output) or positive.', EC_InvalidInput); {if zero, then simply no var file output}
-		IF ZimT AND (outputRatio <= 0) THEN Stop_Prog('outputRatio should be positive.', EC_InvalidInput); {In ZimT it cannot be zero as we NEED to write output as it also limits the output to screen.}
-    END;
-    
-{now check the individual layers:}
-	FOR i:=1 TO stv.NLayers DO
-		Check_Parameters_Layer(par.lyr[i], i, stv, par);    
-    
-{now we check what happens at the interfaces:}    
-    FOR i:=1 TO stv.NLayers-1 DO 
-    WITH par DO BEGIN
-		IF lyr[i].E_c > lyr[i+1].E_v THEN Stop_Prog('Invalid band alignment between layers '+IntToStr(i)+' and '+IntToStr(i+1)+'.', EC_InvalidInput);
-		IF lyr[i].E_v < lyr[i+1].E_c THEN  Stop_Prog('Invalid band alignment between layers '+IntToStr(i)+' and '+IntToStr(i+1)+'.', EC_InvalidInput);
-		IF (lyr[i].N_t_int > 0) AND NOT (ABS(lyr[i].intTrapType) IN [0, 1]) THEN Stop_Prog('Invalid right interface trap type.', EC_InvalidInput);
-		{the trap energies (if any) are checked in proc Init_Trap_Distribution}
-    END;
- 
+		IF SimSS AND (OutputRatio < 0) THEN Stop_Prog('OutputRatio should be 0 (no output) or positive.', EC_InvalidInput); {if zero, then simply no var file output}
+		IF ZimT AND (OutputRatio <= 0) THEN Stop_Prog('OutputRatio should be positive.', EC_InvalidInput); {In ZimT it cannot be zero as we NEED to write output as it also limits the output to screen.}
+    END
 END;
 
 PROCEDURE Make_Sub_Grid(VAR k : vector; istart, ifinish : INTEGER; grad, xstart, xfinish, L : myReal);
@@ -824,7 +735,7 @@ VAR i, ending : INTEGER;
 BEGIN
     FOR i:=istart TO ifinish DO k[i]:=1;
     {note: we assign a value to k[np+1], but it doesn't have any meaning!}
-    ending:=ROUND(0.5*(ifinish-istart)); {defines the exponential part of the grid}
+    ending:=ROUND(0.25*(ifinish-istart)); {defines the exponential part of the grid}
     FOR i:=0 TO ending DO
     BEGIN
         k[i+istart]:=EXP(grad*(1/ending - 1/(i+1)));
@@ -836,321 +747,385 @@ BEGIN
     FOR i:=istart TO ifinish DO k[i]:=k[i]*norm;
 END;
 
-PROCEDURE Make_Grid(VAR stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Make_Grid(VAR k, x : vector; VAR i1, i2 : INTEGER; CONSTREF par : TInputParameters);
 {Makes an exponential symmetric grid, for every layer}
-{h[i] = (x[i+1] - x[i])/Ltot and initialises the array with x-positions}
-{we also define an array stv.lid: the Layer ID. This allows us to determine in which layer a grid point falls.}
-{and 2 arrays (i0 and i1) that contain the first and last grid point of each layer}
-VAR del, xstart, LThinLayers : myReal;
-	i, j, NumPoints, NumThinLayers, NumGridPointsProportional, istart, ifinish : INTEGER;
+{k[i] = (x[i+1] - x[i])/L and initialises the array with x-positions}
+{i1 is the last point in the left insulator (or 0 if there isn't any)
+i2 is the first point in the right insulator (or NP+1 if there is none)}
+VAR del : myReal;
+	i : INTEGER;
 BEGIN
-    SETLENGTH(stv.i0, stv.NLayers+1); {i0: array with index (i) of start in each layer}
-    SETLENGTH(stv.i1, stv.NLayers+1); {i1: array with index (i) of end in each layer}
-	
-	stv.Ltot:=0; {Ltot: total device length, so sum over layers.}	
-	FOR i:=1 TO stv.NLayers DO
-		stv.Ltot:=stv.Ltot + par.lyr[i].L;
-	
-	{first and last grid point in a layer:}
-	istart:=0;
-	ifinish:=0; 
+   
+	WITH par DO 
+	BEGIN
+		{number of grid point in a layer: at least 5, proportional to thickness of layer:}
+		IF L_LTL=0 THEN i1:=0 ELSE i1:=MAX(5, ROUND(NP*L_LTL/L));
+		IF L_RTL=0 THEN i2:=NP+1 ELSE i2:=NP+1 - MAX(5, ROUND(NP*L_RTL/L));
 
-	xstart:=0; {x-coordinate of layer}
-	
-	WITH stv DO BEGIN
-		
-		{First: count how many layers are 'thin'. 
-		Thin = their thickness is such that they would get fewer than MinGridPointsPerLayer IF we were to assign the number of grid points
-		purely based on the thickness of each layer.}
-		NumThinLayers:=0;
-		LThinLayers:=0; {the total thickness of all 'thin' layers}
-		FOR i:=1 TO NLayers DO 
-			IF par.NP*par.lyr[i].L/Ltot < MinGridPointsPerLayer THEN BEGIN
-				LThinLayers:=LThinLayers + par.lyr[i].L;
-				INC(NumThinLayers);
-			END;
-	
-		{next: we will give each layer a number of grid points based on their thickness, but no fewer than MinGridPointsPerLayer}
-		{and we will call Make_Sub_Grid to assign the grid spacing (h)}
-		FOR i:=1 TO NLayers DO BEGIN
-			NumGridPointsProportional:=FLOOR((par.NP-NumThinLayers*MinGridPointsPerLayer) * (par.lyr[i].L/(Ltot-LThinLayers)));
-			NumPoints:=MAX(MinGridPointsPerLayer, NumGridPointsProportional);
-			
-			i0[i]:=istart;
-			ifinish:=istart + NumPoints;
-			i1[i]:=ifinish;
-			
-			{now make sure that last point is on right electrode:}
-			IF i=NLayers THEN ifinish:=par.NP+1; {the last layer might thus get an extra point, fine!}
-			
-			{now make grid in this layer:}
-			Make_Sub_Grid(stv.h, istart, ifinish, par.grad, xstart, xstart + par.lyr[i].L, Ltot);
-	
-			{lid: layer ID, so it tells you the number of the layer for a specific grid point:}
-			FOR j:=istart TO ifinish DO
-				lid[j]:=i;	
-				
-			{move to the next layer:}
-			istart:=ifinish + 1; 
-			xstart:=xstart + par.lyr[i].L
-		END;
-	
-		{now the last layer will have 1 extra point at the end, so set i1 to par.NP+1:}
-		i1[NLayers]:=par.NP+1; 
-	
-		{At the interfaces, it is beneficial (numerically!) to make sure the spacing is the same:}
-		FOR i:=1 TO NLayers-1 DO BEGIN
-			j:=i0[i+1]; {this is the first grid point in the layer to the right of the interface}
-			del:=(h[j] + h[j-1] + h[j-2])/3; 
-			h[j]:=del; h[j-1]:=del; h[j-2]:=del {we make the spacing astride the interface the same}
-		END;
-		
-		{Now we know the grid spacing (h), we can compute the x-positions:}
+		{first make sub-grids in TLs:}
+		IF L_LTL>0 THEN Make_Sub_Grid(k, 0, i1, grad, 0, L_LTL, L);
+		IF L_RTL>0 THEN Make_Sub_Grid(k, i2, NP+1, grad, L-L_RTL, L, L);
+		{now main layer:}
+		Make_Sub_Grid(k, i1, i2, grad, L_LTL, L-L_RTL, L);
+    
+		{and compute the x-positions:}
 		x[0]:=0;    
-		FOR i:=1 TO par.NP+1 DO x[i]:=x[i-1] + Ltot*h[i-1];
-	
-	END {with stv statement}
+		FOR i:=1 TO NP+1 DO x[i]:=x[i-1] + L*k[i-1];
+    
+		{Now we revisite the points at the interfaces, if any, and make their spacing uniform}
+		{this helps with convergence if there are traps and we're using De Mari's form of the current}
+		IF L_LTL>0 THEN 
+		BEGIN
+			{next, make sure that points around interfaces have the same spacing:}
+			del:=(x[i1+2]-x[i1-1])/3;
+			k[i1-1]:=del/L; k[i1]:=del/L; k[i1+1]:=del/L;
+			x[i1]:=x[i1-1]+del;
+			x[i1+1]:=x[i1] + del;
+		END;
+		
+		IF L_RTL>0 THEN 
+		BEGIN
+			del:=(x[i2+1]-x[i2-2])/3;
+			k[i2-2]:=del/L; k[i2-1]:=del/L; k[i2]:=del/L;
+			x[i2-1]:=x[i2-2]+del;
+			x[i2]:=x[i2-1]+del;
+		END;
+		
+		{note: i1: last point in LTL, i2: first point in RTL}
+		{however, x[i1] is a little bit off from L_LTL, likewise for x[i2]}
+		{because the interface sits between grid points}
 
+	END; {WITH par statement}
 END;
-
 
 PROCEDURE Define_Layers(VAR stv : TStaticVars; CONSTREF par : TInputParameters);
 {Note, stv are not CONSTREF as we need to change them}
 {Sets layer dependent properties}
-VAR i, j : INTEGER;
+VAR i : INTEGER;
 BEGIN
-	FOR j:=1 TO stv.NLayers DO {loop over all layers}
-		WITH par.lyr[j] DO
-			FOR i:=stv.i0[j] TO stv.i1[j] DO BEGIN
-				stv.NcLoc[i]:=N_c;
-				stv.E_CB[i]:=E_c;
-				stv.E_VB[i]:=E_v;
-				stv.ni[i]:=N_c*EXP(-0.5*stv.Vti*(E_v-E_c)); {equilibrium concentration}
-				stv.nid[i]:=N_D;
-				stv.pid[i]:=N_A;
-				stv.eps[i]:=eps_r * eps_0			
-			END			
-END;
-
-PROCEDURE Init_Ionic_Region(VAR IonRegion : TIonicRegions; sn : ShortInt; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Ions can, depending on parameters, move in/out multiple adjacent layers. 
-This proc determines which layers from a region of adjacent layers where ions (pos or neg = sn) can move}
-VAR start, finish, j, NumRegions : INTEGER;
-	FoundStart, FoundEnd : BOOLEAN;
-	TotIons : myReal;
-BEGIN
-	IF ABS(sn)<>1 THEN Stop_Prog('Init_Ionic_Region called with invalid sn (= sign of ions, +-1).',EC_ProgrammingError);
-	start:=0;
-	finish:=0;
-	FoundStart:=FALSE; {true if we find the start of a region with ions}
-	FoundEnd:=FALSE; {true if we find the end of a region with ions}
-	TotIons:=0; {total density of ions in a region}
-	NumRegions:=0; {the number of regions with ions}
-
-	FOR j:=1 TO stv.NLayers DO {loop over the layers}
-	BEGIN
-		
-		{first: can there be ions in this layer?}
-		IF par.lyr[j].ionsMayEnter THEN 
-		BEGIN {there may be ions in this layer}
-			finish:=stv.i1[j];
-			IF sn = 1 THEN
-				TotIons:=TotIons + par.lyr[j].L * par.lyr[j].N_cation
-			ELSE
-				TotIons:=TotIons + par.lyr[j].L * par.lyr[j].N_anion;
-	
-			IF NOT FoundStart THEN		
-			BEGIN {we have found a NEW region with ions!}
-				FoundStart:=TRUE;
-				start:=stv.i0[j]; 
-			END
-		END
-		ELSE 
-		BEGIN {so there can be no ions in this layer}
-			FoundStart:=FALSE;
-			FoundEnd:=FALSE;
-			TotIons:=0
-		END;
-		
-		{now check if we are at the end of a region:}
-		IF j=stv.NLayers THEN
-			FoundEnd:=TRUE
-		ELSE
-			FoundEnd:=NOT par.lyr[j+1].ionsMayEnter;
-			
-		{we have found a full new region if we have the start, end, and some ions:}
-		IF FoundStart AND FoundEnd AND (TotIons<>0) THEN
+	{first define layers:}
+    WITH stv DO BEGIN
+		{define different properties of the layers:}
+ 
+		{first define bulk}
+		FOR i:=0 TO par.NP+1 DO 
 		BEGIN
-			INC(NumRegions);
-			SetLength(IonRegion, NumRegions); {this adds the region to the array}
-			WITH IonRegion[NumRegions-1] DO {now copy the values to this record}
+			NcLoc[i]:=par.Nc; {bulk value of Nc}
+			E_CB[i]:=par.CB;
+			E_VB[i]:=par.VB;
+			ni[i]:=par.Nc*EXP(-0.5*Vti*(E_VB[i]-E_CB[i])); {equilibrium concentration}
+			nid[i]:=par.n_0;
+			pid[i]:=par.p_0;
+			eps[i]:=par.eps_r * eps_0;
+		END;    
+      
+		{now the transport layers}
+ 
+		{left TL:}
+		IF i1>0 THEN
+			FOR i:=0 TO i1 DO
 			BEGIN
-				istart:=start;
-				ifinish:=finish;
-				AvC:=TotIons/(stv.x[ifinish] - stv.x[istart])
-			END
-		END;
-
-	END; {loop over layers}
+				NcLoc[i]:=par.Nc_LTL;
+				E_CB[i]:=par.CB_LTL;
+				E_VB[i]:=par.VB_LTL;
+				ni[i]:=par.Nc*EXP(-0.5*Vti*(E_VB[i]-E_CB[i])); {equilibrium concentration}				
+				nid[i]:=0; {first set nid and pid to zero and then make them non-zero if required}
+				pid[i]:=0;
+				IF par.doping_LTL<=0 THEN nid[i]:=-par.doping_LTL ELSE pid[i]:=par.doping_LTL;
+				eps[i]:=par.eps_r_LTL * eps_0;
+			END;
 	
+		{right TL:}	
+		IF i2<par.NP+1 THEN
+			FOR i:=i2 TO par.NP+1 DO
+			BEGIN
+				NcLoc[i]:=par.Nc_RTL;
+				E_CB[i]:=par.CB_RTL;
+				E_VB[i]:=par.VB_RTL;
+				ni[i]:=par.Nc*EXP(-0.5*Vti*(E_VB[i]-E_CB[i])); {equilibrium concentration}				
+				nid[i]:=0; {first set nid and pid to zero and then make them non-zero if required}
+				pid[i]:=0;
+				IF par.doping_RTL<=0 THEN nid[i]:=-par.doping_RTL ELSE pid[i]:=par.doping_RTL;
+				eps[i]:=par.eps_r_RTL * eps_0;
+			END;	
+	  
+	END {WITH stv statement}
 END;
 
 PROCEDURE Init_Generation_Profile(VAR stv : TStaticVars; VAR log : TEXT; CONSTREF par : TInputParameters);
 {Inits the generation profile, either constant, calculated by the transfer matrix unit, or from a file. 
-Also inits stv.Lgen: the sum of the lengths/thicknesses of all layers that can generate elec-hole pairs.}
+This is the SHAPE of the profile}
 {When using a profile from file, a message is written on screen and in the log file.}
 VAR a, gr : Row; {a : x-coordinate, gr: generation rate}
     numLines, i, j : INTEGER;
+    maxG : myReal;
 BEGIN
-	{first init stv.Lgen, by looping over all layers:}
-	stv.Lgen:=0;
-	FOR j:=1 TO stv.NLayers DO
-		IF par.lyr[j].layerGen THEN {if a layer then generate elec-hole pairs from absorbed light, then add thickness to Lgen}
-			stv.Lgen:=stv.Lgen + par.lyr[j].L;
-	
-	
 	CASE par.Use_gen_profile OF
-		0:	FOR i:=0 TO par.NP+1 DO {uniform generation, so orgGm simply follows from G_ehp of layer}
-				stv.orgGm[i]:=par.lyr[stv.lid[i]].G_ehp;	
-		1:	Calc_TransferMatrix(stv,log,par); {Calculate the generation profile using the TransferMatrix script.}
-		2:	BEGIN {use profile supplied by user}
-				WRITELN('Reading generation profile from ',par.genProfile);
-				WRITELN(log, 'Reading generation profile from ',par.genProfile);
-				Read_XY_Table(a, gr, par.genProfile, 'x G_ehp', numLines);
-				{a: x-coordinate, gr: corresponding generation rate}
+	0:	BEGIN {uniform generation}
+			FOR i:=0 TO par.NP+1 DO stv.orgGm[i]:=1; {constant Gehp=generation rate of e-h pairs}
+			maxG:=1
+		END;
+	1:	Calc_TransferMatrix(stv,par); {Calculate the generation profile using the TransferMatrix script.}
+	2:	BEGIN {use profile supplied by user}
+			WRITELN('Reading generation profile from ',par.Gen_profile);
+			WRITELN(log, 'Reading generation profile from ',par.Gen_profile);
+			Read_XY_Table(a, gr, par.Gen_profile, 'x Gehp', numLines);
+			{a: x-coordinate, gr: corresponding generation rate}
 
-				IF numLines=0 THEN Stop_Prog('The file '+par.genProfile+' appears to be empty.', EC_InvalidInput);
+            IF numLines=0 THEN Stop_Prog('The file generation_profile.txt is empty.', EC_InvalidInput);
 
-				{ rescale a to ensure that a[numLines-1]=L: }
-				FOR i:=0 TO numLines-1 DO a[i]:=a[i] * stv.Ltot/a[numLines-1];
-				{the input file contains the generation profile, however, the grid points
-				in this file may not correspond to our grid here}
+           { rescale a to ensure that a[numLines-1]=L: }
+            FOR i:=0 TO numLines-1 DO a[i]:=a[i] * par.L/a[numLines-1];
+			{the input file contains the generation profile, however, the grid points
+             in this file may not correspond to our grid here}
 
-				{Now interpolate gr to get genrate on x[i] grid:}
-				i:=0; {counter for x[i] grid}
-				FOR j:=0 TO numLines-2 DO
-					WHILE (stv.x[i] < a[j+1]) AND (i<par.NP+1) DO
-						BEGIN
-							IF par.lyr[stv.lid[i]].layerGen THEN
-								stv.orgGm[i]:=gr[j] + (stv.x[i]-a[j]) * (gr[j+1]-gr[j])/(a[j+1]-a[j])
-							ELSE
-								stv.orgGm[i]:=0; {this layer might absorb, but it does not generate electron-hole pairs}
-							{we're using linear interpolation here}
-							i:=i+1
-						END;  
-			END {case 2, reading generation profile from file}
-	END	
+            {Now interpolate gr to get genrate on x[i] grid:}
+            i:=0; {counter for x[i] grid}
+            maxG:=0; {max. of genrate}
+            FOR j:=0 TO numLines-2 DO
+                WHILE (stv.x[i] < a[j+1]) AND (i<par.NP+1) DO
+                    BEGIN
+						stv.orgGm[i]:=gr[j] + (stv.x[i]-a[j]) * (gr[j+1]-gr[j])/(a[j+1]-a[j]);
+                        maxG:=Max(stv.orgGm[i], maxG); {look for maximum of genrate}
+                        {we're using linear interpolation here}
+                        i:=i+1
+                    END;
+
+            {now rescale genrate array so that the maximum is equal to 1:}
+			FOR i:=0 TO par.NP+1 DO
+				stv.orgGm[i]:=stv.orgGm[i]/maxG;
+        END; {reading generation profile from file}
+	END;
+	
+	{if the insulators (if there are any) don't absorb/generate we need set the generation
+	 rate to zero. This overrides the generation profile (if any).}
+	IF NOT par.TLsGen THEN
+	BEGIN
+		{left insulator, offset generalised potentials:}
+		IF stv.i1>0 THEN { I would have thought that one shouldn't need this if statement}
+			FOR i:=0 TO stv.i1 DO
+				stv.orgGm[i]:=0;
+		{right insulator, offset generalised potentials:}
+		IF stv.i2<par.NP+1 THEN
+			FOR i:=stv.i2 TO par.NP+1 DO
+				stv.orgGm[i]:=0;
+	END;
 END;
 
-PROCEDURE Update_Generation_Profile(org: vector; VAR new : vector; G_frac : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Rescales generation profile (org) by factor G_frac to obtain new profile}
+PROCEDURE Update_Generation_Profile(org: vector; VAR new : vector; Geff : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Rescale profile such that Geff equals the average of the profile over the length of the absorber. 
+The latter equals L if TLsGen or there are no transport layers, and L-L_LTL-L_RTL otherwise. }
 VAR i : INTEGER;
+	Gav : myReal;
 BEGIN
-	FOR i:=0 TO par.NP+1 DO 
-		new[i]:=org[i]*G_frac {Generation rate already set in original profile}
+	IF Geff<>0 
+	THEN BEGIN
+		IF par.Use_gen_profile <> 1 THEN {either uniform generation, or from user defined profile}
+			BEGIN
+			{Rescale such that Geff = Gehp * Gfrac equals the average of the profile over the
+			length of the absorber. The latter equals L if TLsGen or there
+			are no transport layers, and L-L_LTL-L_RTL otherwise. }
+			Gav:=Average(org, stv.h, 0, par.NP+1, TRUE); {so average gen rate of original profile}
+			IF NOT par.TLsGen THEN Gav:=Gav * par.L / (par.L-par.L_LTL-par.L_RTL);
+			FOR i:=0 TO par.NP+1 DO
+				new[i]:=org[i] * (Geff/Gav) {now set new generation rate to correct value:}
+			END
+		ELSE {calculated using transfer matrix, Geff = Gfrac:}
+			FOR i:=0 TO par.NP+1 DO new[i]:=org[i]*Geff; {Generation rate already set in original profile}
+		END
+	ELSE FOR i:=0 TO par.NP+1 DO new[i]:=0;
 END;
 
 PROCEDURE Update_Gen_Pot(V : vector; VAR Vgn, Vgp : vector; CONSTREF stv : TstaticVars; CONSTREF par : TInputParameters);
 {updates the generalised potentials (Vgn, Vgp) after potential V has been altered.}
-VAR i, j : INTEGER;
+VAR i : INTEGER;
 	facDOS : myReal;
 BEGIN
-	{we loop over the layers:}
-	FOR j:=1 TO stv.NLayers DO
-	WITH par.lyr[j] DO
-		FOR i:=stv.i0[j] TO stv.i1[j] DO 
+	Vgn:=V;
+	Vgp:=V;
+	{left insulator, offset generalised potentials:}
+	IF stv.i1>0 THEN { I would have thought that one shouldn't need this if statement}
+		FOR i:=0 TO stv.i1 DO
 		BEGIN
-			facDOS:=stv.Vt*LN(stv.NcLoc[i]/stv.NcLoc[0]);
-			Vgn[i]:=V[i] + E_c - stv.E_CB[0] + facDOS;
-			Vgp[i]:=V[i] + E_v - stv.E_VB[0] - facDOS
-		END		
+			facDOS:=stv.Vt*LN(stv.NcLoc[i]/par.Nc);
+			Vgn[i]:=V[i] + par.CB_LTL - par.CB + facDOS;
+			Vgp[i]:=V[i] - par.VB + par.VB_LTL - facDOS;
+		END;
+	{right insulator, offset generalised potentials:}
+	IF stv.i2<par.NP+1 THEN
+		FOR i:=stv.i2 TO par.NP+1 DO
+		BEGIN
+			facDOS:=stv.Vt*LN(stv.NcLoc[i]/par.Nc);
+			Vgn[i]:=V[i] + par.CB_RTL - par.CB + facDOS;
+			Vgp[i]:=V[i] - par.VB + par.VB_RTL - facDOS;
+		END;
 END;
 
-PROCEDURE Init_Trap_Filling_Arrays(VAR f_tb, f_ti, f_ti_numer, f_ti_inv_denom : TTrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{sets the lengths of the trap filling arrays and makes all elements zero.}
-VAR e, i, j, intLevels : INTEGER;
-BEGIN
-	
-	{first the bulk:}
-	FOR j:=1 TO stv.NLayers DO
-		FOR e:=1 TO stv.Ntb[j].NLevels DO {loop over trap levels}
-			FOR i:=MAX(1,stv.i0[j]) TO MIN(par.NP,stv.i1[j]) DO {loop over grid points in this layer, but as always, exclude the electrodes}
-			BEGIN
-				SETLENGTH(f_tb[i], stv.Ntb[j].NLevels + 1); {set length of this part of the array, +1 as we start counting at 1}
-				FILLCHAR(f_tb[i,0], LENGTH(f_tb[i]) * SIZEOF(f_tb[i,0]), 0)
-			END;
-	
-	{the number of interface traps in a layer can be different at its left and right interface.}
-	{So, we take the number of levels equal to the max of all interfaces:}
-	intLevels:=0;
-	FOR j:=1 TO stv.NLayers-1 DO
-		intLevels:=MAX(intLevels, stv.Nti[j].NLevels);
-	
-	{now init length:}
-	FOR i:=0 TO par.NP+1 DO
-	BEGIN
-		SETLENGTH(f_ti[i], intLevels+1); 
-		SETLENGTH(f_ti_numer[i], intLevels+1); 
-		SETLENGTH(f_ti_inv_denom[i], intLevels+1); 
-		FILLCHAR(f_ti[i,0], LENGTH(f_ti[i]) * SIZEOF(f_ti[i,0]), 0);
-		FILLCHAR(f_ti_numer[i,0], LENGTH(f_ti_numer[i]) * SIZEOF(f_ti_numer[i,0]), 0);
-		FILLCHAR(f_ti_inv_denom[i,0], LENGTH(f_ti_inv_denom[i]) * SIZEOF(f_ti_inv_denom[i,0]), 0);
-	END
-END;
-
-PROCEDURE Init_Pot_Dens_Ions_Traps(VAR V, Vgn, Vgp, n, p, nion, pion : vector; VAR f_tb, f_ti, f_ti_numer, f_ti_inv_denom : TTrapArray; Va : myReal; VAR stv : TStaticVars; CONSTREF par : TInputParameters);
-{init. for V, Vgn,p, n, p, ion densities at bias voltage Va. Also sets lengths of f_tb/i arrays}
-VAR i, j : INTEGER;
-	locEF : myReal;
+PROCEDURE Init_Pot_Dens_Ions_Traps(VAR V, Vgn, Vgp, n, p, nion, pion : vector; VAR f_tb, f_ti : TrapArray; Va : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{init. for V, Vgn,p, n, p, ion densities and trap parameters at bias voltage Va}
+VAR i, istart, ifinish : INTEGER;
+	facDOS : myReal;
 BEGIN
     FOR i:=0 TO par.NP+1 DO {guess new V in interior of device} {linear interpolation of V}
-	    V[i]:=stv.V0 - Va/2 + stv.x[i]*(stv.VL-stv.V0+Va)/stv.Ltot;
+	    V[i]:=stv.V0 - Va/2 + stv.x[i]*(stv.VL-stv.V0+Va)/par.L;
 	Update_Gen_Pot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 
-    FOR i:=0 TO par.NP+1 DO {guess n, p in interior of device}
+    FOR i:=0 TO par.NP+1 DO {guess n, p in interior of device, not critical for n and p}
     BEGIN
-		locEF:=par.W_L - stv.x[i]*(par.W_L - par.W_R)/stv.Ltot; {estimate of local EF, simple interpolation of W_L to W_R}
-		{this also sets the boundary conditions on n and p, they matter, the rest is not critical}
-		n[i]:=stv.NcLoc[i]*EXP(-stv.Vti*(locEF - stv.E_CB[i]));
-		p[i]:=SQR(stv.ni[i])/n[i];
+		n[i]:=stv.ni[i]*EXP( (Va * (0.5 -stv.x[i]/par.L) + Vgn[i])*stv.Vti ); {note: we use Vgn,p, NOT V}
+        p[i]:=stv.ni[i]*EXP( (Va * (stv.x[i]/par.L - 0.5) - Vgp[i])*stv.Vti );
 		nion[i]:=0; {just to make sure these have been initialised}
-		pion[i]:=0; {later on, we will set them to the correct values}   
+		pion[i]:=0; {later on, we will set them to CNI/CPI}   
     END;
-   
-    {Last but not least: the ions}
-    {identify regions (can be multiple adjacent layers) that contain either pos or neg ions:}
-	Init_Ionic_Region(stv.NegIonRegion, -1, stv, par);
-	Init_Ionic_Region(stv.PosIonRegion, 1, stv, par);
-	
-	{now we know the ionic regions, we must indicate (per LAYER) if a layer contains pos/neg ions. Those ions can come from adjacent layers!}
-	{first: negative ions:}
-	FOR j:=0 TO LENGTH(stv.NegIonRegion)-1 DO 
-		FOR i:=stv.lid[stv.NegIonRegion[j].istart] TO stv.lid[stv.NegIonRegion[j].ifinish] DO	
-			{neg/posIons only true if layer is 1) part of an Ionic Region, and 2) the average concentration > 0}
-			par.lyr[i].negIons:=stv.NegIonRegion[j].AvC>0;
-	{and postive ones:}
-	FOR j:=0 TO LENGTH(stv.PosIonRegion)-1 DO 
-		FOR i:=stv.lid[stv.PosIonRegion[j].istart] TO stv.lid[stv.PosIonRegion[j].ifinish] DO	
-			{neg/posIons only true if layer is 1) part of an Ionic Region, and 2) the average concentration > 0}
-			par.lyr[i].posIons:=stv.PosIonRegion[j].AvC>0;
-	
-	{now give the arrays noin/pion and mu_n/p_ion the right (starting) values:}
-	FOR i:=0 TO par.NP+1 DO
-	BEGIN
-		nion[i]:=par.lyr[stv.lid[i]].N_anion;
-		pion[i]:=par.lyr[stv.lid[i]].N_cation;
-		stv.mu_n_ion[i]:=par.lyr[stv.lid[i]].mu_anion;
-		stv.mu_p_ion[i]:=par.lyr[stv.lid[i]].mu_cation
-	END;
-	
-	Init_Trap_Filling_Arrays(f_tb, f_ti, f_ti_numer, f_ti_inv_denom, stv, par); {inits their lengths and sets all elements to zero}
+             
+    {now we set the boundary conditions on the densities, these are the ones that matter:} 
+	{left, i=0:}
+	facDOS:=stv.Vt*LN(stv.NcLoc[0]/par.Nc);
+	n[0]:=stv.NcLoc[0]*EXP((Vgn[0]-V[0]+par.CB-facDOS-par.W_L)*stv.Vti);
+    p[0]:=SQR(stv.ni[0])/n[0]; {use law of mass action for p}
 
+    {right, i=NP+1:}
+    facDOS:=stv.Vt*LN(stv.NcLoc[par.NP+1]/par.Nc);
+    p[par.NP+1]:=stv.NcLoc[par.NP+1]*EXP((par.W_R+V[par.NP+1]-Vgp[par.NP+1]-par.VB-facDOS)*stv.Vti);
+    n[par.NP+1]:=SQR(stv.ni[par.NP+1])/p[par.NP+1];
+   
+	{the trap occupancies are first set to 
+	 zero just to make sure they have a well defined value:}
+	FILLCHAR(f_tb, SIZEOF(f_tb), 0);
+	FILLCHAR(f_ti, SIZEOF(f_ti), 0);
+    
+    {Last but not least: the ions}
+    {ions might be limited to the middle layer}
+	IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN istart:=stv.i1+1 ELSE istart:=0;
+	IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN ifinish:=stv.i2-1 ELSE ifinish:=par.NP+1;
+    FOR i:=istart TO ifinish DO
+    BEGIN
+		nion[i]:=par.CNI;
+		pion[i]:=par.CPI;
+    END;
+    
 END;
 
+PROCEDURE Init_Trap_Distribution_Single_Level(VAR stv : TStaticVars; e : INTEGER; CONSTREF par : TInputParameters);
+{Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
+VAR i, gb_nr, cur_idx, cwe_dummy : INTEGER;
+    gb_centre_pos, inv_int_trap_width : myReal;
+    new_gb_found : BOOLEAN;
+BEGIN    
+	{init the vectors}
+	FOR i:=0 TO par.NP+1 DO
+	BEGIN
+		stv.Nti[i,e] := 0;
+		stv.cwe_i[i] := 0;
+	END;
+	
+	{we consider a trap filled when it contains an electron}
+	{a donor type trap is charged when empty, and an acceptor trap is charged when filled.}
+	CASE par.Tr_type_B OF
+		-1 : stv.cwe_b := 0;
+		0  : stv.cwe_b := 0; {we will not use this variable in this case, but it should have a value regardless}
+		1  : stv.cwe_b := 1;
+	END;
 
-PROCEDURE Init_Traps_From_File(VAR log : TEXT; VAR dist : TTrapDistLayer; TrapFile : ANSISTRING; trapType : INTEGER);
+	FOR i:=0 TO par.NP+1 DO stv.Ntb[i,e] := par.Bulk_tr * stv.BulkTrapDist[e]; {first put bulk traps everywhere}
+	{next: check if we need to remove traps in the TLs:}
+	IF NOT par.TLsTrap THEN
+	BEGIN {so the TLs (if any!) do not contain traps}
+		{left transport layer}
+		IF stv.i1 > 0 THEN
+			FOR i := 0 TO stv.i1 DO
+				stv.Ntb[i,e] := 0;
+		{right transport layer}
+		IF stv.i2 < par.NP+1 THEN
+			FOR i:=stv.i2 TO par.NP+1 DO
+				stv.Ntb[i,e] := 0;
+	END;
+	
+	FOR i:=0 TO par.NP+1 DO stv.q_tr_igb[i]:= 1; {this array determines whether trap charge at interfaces and grain boundaries go in the Poisson equation (1: yes, 0:no).}
+		
+	IF (par.St_L > 0) THEN {if there is traps at the left interface}
+	BEGIN
+		{input St_L is #traps/area, will convert this to #traps/volume}
+		inv_int_trap_width := 2 / (par.L * (0.5 * stv.h[stv.i1-1] + stv.h[stv.i1] + 0.5 * stv.h[stv.i1+1]));
+		
+		stv.Nti[stv.i1,e] := stv.IntTrapDist[e] * par.St_L * inv_int_trap_width; {#traps/volume}
+		stv.Nti[stv.i1+1,e] := stv.IntTrapDist[e] * par.St_L * inv_int_trap_width; {#traps/volume}
+
+		CASE par.Tr_type_L OF
+			-1 : cwe_dummy := 0;
+			0  : BEGIN cwe_dummy := 0; stv.q_tr_igb[stv.i1]:= 0; stv.q_tr_igb[stv.i1+1]:= 0 END; {we will not use this variable in this case, but it should have a value regardless}
+			1  : cwe_dummy := 1;
+		END;
+		stv.cwe_i[stv.i1] := cwe_dummy;
+		stv.cwe_i[stv.i1+1] := cwe_dummy;
+	END;
+	
+	IF (par.St_R > 0) THEN {if there is traps at the right interface}
+	BEGIN	
+		{input St_R is #traps/area, will convert this to #traps/volume}
+		inv_int_trap_width := 2 / (par.L * (0.5*stv.h[stv.i2] + stv.h[stv.i2-1] + 0.5*stv.h[stv.i2-2]));
+		
+		stv.Nti[stv.i2-1,e] := stv.IntTrapDist[e] * par.St_R * inv_int_trap_width; {#traps/volume}
+		stv.Nti[stv.i2,e] := stv.IntTrapDist[e] * par.St_R * inv_int_trap_width; {#traps/volume}
+
+		CASE par.Tr_type_R OF
+		  -1 : cwe_dummy := 0;
+		  0  : BEGIN cwe_dummy := 0; stv.q_tr_igb[stv.i2]:= 0; stv.q_tr_igb[stv.i2-1]:= 0 END;{we will not use this variable in this case, but it should have a value regardless}
+		  1  : cwe_dummy := 1;
+		END;
+		
+		stv.cwe_i[stv.i2-1] := cwe_dummy;
+		stv.cwe_i[stv.i2] := cwe_dummy;
+	END;
+
+	IF (par.num_GBs > 0) AND (par.GB_tr <> 0) THEN {include grain boundary recombination}
+	{If there are grain boundaries (GBs), then things get a bit complicated:
+	We want to put the GBs at regular intervals. However, there may (=likely!) not be grid
+	points exactly at these positions. Thus, we try to get as close as possible.} 
+	BEGIN
+		cur_idx := stv.i1;
+		CASE par.Tr_type_B OF
+			-1 : cwe_dummy := 0;
+			0  : BEGIN cwe_dummy := 0; FOR i:=stv.i1+2 TO stv.i2-2 DO stv.q_tr_igb[i]:= 0 END; {we will not use this variable in this case, but it should have a value regardless}
+			1  : cwe_dummy := 1;	
+		END;
+		
+		FOR gb_nr := 1 TO par.num_GBs DO
+		BEGIN 
+			new_gb_found := FALSE;
+			gb_centre_pos := (par.L - par.L_RTL - par.L_LTL) / (par.num_GBs + 1) * gb_nr + par.L_LTL;
+
+			{find the start and end idx of the grain boundary and set trap density}
+			WHILE new_gb_found = FALSE DO 
+			BEGIN 
+				IF (gb_centre_pos >= stv.x[cur_idx]) AND (gb_centre_pos < stv.x[cur_idx+1]) THEN 
+				BEGIN 
+					new_gb_found := TRUE;
+					inv_int_trap_width := 2 / (par.L * (0.5 * stv.h[cur_idx-1] + stv.h[cur_idx] + 0.5 * stv.h[cur_idx+1]));
+					stv.Nti[cur_idx,e] := stv.IntTrapDist[e] * ABS(par.GB_tr) * inv_int_trap_width;
+					stv.Nti[cur_idx+1,e] := stv.IntTrapDist[e] * ABS(par.GB_tr) * inv_int_trap_width;
+					
+					stv.cwe_i[cur_idx] := cwe_dummy;
+					stv.cwe_i[cur_idx+1] := cwe_dummy;
+				END;
+				INC(cur_idx);
+			END
+		END   
+	END;
+
+	{There cannot be two touching interfaces, as this is conflicting with how the equations are derived.}
+	FOR i := 1 TO par.NP DO
+		IF (stv.Nti[i-1,e] <> 0) AND (stv.Nti[i,e] <> 0) AND (stv.Nti[i+1,e] <> 0) THEN
+			Stop_Prog('There are multiple consecutive interfaces, decrease interface density.', EC_InvalidInput);
+	
+END;
+
+PROCEDURE Init_Traps_From_File(VAR log : TEXT; VAR Energies, Traps : TrapEnArray; VAR NumLevels : INTEGER; TrapFile : ANSISTRING);
 {Inits traps if their energy levels are specified in a file}
-VAR e, NumLevels : INTEGER;
+{Energies: the energies of the traps. Traps: their relative number (per volume or area). This sums to 1}
+{NumLevels: number of trap levels that are specified. Capped to Max_NEtr (in unit TypesAndConstants)}
+VAR e : INTEGER;
+	sum : myReal;
 	x, y : Row;
 BEGIN
 	WRITELN('Reading trap profile from ',TrapFile);
@@ -1160,561 +1135,598 @@ BEGIN
 	Read_XY_Table(x, y, TrapFile, 'E Ntrap', NumLevels);
 	
 	{check the number of levels:}
+	IF NumLevels > Max_NEtr THEN Stop_Prog('There are more trap levels in file '+TrapFile+' than we can handle.'+LineEnding+'See Max_NEtr in TypesAndConstants.', EC_InvalidInput);
 	IF NumLevels=0 THEN Stop_Prog('Could not find any trap levels in file '+TrapFile+'.', EC_InvalidInput);
 
-	{now copy data into dist}
-	WITH dist DO BEGIN	
-		NLevels:=NumLevels;
-		IF trapType = 1 THEN cwe:=1; {otherwise it remains zero, as initialised}
-		SETLENGTH(en, NLevels + 1); {note: +1 as we start counting at index 1} 
-		SETLENGTH(Nt, NLevels + 1); {note: +1 as we start counting at index 1} 
-		SETLENGTH(nt0, NLevels + 1); {note: +1 as we start counting at index 1} 
-		SETLENGTH(pt0, NLevels + 1); {note: +1 as we start counting at index 1} 
-		FOR e:=1 TO NumLevels DO
-		BEGIN
-			en[e]:=x[e-1]; {note: en and Nt start at index 1, but x and y start at 0}
-			Nt[e]:=y[e-1];
-			IF Nt[e]=0 THEN Stop_Prog('Found a trap level with zero density in file '+TrapFile+' level number '+IntToStr(e), EC_InvalidInput)
-		END
-	END {with dist}
+	{now copy data into the proper arrays Traps and Energies:}
+	sum:=0;
+	FOR e:=1 TO NumLevels DO
+	BEGIN
+		Energies[e]:=x[e-1]; {note: Energies and Traps start at index 1.}
+		Traps[e]:=y[e-1];
+		sum:=sum + Traps[e]; 
+	END;	
+
+	{now we reschale the total number of Traps (now in sum) to 1}
+	FOR e:=1 TO NumLevels DO 
+		Traps[e]:=Traps[e]/sum;
+
 END;
 
 
-PROCEDURE Init_Trapping(VAR log : TEXT; VAR stv : TStaticVars; CONSTREF par : TInputParameters); 
-{Inits all variables needed for trapping and SRH recombination}
-{note: stv are changed here (Ntb and Nti), so they are VAR parameters}
-VAR e, j : INTEGER;
+PROCEDURE Init_Trap_Distribution(VAR log : TEXT; VAR stv : TStaticVars; CONSTREF par : TInputParameters);
+{Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
+VAR e, NumBulkLevels, NumIntLevels : INTEGER;
+	MinETrap, MaxETrap : myReal;
 BEGIN
-	WITH stv DO 
+	WITH stv DO {first set all trap-related arrays to zero}
 	BEGIN
-		{set length of arrays that contain energies and density of traps, we start numbering at 1:}
-		SETLENGTH(Ntb, NLayers+1);
-		SETLENGTH(Nti, NLayers+1); 
+		FILLCHAR(ETrapBulk, SIZEOF(ETrapBulk), 0); 
+		FILLCHAR(ETrapInt, SIZEOF(ETrapInt), 0); 
+		FILLCHAR(BulkTrapDist, SIZEOF(BulkTrapDist), 0); 
+		FILLCHAR(IntTrapDist, SIZEOF(IntTrapDist), 0); 
+	END;
 
-		{and set all to zero}
-		FILLCHAR(Ntb[0], SIZEOF(Ntb[0]) * LENGTH(Ntb), 0); 
-		FILLCHAR(Nti[0], SIZEOF(Nti[0]) * LENGTH(Nti), 0)	
-	END; {with stv}
-
-	{First: init, check bulk trapping:}
-	FOR j:=1 TO stv.NLayers DO {loop over all layers}
-	BEGIN
-		{first: init bulk traps:}
-		WITH par.lyr[j] DO BEGIN
-			IF bulkTrapFromFile THEN
-				Init_Traps_From_File(log, stv.Ntb[j], bulkTrapFile, bulkTrapType)			
-			ELSE IF N_t_bulk <> 0 THEN 
-			WITH stv.Ntb[j] DO BEGIN {if not from file, we take 1 level}
-				NLevels:=1;
-				{now set cwe: charge when empty}
-				IF bulkTrapType = 1 THEN cwe:=1; {otherwise it remains zero, as initialised}
-				SETLENGTH(en, 2); {note: 2 as we start counting at index 1} 
-				SETLENGTH(Nt, 2); {note: 2 as we start counting at index 1} 
-				SETLENGTH(nt0, 2); {note: 2 as we start counting at index 1} 
-				SETLENGTH(pt0, 2); {note: 2 as we start counting at index 1} 
-				en[1]:=E_t_bulk;
-				Nt[1]:=N_t_bulk
-			END;			
-		END; {with statement}
-
-		{check validity of levels and init nt0 and pt0}
-		WITH stv.Ntb[j] DO
-			FOR e:=1 to NLevels DO 
-			BEGIN {loop over all energy levels, if any}
-				{ALL bulk trap levels of a layers should fall in E_c and E_v}				
-				IF (Nt[e]>0) AND ((en[e] >= par.lyr[j].E_v) OR (en[e] <= par.lyr[j].E_c)) {only check if there are traps!}
-					THEN Stop_Prog('Found a bulk trap energy in layer '+IntToStr(j)+' that does not fall in the band gap.', EC_InvalidInput);
-		
-				{init nt0 and pt0, needed for SRH recombination}
-				nt0[e]:=par.lyr[j].N_c * EXP((par.lyr[j].E_c-en[e])*stv.Vti);
-				pt0[e]:=par.lyr[j].N_c * EXP((en[e]-par.lyr[j].E_v)*stv.Vti)
-			END
-		
-	END; {for loop over all layers for bulk traps}
-
-	{now the interface traps, so loop until NLayers-1}
-	FOR j:=1 TO stv.NLayers-1 DO 
-	BEGIN
-		
-		{first: init the traps:}
-		WITH par.lyr[j] DO BEGIN
-			IF intTrapFromFile THEN
-				Init_Traps_From_File(log, stv.Nti[j], intTrapFile, intTrapType)			
-			ELSE IF N_t_int <> 0 THEN
-			WITH stv.Nti[j] DO BEGIN{if not from file, we take 1 level}
-				NLevels:=1;
-				{now set cwe: charge when empty}
-				IF intTrapType = 1 THEN cwe:=1; {otherwise it remains zero, as initialised}
-				SETLENGTH(en, 2); {note: 2 as we start counting at index 1} 
-				SETLENGTH(Nt, 2); {note: 2 as we start counting at index 1} 
-				en[1]:=E_t_int;
-				Nt[1]:=N_t_int
-			END
-				
-		END; {with statement}
-
-		{check validity of levels }		
-		WITH stv.Nti[j] DO
-			FOR e:=1 to NLevels DO {loop over all energy levels, if any}
-				{ALL interface trap levels of a layers should fall in E_c and E_v of BOTH layers adjacent this interface}
-				IF (Nt[e]>0) AND ((en[e] >= MIN(par.lyr[j].E_v, par.lyr[j+1].E_v)) OR (en[e] <= MAX(par.lyr[j].E_c, par.lyr[j+1].E_c))) {only check if there are traps!}
-					THEN Stop_Prog('Found interface trap energy between layers '+IntToStr(j)+' and '+IntToStr(j+1)+' that does not fall between the E_c and E_v of those layers.', EC_InvalidInput);
-
-		
-	END; {for loop over all layers -1 for interface traps}
-
-	{now we have all the parameters of the interface traps, we can init nt0_L/R and pt0_L/R}
-	FOR j:=1 TO stv.NLayers-1 DO 
-	BEGIN
-		{each layer has 2 interfaces, left and right and we need to set the correct length:}
-		SETLENGTH(stv.Nti[j].nt0_R, stv.Nti[j].NLevels+1);
-		SETLENGTH(stv.Nti[j+1].nt0_L, stv.Nti[j].NLevels+1); {we copy the length of the array in next layer}
-		SETLENGTH(stv.Nti[j].pt0_R, stv.Nti[j].NLevels+1);
-		SETLENGTH(stv.Nti[j+1].pt0_L, stv.Nti[j].NLevels+1);
-
-		FOR e:=1 TO stv.Nti[j].NLevels DO
-			WITH stv.Nti[j] DO
-			BEGIN
-				{init nt0 and pt0, at left and right side of this layer:}
-				nt0_R[e]:=par.lyr[j].N_c * EXP((par.lyr[j].E_c-en[e])*stv.Vti);
-				pt0_R[e]:=par.lyr[j].N_c * EXP((en[e]-par.lyr[j].E_v)*stv.Vti);
-				{at the left side, we work with layer j+1:}
-				stv.Nti[j+1].nt0_L[e]:=par.lyr[j+1].N_c * EXP((par.lyr[j+1].E_c-en[e])*stv.Vti);
-				stv.Nti[j+1].pt0_L[e]:=par.lyr[j+1].N_c * EXP((en[e]-par.lyr[j+1].E_v)*stv.Vti)
-			END
-	END
+	IF par.BulkTrapFromFile AND (par.Bulk_tr <> 0) THEN {if no traps, then don't bother with the file}
+		Init_Traps_From_File(log, stv.ETrapBulk, stv.BulkTrapDist, NumBulkLevels, par.BulkTrapFile)
+	ELSE BEGIN {simplest case: take trap energy from device parameters}
+		NumBulkLevels:=1;
+		stv.ETrapBulk[1]:=par.ETrapSingle;
+		stv.BulkTrapDist[1]:=1;
+	END;
 	
+	IF par.IntTrapFromFile AND ((par.St_L <> 0) OR (par.St_R <> 0) OR ((par.GB_tr <> 0) AND (par.num_GBs <> 0))) THEN {if no traps, then don't bother with the file}
+		Init_Traps_From_File(log, stv.ETrapInt, stv.IntTrapDist, NumIntLevels, par.IntTrapFile)
+	ELSE BEGIN {simplest case: take trap energy from device parameters}
+		NumIntLevels:=1;
+		stv.ETrapInt[1]:=par.ETrapSingle;
+		stv.IntTrapDist[1]:=1;
+	END;
+
+	{Now let's check if the trap energies make sense with the CB and VB in the layers in the device}
+	{first: the bulk.}
+	IF par.Bulk_tr <> 0 THEN 
+	BEGIN
+		{First: determine the relevant limits, Min/MaxETrap}
+		{simplest case for bulk traps, should fall within CB and VB of bulk}
+		MinETrap:=par.CB; 
+		MaxETrap:=par.VB;
+		
+		{account for LTL:}
+		IF par.TLsTrap AND (par.L_LTL<>0) THEN 
+		BEGIN
+			MinETrap:=MAX(MinETrap, par.CB_LTL);
+			MaxETrap:=MIN(MaxETrap, par.VB_LTL);
+		END;
+		
+		{account for RTL:}
+		IF par.TLsTrap AND (par.L_RTL<>0) THEN 
+		BEGIN
+			MinETrap:=MAX(MinETrap, par.CB_RTL);
+			MaxETrap:=MIN(MaxETrap, par.VB_RTL);
+		END;
+	
+		{now check the bulk trap energies and see if they are in (MinETrap, MaxETrap)}
+		FOR e:=1 TO NumBulkLevels DO
+		BEGIN
+			IF stv.ETrapBulk[e] >= MaxETrap THEN Stop_Prog('Found a bulk trap energy that is larger than physically possible.', EC_InvalidInput);
+			IF stv.ETrapBulk[e] <= MinETrap THEN Stop_Prog('Found a bulk trap energy that is smaller than physically possible.', EC_InvalidInput);
+		END;
+	END;
+	
+	{now check the interface traps and GB traps}
+	IF stv.Traps_int THEN 
+	BEGIN
+		{First: determine the relevant limits, Min/MaxETrap}
+		{note: if there are grain boundary traps, then par.CB/VB are the limits and things are easy}
+		MinETrap:=par.CB; 
+		MaxETrap:=par.VB;
+		
+		{account for LTL:}
+		IF (par.St_L<>0) AND (par.L_LTL<>0) THEN 
+		BEGIN
+			MinETrap:=MAX(MinETrap, par.CB_LTL);
+			MaxETrap:=MIN(MaxETrap, par.VB_LTL);
+		END;
+		
+		{account for RTL:}
+		IF (par.St_R<>0) AND (par.L_RTL<>0) THEN 
+		BEGIN
+			MinETrap:=MAX(MinETrap, par.CB_RTL);
+			MaxETrap:=MIN(MaxETrap, par.VB_RTL);
+		END;
+		
+		{now check the interface trap energies and see if they are in (MinETrap, MaxETrap)}
+		FOR e:=1 TO NumIntLevels DO
+		BEGIN
+			IF stv.ETrapInt[e] >= MaxETrap THEN Stop_Prog('Found an interface trap energy that is larger than physically possible.', EC_InvalidInput);
+			IF stv.ETrapInt[e] <= MinETrap THEN Stop_Prog('Found an interface trap energy that is smaller than physically possible.', EC_InvalidInput);
+		END;
+		
+	END;
+
+	stv.N_Etr:=MAX(NumBulkLevels, NumIntLevels); {this guarentees that N_Etr is at least 1 but not larger than Max_NEtr}
+
+	FOR e:=1 TO stv.N_Etr DO
+		Init_Trap_Distribution_Single_Level(stv, e, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
 END;
 
-
-PROCEDURE Rescale_Ion_Density(VAR ion : vector; istart, ifinish : INTEGER; conc : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Rescale_Ion_Density(VAR ion : vector; conc : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {normalises an ion distribution to the correct overall concentration conc}
-VAR i : INTEGER;
+VAR i, istart, ifinish : INTEGER;
 	sum, norm : myReal;
 BEGIN
 	sum:=0;
+	{ions might be limited to the middle layer (which can take up the whole device i=0...NP+1.}
+	IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN istart:=stv.i1+1 ELSE istart:=0;
+	IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN ifinish:=stv.i2-1 ELSE ifinish:=par.NP+1;
 	
 	FOR i:=istart+1 TO ifinish DO {note: we start at istart + 1 as we access ion[i-1]}
-		sum:=sum + 0.5*(ion[i]+ion[i-1])*stv.h[i-1]*stv.Ltot; {if the grid is non-uniform, we need to take this into account}
+		sum:=sum + 0.5*(ion[i]+ion[i-1])*stv.h[i-1]*par.L; {if the grid is non-uniform, we need to take this into account}
 
-	norm:=conc*(stv.x[ifinish]-stv.x[istart])/sum; 
+	norm:=conc*(stv.x[ifinish]-stv.x[istart])/sum; {Note: length where ions sit depends on TLs and IonsInTLs, use ifinish and istart}
 	FOR i:=istart TO ifinish DO {now renormalise the ionic densities such that the total number of ions is correct}
 		ion[i]:=ion[i]*norm;
 END;
 
-PROCEDURE Calc_Ion_Distribution_Steady_State(VAR ion, V : vector; sn : ShortInt; IonRegion : TIonicRegions; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Calc_Ion_Distribution_Steady_State(VAR nion, pion, V : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {calculates the ion distribution in steady state. This is either constant 
 (if the ionic species doesn't move), or it follows from requiring that
 the associated ionic particle current be zero.} 
 VAR fac : myReal;
-	i, j: INTEGER;
+	i, istart, ifinish : INTEGER;
 BEGIN
-	IF ABS(sn)<>1 THEN Stop_Prog('Calc_Ion_Distribution_Steady_State called with invalid sn (= sign of ions, +-1).',EC_ProgrammingError);
 	
-	{we loop over all regions where that contain ions, so this can be multiple layers!}
-	FOR j:=0 TO LENGTH(IonRegion)-1 DO 
-		WITH IonRegion[j] DO
-		BEGIN
-			ion[istart]:=AvC;
-			FOR i:=istart+1 TO ifinish DO
-			BEGIN
-				IF sn=1 THEN
-					fac:=B(stv.Vti*(V[i]-V[i-1])) / B(stv.Vti*(V[i-1]-V[i])) 
-				ELSE
-					fac:=B(stv.Vti*(V[i-1]-V[i])) / B(stv.Vti*(V[i]-V[i-1]));
-				{we use the expressions for the ion currents to make sure that they are zero. This yields
-				the profile of neg/pos ions.}
-				IF AvC>0 THEN ion[i]:=ion[i-1]*fac ELSE ion[i]:=0
-			END;
-			
-			{nomalize concentrations}
-			IF AvC>0 THEN Rescale_Ion_Density(ion, istart, ifinish, IonRegion[j].AvC, stv, par);
-	
-		END {with stv.IonRegion[j]}
-	
+	{ions can be limited to the middle layer (which can take up the whole device i=0...NP+1.}
+	IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN istart:=stv.i1+1 ELSE istart:=0;
+	IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN ifinish:=stv.i2-1 ELSE ifinish:=par.NP+1;
+
+	nion[istart]:=1;
+	pion[istart]:=1;
+
+	FOR i:=istart+1 TO ifinish DO
+	BEGIN
+		fac:=B(stv.Vti*(V[i-1]-V[i]))/B(stv.Vti*(V[i]-V[i-1]));
+		{we use the expressions for the ion currents to make sure that they are zero. This yields
+		the profile of neg/pos ions.}
+		IF par.negIonsMove THEN nion[i]:=nion[i-1]*fac ELSE nion[i]:=1;
+		IF par.posIonsMove THEN pion[i]:=pion[i-1]/fac ELSE pion[i]:=1;
+	END;
+
+	{nomalize concentrations}
+	Rescale_Ion_Density(nion, par.CNI, stv, par);
+	Rescale_Ion_Density(pion, par.CPI, stv, par); 
+	{now the total number of ions should be equal to the concentrion CNI/CPI times (L-L_LTL-L_RTL)}
 END;
 
 PROCEDURE Solve_Neg_Ions(VAR nion : vector; nionPrevTime, V : vector; dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {dti: DeltaTInverse, so dti = 1/delt. If dti=0 then we're in steady-state.
 If dti > 0 we're using the transient equations (Selberherr 6-4.32)}
-VAR i, j, istart, ifinish : INTEGER;
+VAR i, istart, ifinish : INTEGER;
     lo, m, u, rhs : vector;
 BEGIN
-	{we loop over the regions that can contain ions. A region can be multiple adjacent layers.
-	Per such region, we solve the drift-diffusion equation and compute the ionic distribution.}
+	IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN
+	WITH stv DO 
+	BEGIN {ions cannot move towards the contacts}
+		istart:=i1+1;
+		i:=istart;
+		rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(par.L)*h[i]*(h[i]+h[i-1]);
+		lo[i]:=0;
+		m[i]:=-Vt*par.mobnion*B(Vti*(V[i]-V[i+1]))
+				-0.5*dti*SQR(par.L)*h[i]*(h[i]+h[i-1]);
+		u[i]:=Vt*par.mobnion*B(Vti*(V[i+1]-V[i]));   
+	END
+	ELSE BEGIN {ions can move towards the contacts, nion[0]<>0:}
+		istart:=0;
+		{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
+		lo[istart]:=0;
+		m[istart]:=1;
+		u[istart]:=-B(stv.Vti*(V[1]-V[0])) / B(stv.Vti*(V[0]-V[1]));
+		rhs[istart]:=0; 
+	END;
+  
+	{at the other end:}
+	IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN
+	WITH stv DO
+	BEGIN  {ions cannot move towards the contacts}
+		ifinish:=i2-1;
+		i:=ifinish;
+		rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(par.L)*h[i-1]*(h[i]+h[i-1]);
+		lo[i]:=Vt*par.mobnion*B(Vti*(V[i-1]-V[i]));
+		m[i]:=-Vt*par.mobnion*B(Vti*(V[i]-V[i-1]))
+				-0.5*dti*SQR(par.L)*h[i-1]*(h[i]+h[i-1]);
+		u[i]:=0;
+	END 
+	ELSE BEGIN {ions can move towards the contacts, nion[NP+1]<>0:}
+		ifinish:=par.NP+1;
+		lo[ifinish]:=-B(stv.Vti*(V[par.NP]-V[par.NP+1])) / B(stv.Vti*(V[par.NP+1]-V[par.NP]));
+		m[ifinish]:=1;
+		u[ifinish]:=0;
+		rhs[ifinish]:=0;
+	END;
 	
-	FOR j:=0 TO LENGTH(stv.NegIonRegion)-1 DO BEGIN {loop over all regions that can contain ions:}
-		istart:=stv.NegIonRegion[j].istart;
-		ifinish:=stv.NegIonRegion[j].ifinish;
-		
-		{first: we do the left interface: either at the contact or at some adjacent layer}
-		IF istart<>0 THEN
-		WITH stv DO 
-		BEGIN {there's a layer left of this region that is impenetrable to ions}
-			i:=istart; {i is just shorthand notation for istart}
-			rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(stv.Ltot)*h[i]*(h[i]+h[i-1]);
-			lo[i]:=0;
-			m[i]:=-Vt*mu_n_ion[i]*B(Vti*(V[i]-V[i+1])) -0.5*dti*SQR(Ltot)*h[i]*(h[i]+h[i-1]);
-			u[i]:=Vt*mu_n_ion[i]*B(Vti*(V[i+1]-V[i]));   
-		END
-		ELSE BEGIN {ions can move towards the contacts, nion[0]<>0:}
-			{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
-			lo[0]:=0;
-			m[0]:=1;
-			u[0]:=-B(stv.Vti*(V[1]-V[0])) / B(stv.Vti*(V[0]-V[1]));
-			rhs[0]:=0 
-		END;
-	
-		{now we do the right interface. Again: either at the contact or an adjacent layer}
-		IF ifinish <> par.NP+1 THEN
-		WITH stv DO
-		BEGIN  {ions cannot move towards the contacts}
-			i:=ifinish;  {i is just shorthand notation for ifinish}
-			rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
-			lo[i]:=Vt*mu_n_ion[i-1]*B(Vti*(V[i-1]-V[i]));
-			m[i]:=-Vt*mu_n_ion[i-1]*B(Vti*(V[i]-V[i-1]))-0.5*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
-			u[i]:=0
-		END 
-		ELSE BEGIN {ions can move towards the contacts, nion[NP+1]<>0:}
-			lo[ifinish]:=-B(stv.Vti*(V[par.NP]-V[par.NP+1])) / B(stv.Vti*(V[par.NP+1]-V[par.NP]));
-			m[ifinish]:=1;
-			u[ifinish]:=0;
-			rhs[ifinish]:=0
-		END;
+	{now set the interior part:}
+    FOR i:=istart+1 TO ifinish-1 DO  {continuity eq. in matrix vorm, equivalent to that of n and p, but without generation and recombination}
+    WITH stv DO
+    BEGIN
+        rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(par.L)*h[i]*h[i-1]*(h[i]+h[i-1]);
+        lo[i]:=h[i]*Vt*par.mobnion*B(Vti*(V[i-1]-V[i]));
+        m[i]:=-(h[i-1]*Vt*par.mobnion*B(Vti*(V[i]-V[i+1])) +
+            h[i]*Vt*par.mobnion*B(Vti*(V[i]-V[i-1])))
+            -0.5*dti*SQR(par.L)*h[i]*h[i-1]*(h[i]+h[i-1]);
+        u[i]:=h[i-1]*Vt*par.mobnion*B(Vti*(V[i+1]-V[i]));          
+    END;
 
-		{now set the interior part:}
-		FOR i:=istart+1 TO ifinish-1 DO  {continuity eq. in matrix vorm, equivalent to that of n and p, but without generation and recombination}
-		WITH stv DO
+ 	{Solve nion from istart to ifinish:}
+	Tridiag(nion, lo, m, u, rhs, istart, ifinish);
+	
+	{now check if nion is still well behaved, i.e. positive, and has the correct overall value}
+	FOR i:=istart TO ifinish DO
+		IF (nion[i]<0) THEN 
 		BEGIN
-			rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
-			lo[i]:=h[i]*Vt*mu_n_ion[i-1]*B(Vti*(V[i-1]-V[i]));
-			m[i]:=-(h[i-1]*Vt*mu_n_ion[i]*B(Vti*(V[i]-V[i+1])) +
-				h[i]*Vt*mu_n_ion[i-1]*B(Vti*(V[i]-V[i-1])))
-				-0.5*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
-			u[i]:=h[i-1]*Vt*mu_n_ion[i]*B(Vti*(V[i+1]-V[i]));          
+			IF par.IgnoreNegDens 
+				THEN nion[i]:=-nion[i] ELSE
+				Stop_Prog('Negative concentration of negative ions encountered!', EC_NumericalFailure);
 		END;
-
-		{Solve nion from istart to ifinish:}
-		Tridiag(nion, lo, m, u, rhs, istart, ifinish);
-	
-		{now check if nion is still well behaved, i.e. positive, and has the correct overall value}
-		FOR i:=istart TO ifinish DO
-			IF (nion[i]<0) THEN 
-			BEGIN
-				IF par.ignoreNegDens 
-					THEN nion[i]:=-nion[i] 
-					ELSE Stop_Prog('Negative concentration of negative ions encountered!', EC_NumericalFailure)
-			END;
-		
-		{make sure the number of ions is preserved, i.e. correct:}
-		Rescale_Ion_Density(nion, istart, ifinish, stv.NegIonRegion[j].AvC, stv, par)
-	
-	END; {loop over all regions that can contain ions}
-	
+	{make sure the number of ions is preserved, i.e. correct:}
+	Rescale_Ion_Density(nion, par.CNI, stv, par);
 END;
 
 PROCEDURE Solve_Pos_Ions(VAR pion : vector; pionPrevTime, V : vector; dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {dti: DeltaTInverse, so dti = 1/delt. If dti=0 then we're in steady-state.
 If dti > 0 we're using the transient equations (Selberherr 6-4.33)}
-VAR i, j, istart, ifinish : INTEGER;
+VAR i, istart, ifinish : INTEGER;
     lo, m, u, rhs : vector;
 BEGIN
-	{we loop over the regions that can contain ions. A region can be multiple adjacent layers.
-	Per such region, we solve the drift-diffusion equation and compute the ionic distribution.}
-	
-	FOR j:=0 TO LENGTH(stv.PosIonRegion)-1 DO BEGIN {loop over all regions that can contain ions:}
-		istart:=stv.PosIonRegion[j].istart;
-		ifinish:=stv.PosIonRegion[j].ifinish;
+	IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN
+	WITH stv DO
+	BEGIN {ions cannot move towards the contacts}
+		istart:=i1+1;
+		i:=istart;
+		rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(par.L)*h[i]*(h[i]+h[i-1]);
+		lo[i]:=0;
+		m[i]:=-Vt*par.mobpion*B(Vti*(V[i+1]-V[i])) 
+				-0.5*dti*SQR(par.L)*h[i]*(h[i]+h[i-1]);
+		u[i]:=Vt*par.mobpion*B(Vti*(V[i]-V[i+1])); 
+	END
+	ELSE BEGIN {ions can move towards the contacts, pion[0]<>0:}
+		istart:=0;
+		{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
+		lo[istart]:=0;
+		m[istart]:=1;
+		u[istart]:=-B(stv.Vti*(V[0]-V[1])) / B(stv.Vti*(V[1]-V[0]));
+		rhs[istart]:=0;
+	END;
+  
+	{at the other end:}
+	IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN
+	WITH stv DO
+	BEGIN  {ions cannot move towards the contacts}
+		ifinish:=i2-1;
+		i:=ifinish;
+		rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(par.L)*h[i-1]*(h[i]+h[i-1]);
+		lo[i]:=Vt*par.mobpion*B(Vti*(V[i]-V[i-1]));
+		m[i]:=-Vt*par.mobpion*B(Vti*(V[i-1]-V[i]))
+				-0.5*dti*SQR(par.L)*h[i-1]*(h[i]+h[i-1]);
+		u[i]:=0;  
+	END 
+	ELSE BEGIN {ions can move towards the contacts, pion[NP+1]<>0:}
+		ifinish:=par.NP+1;
+		lo[ifinish]:=-B(stv.Vti*(V[par.NP+1]-V[par.NP])) / B(stv.Vti*(V[par.NP]-V[par.NP+1])); 
+		m[ifinish]:=1;
+		u[ifinish]:=0;
+		rhs[ifinish]:=0;
+	END;	
 		
-		{first: we do the left interface: either at the contact or at some adjacent layer}
-		IF istart<>0 THEN
-		WITH stv DO 
-		BEGIN {there's a layer left of this region that is impenetrable to ions}
-			i:=istart; {i is just shorthand notation for istart}
-			rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(stv.Ltot)*h[i]*(h[i]+h[i-1]);
-			lo[i]:=0;
-			m[i]:=-Vt*mu_p_ion[i]*B(Vti*(V[i+1]-V[i])) -0.5*dti*SQR(Ltot)*h[i]*(h[i]+h[i-1]);
-			u[i]:=Vt*mu_p_ion[i]*B(Vti*(V[i]-V[i+1]));   
-		END
-		ELSE BEGIN {ions can move towards the contacts, pion[0]<>0:}
-			{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
-			lo[0]:=0;
-			m[0]:=1;
-			u[0]:=-B(stv.Vti*(V[0]-V[1])) / B(stv.Vti*(V[1]-V[0]));
-			rhs[0]:=0 
-		END;
-	
-		{now we do the right interface. Again: either at the contact or an adjacent layer}
-		IF ifinish <> par.NP+1 THEN
-		WITH stv DO
-		BEGIN  {ions cannot move towards the contacts}
-			i:=ifinish;  {i is just shorthand notation for ifinish}
-			rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
-			lo[i]:=Vt*mu_p_ion[i-1]*B(Vti*(V[i]-V[i-1]));
-			m[i]:=-Vt*mu_p_ion[i-1]*B(Vti*(V[i-1]-V[i]))-0.5*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
-			u[i]:=0
-		END 
-		ELSE BEGIN {ions can move towards the contacts, pion[NP+1]<>0:}
-			lo[ifinish]:=-B(stv.Vti*(V[par.NP+1]-V[par.NP])) / B(stv.Vti*(V[par.NP]-V[par.NP+1]));
-			m[ifinish]:=1;
-			u[ifinish]:=0;
-			rhs[ifinish]:=0
-		END;
+	{now set the interior part:}
+    FOR i:=istart+1 TO ifinish-1 DO  {continuity eq. in matrix vorm, equivalent to that of n and p, but without generation and recombination}
+    WITH stv DO
+    BEGIN
+        rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(par.L)*h[i]*h[i-1]*(h[i]+h[i-1]);
+        lo[i]:=h[i]*Vt*par.mobpion*B(Vti*(V[i]-V[i-1]));
+        m[i]:=-(h[i-1]*Vt*par.mobpion*B(Vti*(V[i+1]-V[i])) +
+            h[i]*Vt*par.mobpion*B(Vti*(V[i-1]-V[i])))
+            -0.5*dti*SQR(par.L)*h[i]*h[i-1]*(h[i]+h[i-1]);
+        u[i]:=h[i-1]*Vt*par.mobpion*B(Vti*(V[i]-V[i+1]));         
+    END;
 
-		{now set the interior part:}
-		FOR i:=istart+1 TO ifinish-1 DO  {continuity eq. in matrix vorm, equivalent to that of n and p, but without generation and recombination}
-		WITH stv DO
+ 	{Solve pion from istart to ifinish:}
+    Tridiag(pion, lo, m, u, rhs, istart, ifinish); {Solve for the new ion densities}
+
+	{now check if pion is still well behaved, i.e. positive, and has the correct overall value}
+	FOR i:=istart TO ifinish DO
+		IF (pion[i]<0) THEN 
 		BEGIN
-			rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
-			lo[i]:=h[i]*Vt*mu_p_ion[i-1]*B(Vti*(V[i]-V[i-1]));
-			m[i]:=-(h[i-1]*Vt*mu_p_ion[i]*B(Vti*(V[i+1]-V[i])) +
-				h[i]*Vt*mu_p_ion[i-1]*B(Vti*(V[i-1]-V[i])))
-				-0.5*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
-			u[i]:=h[i-1]*Vt*mu_p_ion[i]*B(Vti*(V[i]-V[i+1]));          
+			IF par.IgnoreNegDens 
+				THEN pion[i]:=-pion[i] ELSE
+				Stop_Prog('Negative concentration of positive ions encountered!', EC_NumericalFailure);
 		END;
-
-		{Solve pion from istart to ifinish:}
-		Tridiag(pion, lo, m, u, rhs, istart, ifinish);
-	
-		{now check if nion is still well behaved, i.e. positive, and has the correct overall value}
-		FOR i:=istart TO ifinish DO
-			IF (pion[i]<0) THEN 
-			BEGIN
-				IF par.ignoreNegDens 
-					THEN pion[i]:=-pion[i] 
-					ELSE Stop_Prog('Negative concentration of positive ions encountered!', EC_NumericalFailure)
-			END;
-		
-		{make sure the number of ions is preserved, i.e. correct:}
-		Rescale_Ion_Density(pion, istart, ifinish, stv.PosIonRegion[j].AvC, stv, par)
-	
-	END; {loop over all regions that can contain ions}
-	
+	{make sure the number of ions is preserved, i.e. correct:}
+	Rescale_Ion_Density(pion, par.CPI, stv, par);
 END;
 
 
-FUNCTION Calc_f_ti_Numer(CONSTREF n, p : vector; ii, j, e : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : myReal;
+FUNCTION Calc_f_ti_Numer(n, p : vector; e : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters): vector;
 {This routine is not visible outside this unit, so it is not listed in INTERFACE.}
-{Calculates the numerator of the fraction of interface traps filled. 
-The numerator and denominator are split because both are re-used in different places in the Poisson and continuity equations.
-ii: grid point left of interface, i.e. interface sits between ii and ii+1}
+{Calculates the numerator of the fraction of interface traps filled. The numerator and denominator are split because both are re-used in different places in the Poisson and continuity equations.}
+VAR i, j : INTEGER;
+    f_t	 : myReal; {fraction of filled traps, i.e. traps that contain an electron}
 BEGIN
-	Calc_f_ti_Numer:=stv.Nti[j].Nt[e] * (par.lyr[j].C_n_int*(n[ii]+n[ii+1]) + par.lyr[j].C_p_int*(stv.Nti[j].pt0_R[e]+stv.Nti[j+1].pt0_L[e]))	
+    Calc_f_ti_Numer[0] := 0;
+	Calc_f_ti_Numer[par.NP+1] := 0;
+    
+	FOR i := 1 TO par.NP DO
+    BEGIN
+		IF stv.Nti[i,e] <> 0 THEN
+		BEGIN
+			f_t := 0;
+			FOR j:=-1 TO 1 DO f_t := f_t + par.Cn * (stv.Nti[i+j,e] * n[i+j]) + par.Cp * (stv.Nti[i+j,e] * stv.pt0i[i+j,e]);
+			Calc_f_ti_Numer[i] := f_t;
+		END
+		ELSE Calc_f_ti_Numer[i] := 0;
+    END;   
 END;
 
-FUNCTION Calc_Inv_f_ti_Denom(CONSTREF n, p : vector; ii, j, e : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : myReal;
+FUNCTION Calc_Inv_f_ti_Denom(n, p : vector; e : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters): vector;
 {This routine is not visible outside this unit, so it is not listed in INTERFACE.}
 {Calculates the inverse of the denominator of the fraction of interface traps filled. 
-The numerator and denominator are split because both are re-used in different places in the Poisson and continuity equations.
-ii: grid point left of interface, i.e. interface sits between ii and ii+1}
-VAR denom_trap_occup : myReal;
+The numerator and denominator are split because both are re-used in different places in the Poisson and continuity equations.}
+VAR i, j : INTEGER;
+    denom_trap_occup : myReal;
 BEGIN
-	denom_trap_occup:=par.lyr[j].C_n_int*stv.Nti[j].Nt[e]*(n[ii] + n[ii+1] + stv.Nti[j].nt0_R[e] + stv.Nti[j+1].nt0_L[e]) 
-					+ par.lyr[j].C_p_int*stv.Nti[j].Nt[e]*(p[ii] + p[ii+1] + stv.Nti[j].pt0_R[e] + stv.Nti[j+1].pt0_L[e]);
-
-	{finally, we need the inverse:}
-	Calc_Inv_f_ti_Denom:=1/denom_trap_occup
-END;
-
-
-FUNCTION Calc_f_tb(n, p, Cn, Cp, nt0, pt0, Old_f_tb, dti : myReal) : myReal;
-{Computes f_tb, the fill level of a bulk trap level, in a single grid point}
-{This routine is not visible outside this unit, so it is not listed in INTERFACE.}
-VAR a, b : myReal;
-BEGIN
-	IF dti=0 THEN {steady-state}
-		Calc_f_tb:=(Cn*n + Cp*pt0) / (Cn*(n+nt0) + Cp*(p+pt0))
-	ELSE BEGIN {transient}
-	    b:= Cn*n + Cp*pt0;
-	    a:= Cn*n + Cn*nt0 + Cp*pt0 + Cp*p;
-	    Calc_f_tb:= b/a + (Old_f_tb - b/a)*EXP(-a/dti)
-		{we solve f_tb from d(f_tb)/dt = a f_tb + b, which is a trivial ODE}
-	END
-END;
-
-PROCEDURE Calc_Trap_Filling_Charge(VAR f_tb, f_ti, f_ti_numer, f_ti_inv_denom : TTrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF n, p : vector; Old_f_tb, Old_f_ti : TTrapArray; dti : myReal;
-									CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{calculates the filling (f_tb/i) and charge (Ntb/i_charge) of the (bulk and interface) traps at every gridpoint.}
-{See Koopmans and Koster, Sol. RRL 2022, 2200560.}
-VAR i, ii, j, e : INTEGER;
-	f_ti_level_numer, f_ti_level_inv_denom : myReal;
-	a, b, int_trap_width  : myReal;
-BEGIN
-	
-	{First, the bulk traps, so loop over all layers:}
-	FILLCHAR(Ntb_charge, SIZEOF(Ntb_charge), 0); {reset array to zero}
-
-	FOR j:=1 TO stv.NLayers DO
-		FOR e:=1 TO stv.Ntb[j].NLevels DO {loop over trap levels}
-			FOR i:=MAX(1,stv.i0[j]) TO MIN(par.NP,stv.i1[j]) DO {loop over grid points in this layer, but as always, exclude the electrodes}
-			BEGIN
-				{first: f_tb: the fraction of traps that contains an electron}
-				f_tb[i,e]:=Calc_f_tb(n[i], p[i], par.lyr[j].C_n_bulk, par.lyr[j].C_p_bulk, stv.Ntb[j].nt0[e], stv.Ntb[j].pt0[e], Old_f_tb[i,e], dti);
-				{next the charge in the level:}
-				Ntb_charge[i]:=Ntb_charge[i] + ABS(par.lyr[j].bulkTrapType) * (stv.Ntb[j].cwe	- f_tb[i,e]) * stv.Ntb[j].Nt[e]
-				{note that we have f_tb minus charges or 1-f_tb positive charges}			
-			END;
-		
-	
-	{next: interfaces}
-	
-	{first, init all arrays:}
-	FILLCHAR(Nti_charge, SIZEOF(Nti_charge), 0); {reset array to zero}
-
-	{now f_ti arrays set to zero:}
-	FOR i:=0 TO par.NP+1 DO
-	BEGIN
-		FILLCHAR(f_ti[i,0], SIZEOF(f_ti[i,0]) * LENGTH(f_ti[i]), 0); {reset array to zero}
-		FILLCHAR(f_ti_numer[i,0], SIZEOF(f_ti_numer[i,0]) * LENGTH(f_ti_numer[i]), 0); {reset array to zero}
-		FILLCHAR(f_ti_inv_denom[i,0], SIZEOF(f_ti_inv_denom[i,0]) * LENGTH(f_ti_inv_denom[i]), 0); {reset array to zero}
-	END;	
-	
-	FOR j:=1 TO stv.NLayers-1 DO {loop over interfaces. Each interface involves 2 points: i1[j] and i1[j]+1 (in the adjacent layer)}
-		FOR e:=1 TO stv.Nti[j].NLevels DO {loop over trap levels}
+    Calc_Inv_f_ti_Denom[0] := 0;
+    Calc_Inv_f_ti_Denom[par.NP+1] := 0;    
+    FOR i := 1 TO par.NP DO
+    BEGIN
+		IF (stv.Nti[i,e] <> 0) THEN
 		BEGIN
-			IF dti=0 THEN
-			BEGIN {steady-state}
-				{note: the interface sits between i1[j] and i1[j]+1}
-				ii:=stv.i1[j]; {ii: i interface}
-
-				{calc the numerator and inverse of denominator of single interface level:}
-				f_ti_level_numer:=Calc_f_ti_Numer(n, p, ii, j, e, stv, par);	
-				f_ti_level_inv_denom:=Calc_Inv_f_ti_Denom(n, p, ii, j, e, stv, par);
-				{now fill the arrays with the correct values, just left and right of each interface:}
-				f_ti[ii,e]:=f_ti_level_numer * f_ti_level_inv_denom;
-				f_ti[ii+1,e]:=f_ti[ii,e]; {copy from value just left of interface}
-				f_ti_numer[ii,e]:=f_ti_level_numer;
-				f_ti_numer[ii+1,e]:=f_ti_numer[ii,e]; {copy from value just left of interface}
-				f_ti_inv_denom[ii,e]:=f_ti_level_inv_denom;
-				f_ti_inv_denom[ii+1,e]:=f_ti_inv_denom[ii,e]; {copy from value just left of interface}
-			END
-			ELSE 
-			BEGIN {transient}
-				ii:=stv.i1[j]; {ii: i interface, so ii is last point before interface}
-			
-				a:=par.lyr[j].C_n_int*(n[ii] + n[ii+1] + stv.Nti[j].nt0_R[e] + stv.Nti[j+1].nt0_L[e])
-					+ par.lyr[j].C_p_int*(p[ii] + p[ii+1] + stv.Nti[j].pt0_R[e] + stv.Nti[j+1].pt0_L[e]);
-				b:=par.lyr[j].C_n_int*(n[ii] + n[ii+1]) + par.lyr[j].C_p_int*(stv.Nti[j].pt0_R[e] + stv.Nti[j+1].pt0_L[e]);
-						
-				f_ti[ii,e]:= b/a + (Old_f_ti[ii,e] - b/a)*EXP(-a/dti);
-				f_ti[ii+1,e]:=f_ti[ii,e];
-				{we solve f_ti from d(f_ti)/dt = a f_ti + b, which is a trivial ODE}
-			END;
-
-			{next the charge in the level:}
-
-			{input N_t_int is #traps/area, will convert this to #traps/volume by computing the width of the interface:}
-			int_trap_width:=0.5 * (stv.Ltot*(0.5*stv.h[ii+1] + stv.h[ii] + 0.5*stv.h[ii-1]));
-					
-			{each side of the interface hosts half the traps, so we get an extra factor of 0.5:}
-			Nti_charge[ii]:=Nti_charge[ii] + ABS(par.lyr[j].intTrapType) * (stv.Nti[j].cwe	- f_ti[ii,e]) * 0.5 * stv.Nti[j].Nt[e] / int_trap_width;
-			Nti_charge[ii+1]:=Nti_charge[ii]
-			{note that we have f_ti minus charges or 1-f_ti positive charges}			
+			denom_trap_occup:=0;
+			FOR j:=-1 TO 1 DO denom_trap_occup := denom_trap_occup + par.Cn * (stv.Nti[i+j,e] * n[i+j] + stv.Nti[i+j,e] * stv.nt0i[i+j,e]) + par.Cp * (stv.Nti[i+j,e] * p[i+j] + stv.Nti[i+j,e] * stv.pt0i[i+j,e]);
+			calc_inv_f_ti_denom[i] := 1/denom_trap_occup;
 		END
+		ELSE Calc_Inv_f_ti_Denom[i] := 0;
+    END;
+END;
+
+FUNCTION Calc_f_ti(CONSTREF n, p : vector; Old_f_ti : TrapArray; dti : myReal; e : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : vector;
+{This routine is not visible outside this unit, so it is not listed in INTERFACE.}
+{Calculates the fraction of interface traps filled with an electron, 
+and takes as input the result of Calc_f_ti_Numer and Calc_Inv_f_ti_Denom.}
+VAR i : INTEGER;
+	a, b : myReal;
+	f_ti_numer, f_ti_inv_denom : vector;
+BEGIN
+	{we have excluded the possibility of having interface traps on the electrodes (= no TLs), see Check_Parameters:}
+	Calc_f_ti[0] := 0;
+	Calc_f_ti[par.NP+1] := 0;
+	
+	IF dti=0 THEN {steady-state}
+	BEGIN
+		f_ti_numer:=Calc_f_ti_Numer(n, p, e, stv, par);
+		f_ti_inv_denom:=Calc_Inv_f_ti_Denom(n, p, e, stv, par);	
+		FOR i := 1 TO par.NP DO 
+			Calc_f_ti[i] := f_ti_numer[i] * f_ti_inv_denom[i]
+	END
+	ELSE {transient}
+		FOR i := 1 TO par.NP DO
+			IF stv.Nti[i-1,e] * stv.Nti[i,e] <> 0 THEN
+			BEGIN {now we have just crossed an interface}
+				a:= par.Cn*n[i] + par.Cn*stv.nt0i[i,e] + par.Cp*stv.pt0i[i,e] + par.Cp*p[i] +
+					par.Cn*n[i-1] + par.Cn*stv.nt0i[i-1,e] + par.Cp*stv.pt0i[i-1,e] + par.Cp*p[i-1];
+				b:= par.Cn*n[i] + par.Cp*stv.pt0i[i,e] +
+					par.Cn*n[i-1] + par.Cp*stv.pt0i[i-1,e];
+				
+				Calc_f_ti[i]:= b/a + (Old_f_ti[i,e] - b/a)*EXP(-a/dti);
+				Calc_f_ti[i-1]:= Calc_f_ti[i];
+				{we solve f_tb from d(f_tb)/dt = a f_tb + b, which is a trivial ODE}
+			END
+			ELSE Calc_f_ti[i] := 0
+END;
+
+FUNCTION Calc_f_tb(CONSTREF n, p : vector; Old_f_tb : TrapArray; dti : myReal; e : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : vector;
+{This routine is not visible outside this unit, so it is not listed in INTERFACE.}
+VAR i : INTEGER;
+    a, b : myReal;
+	{Calculates the fraction of bulk traps filled with an electron.}
+BEGIN
+	FOR i := 0 TO par.NP+1 DO
+    BEGIN
+		IF (stv.Ntb[i,e] <> 0) THEN
+		BEGIN 
+			IF dti=0 THEN {steady-state}
+				Calc_f_tb[i]:=(par.Cn*n[i] + par.Cp*stv.pt0b[i,e]) / (par.Cn*(n[i]+stv.nt0b[i,e]) + par.Cp*(p[i]+stv.pt0b[i,e]))
+			ELSE BEGIN {transient}
+			    b:= par.Cn*n[i] + par.Cp*stv.pt0b[i,e];
+			    a:= par.Cn*n[i] + par.Cn*stv.nt0b[i,e] + par.Cp*stv.pt0b[i,e] + par.Cp*p[i];
+			    Calc_f_tb[i]:= b/a + (Old_f_tb[i,e] - b/a)*EXP(-a/dti);
+				{we solve f_tb from d(f_tb)/dt = a f_tb + b, which is a trivial ODE}
+			END
+		END
+		ELSE {no traps, simply set f_tb to zero}
+			Calc_f_tb[i] := 0
+    END;
+END;
+
+PROCEDURE Calc_Trap_Filling_Charge_Single_Level(VAR f_tb, f_ti : TrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF n, p : vector; Old_f_tb, Old_f_ti : TrapArray; dti : myReal; e : INTEGER;
+												CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{calculates the charge of the (bulk and interface) traps at every gridpoint for a given trap energy.}
+VAR i								: INTEGER;
+	zeros, f_tb_single, f_ti_single	: vector;
+BEGIN
+	FOR i:=0 TO par.NP+1 DO zeros[i]:=0;
+
+	{note: f_tb/i is the occupancy of the bulk/interface traps}
+	{if there are no traps, or if the traps are neutral (Tr_type_B/I=0), then this doesn't matter}
+	
+	{bulk traps:}
+	IF stv.BulkTrapDist[e] <> 0 THEN
+		f_tb_single := Calc_f_tb(n, p, Old_f_tb, dti, e, stv, par)
+	ELSE
+		f_tb_single := zeros;
+	FOR i:=1 TO par.NP DO f_tb[i,e]:= f_tb_single[i];
+
+	IF (stv.BulkTrapDist[e] <> 0) AND (par.Tr_type_B <> 0) THEN
+		{bulk trap charge}
+		FOR i:=1 TO par.NP DO Ntb_charge[i] := ABS(par.Tr_type_B)*(stv.cwe_b - f_tb[i,e]) * stv.Ntb[i,e] {note that we have f_tb minus charges or 1-f_tb positive charges}
+	ELSE
+		Ntb_charge := zeros;
+	
+	{interface traps:}
+	IF stv.Traps_int AND (stv.IntTrapDist[e] <> 0) THEN
+		f_ti_single := Calc_f_ti(n, p, Old_f_ti, dti, e, stv, par)
+	ELSE
+		f_ti_single := zeros;
+	FOR i:=1 TO par.NP DO f_ti[i,e]:= f_ti_single[i];
+		
+	IF stv.Traps_int_poisson AND (stv.IntTrapDist[e] <> 0) THEN
+		FOR i:=0 TO par.NP+1 DO Nti_charge[i] := stv.q_tr_igb[i]*(stv.cwe_i[i] - f_ti[i,e]) * 0.5 * stv.Nti[i,e] {each side of the interface hosts half the traps}
+	ELSE
+		Nti_charge := zeros;
 END;
 
 
-PROCEDURE Calc_Linearization_f_tb(VAR lin : TLinFt; CONSTREF n, p : vector; dti : myReal; 
-                                  CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
+PROCEDURE Calc_Trap_Filling_Charge(VAR f_tb, f_ti : TrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF n, p : vector; Old_f_tb, Old_f_ti : TrapArray; dti : myReal;
+									CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{calculates the charge of the (bulk and interface) traps at every gridpoint.}
+VAR i, e : INTEGER;
+	Ntb_charge_single, Nti_charge_single : vector;
+BEGIN
+	FOR e:=1 TO stv.N_Etr DO
+	BEGIN
+		Calc_Trap_Filling_Charge_Single_Level(f_tb, f_ti, Ntb_charge_single, Nti_charge_single, n, p, Old_f_tb, Old_f_ti, dti, e, stv, par);
+
+		IF e=1 THEN
+			FOR i:=1 TO par.NP DO
+			BEGIN
+				Ntb_charge[i]:= Ntb_charge_single[i];
+				Nti_charge[i]:= Nti_charge_single[i];
+			END
+		ELSE
+		BEGIN
+			FOR i:=1 TO par.NP DO
+			BEGIN
+				Ntb_charge[i]:= Ntb_charge[i] + Ntb_charge_single[i];
+				Nti_charge[i]:= Nti_charge[i] + Nti_charge_single[i];				
+			END
+		END;		
+	END;
+END;
+
+
+PROCEDURE Calc_Linearization_f_t_Single_Level(VAR lin : TLinFt; CONSTREF n, p : vector; dti : myReal; e : INTEGER;
+                                  CONSTREF stv		  : TStaticVars; CONSTREF par : TInputParameters); 
 {This routine is not visible outside this unit, so it is not listed in INTERFACE.}
-{Calculate the linearization of the filled (with electrons) fraction of bulk 
+{Calculate the linearization of the filled (with electrons) fraction of interface and bulk 
 traps with respect to the potential. This function is written in such a way, 
 that the result can be added to the Poisson equation regardless of the presence of traps. 
 If traps are not present the elements added to the Poisson equation simply become zero.
-See Koopmans and Koster, Sol. RRL 2022, 2200560.}
-VAR f_tb_numer, f_tb_inv_denom, f_tb_m_level : myReal;
-	i, j, e : INTEGER;
+A derivation can be found in the docs.}
+VAR f_tb_numer, f_tb_inv_denom : myReal;
+	zeros, f_ti_numer, f_ti_inv_den	: vector;
+	i : INTEGER;
 BEGIN	
-	{Note: before calling this routine, we set all fields in lin to zero}
+	FOR i:=0 TO par.NP+1 DO zeros[i]:=0;
 
 	{Bulk traps: if we have them, calculate their linearization in delta V.}
-	FOR j:=1 TO stv.NLayers DO
-		IF (dti=0) AND (par.lyr[j].bulkTrapType <> 0) THEN
-			FOR e:=1 TO stv.Ntb[j].NLevels DO {loop over trap levels}
-				FOR i:=MAX(1,stv.i0[j]) TO MIN(par.NP,stv.i1[j]) DO {loop over grid points in this layer, but as always, exclude the electrodes}
-				BEGIN	
-					f_tb_numer:=par.lyr[j].C_n_bulk*n[i] + par.lyr[j].C_p_bulk * stv.Ntb[j].pt0[e];
-					f_tb_inv_denom:=1 / (par.lyr[j].C_n_bulk*(n[i]+stv.Ntb[j].nt0[e]) + par.lyr[j].C_p_bulk*(p[i] + stv.Ntb[j].pt0[e]));
-					f_tb_m_level:=par.lyr[j].C_n_bulk * n[i+1] * f_tb_inv_denom;
-					f_tb_m_level:=f_tb_m_level - (par.lyr[j].C_n_bulk * n[i] - par.lyr[j].C_p_bulk * p[i]) * f_tb_numer * SQR(f_tb_inv_denom);
-					f_tb_m_level:=par.lyr[j].bulkTrapType*(stv.Ntb[j].cwe - f_tb_m_level) * stv.Ntb[j].Nt[e];					
-					lin.f_tb_m[i]:=lin.f_tb_m[i] + f_tb_m_level {add the f_tb_m of this level to the overal sum}
-				END
-END;
-
-
-PROCEDURE Calc_Linearization_f_ti(VAR lin : TLinFt; CONSTREF n, p : vector; dti : myReal;
-                                  CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
-{This routine is not visible outside this unit, so it is not listed in INTERFACE.}
-{Calculate the linearization of the filled (with electrons) fraction of interface
-traps with respect to the potential. This function is written in such a way, 
-that the result can be added to the Poisson equation regardless of the presence of traps. 
-If traps are not present the elements added to the Poisson equation simply become zero.
-See Koopmans and Koster, Sol. RRL 2022, 2200560.}
-VAR j, e, ii, q_tr : INTEGER;
-	dum, f_ti_level_numer, f_ti_level_inv_denom : myReal;
-BEGIN	
+	IF (dti=0) AND (par.bulk_tr <> 0) AND (par.Tr_type_B <> 0) AND (stv.BulkTrapDist[e] <> 0) THEN
+		FOR i:=1 TO par.NP DO
+		BEGIN
+			f_tb_numer := par.Cn*n[i] + par.Cp*stv.pt0b[i,e];
+			f_tb_inv_denom := 1 / (par.Cn*(n[i]+stv.nt0b[i,e]) + par.Cp*(p[i]+stv.pt0b[i,e]));
+			lin.f_tb_m[i] := par.Cn * n[i+1] * f_tb_inv_denom;
+			lin.f_tb_m[i] := lin.f_tb_m[i] - (par.Cn * n[i] - par.Cp * p[i]) * f_tb_numer * SQR(f_tb_inv_denom);
+			lin.f_tb_m[i] := par.Tr_type_B*(stv.cwe_b - lin.f_tb_m[i]) * stv.Ntb[i,e];
+		END
+    ELSE
+		lin.f_tb_m:= zeros;
 			
 	{Linearize f_ti (interface trap occupance fraction) in delV, a derivation can be found in the docs.}
 	{Key here is that all linearized elements become zero when they should not affect the Poisson equation}
+	IF (dti=0) AND (stv.Traps_int_poisson) AND (stv.IntTrapDist[e] <> 0) THEN
+	BEGIN
+		FOR i:=1 TO par.NP DO {filling the matrix en the right-hand side}
+		BEGIN		
+			f_ti_numer := Calc_f_ti_Numer(n, p, e, stv, par);
+			f_ti_inv_den := Calc_Inv_f_ti_Denom(n, p, e, stv, par);
+		
+			IF (stv.Nti[i-1,e] = 0) THEN
+				lin.f_ti_lo[i] := 0
+			ELSE
+			BEGIN
+				lin.f_ti_lo[i] := par.Cn * n[i-1] * stv.Nti[i-1,e] * stv.Vti * f_ti_inv_den[i];
+				lin.f_ti_lo[i] := lin.f_ti_lo[i] - (par.Cn * n[i-1] - par.Cp * p[i-1]) * stv.Nti[i-1,e] * stv.Vti * f_ti_numer[i] * SQR(f_ti_inv_den[i]);
+				lin.f_ti_lo[i] := stv.q_tr_igb[i]*lin.f_ti_lo[i] * 0.5 * stv.Nti[i-1,e];
+			END;
 
-	{Note: before calling this routine, we set all fields in lin to zero}
-
-	FOR j:=1 TO stv.NLayers-1 DO
-		IF (dti=0) AND (stv.Traps_int_poisson) THEN
-			FOR e:=1 TO stv.Nti[j].NLevels DO {loop over trap levels}
-			BEGIN	
-				ii:=stv.i1[j]; {ii: i interface}
-				q_tr:=ABS(par.lyr[j].intTrapType);
-				{calc the numerator and inverse of denominator of single interface level:}
-				f_ti_level_numer:=Calc_f_ti_Numer(n, p, ii, j, e, stv, par);	
-				f_ti_level_inv_denom:=Calc_Inv_f_ti_Denom(n, p, ii, j, e, stv, par);
-
-				{lower diagonal element:}
-				dum:=par.lyr[j].C_n_int * n[ii-1] * stv.Nti[j].Nt[e] * stv.Vti * f_ti_level_inv_denom;
-				dum:=dum - (par.lyr[j].C_n_int * n[ii-1] - par.lyr[j].C_p_int * p[ii-1]) * stv.Nti[j].Nt[e] * stv.Vti * f_ti_level_numer * SQR(f_ti_level_inv_denom);
-				lin.f_ti_lo[ii]:=lin.f_ti_lo[ii] + q_tr*dum * 0.5 * stv.Nti[j].Nt[e];
-				
+			IF (stv.Nti[i,e] = 0) THEN
+				lin.f_ti_m[i] := 0
+			ELSE
+			BEGIN
 				{the factor stv.Vti is multiplied in the poisson equation with for this main diagonal}
-				{main diagonal:}
-				dum:= par.lyr[j].C_n_int * n[ii] * stv.Nti[j].Nt[e] * f_ti_level_inv_denom;
-				dum:=dum - (par.lyr[j].C_n_int * n[ii] - par.lyr[j].C_p_int * p[ii]) * stv.Nti[j].Nt[e] * f_ti_level_numer * SQR(f_ti_level_inv_denom);
-				lin.f_ti_m[ii]:=lin.f_ti_m[ii] + q_tr*dum * 0.5 * stv.Nti[j].Nt[e];
-			
-				{upper diagonal element:}
-				dum:=par.lyr[j].C_n_int * n[ii+1] * stv.Nti[j].Nt[e] * stv.Vti * f_ti_level_inv_denom;
-				dum:=dum - (par.lyr[j].C_n_int * n[ii+1] - par.lyr[j].C_p_int * p[ii+1]) * stv.Nti[j].Nt[e] * stv.Vti * f_ti_level_numer * SQR(f_ti_level_inv_denom);
-				lin.f_ti_up[ii]:=lin.f_ti_up[ii] + q_tr*dum * 0.5 * stv.Nti[j].Nt[e]
-			
-			END
+				lin.f_ti_m[i] := par.Cn * n[i] * stv.Nti[i,e] * f_ti_inv_den[i];
+				lin.f_ti_m[i] := lin.f_ti_m[i] - (par.Cn * n[i] - par.Cp * p[i]) * stv.Nti[i,e] * f_ti_numer[i] * SQR(f_ti_inv_den[i]);
+				lin.f_ti_m[i] := stv.q_tr_igb[i]*lin.f_ti_m[i] * 0.5 * stv.Nti[i,e];
+			END;
 
+			IF (stv.Nti[i+1,e] = 0) THEN
+				lin.f_ti_up[i] := 0
+			ELSE
+			BEGIN
+				lin.f_ti_up[i] := par.Cn * n[i+1] * stv.Nti[i+1,e] * stv.Vti * f_ti_inv_den[i];
+				lin.f_ti_up[i] := lin.f_ti_up[i] - (par.Cn * n[i+1] - par.Cp * p[i+1]) * stv.Nti[i+1,e] * stv.Vti * f_ti_numer[i] * SQR(f_ti_inv_den[i]);
+				lin.f_ti_up[i] := stv.q_tr_igb[i]*lin.f_ti_up[i] * 0.5 * stv.Nti[i+1,e];
+			END;
+		END;
+	END
+	ELSE
+	BEGIN
+		lin.f_ti_up:= zeros;
+		lin.f_ti_lo:= zeros;
+		lin.f_ti_m:= zeros;
+	END;
 END;
 
 PROCEDURE Calc_Linearization_f_t_All(VAR lin : TLinFt; CONSTREF n, p : vector; dti : myReal;
                                   CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {calculates the charge of the (bulk and interface) traps at every gridpoint.}
+VAR i, e : INTEGER;
+	lin_single : TLinFt; {this type (a record) stores the linearisation of the trapping terms.}	
 BEGIN
-	FILLCHAR(lin, SIZEOF(lin), 0); {reset linearisation}
-	
-	{first, the bulk}
-	Calc_Linearization_f_tb(lin, n, p, dti, stv, par);
-	
-	{next, the interfaces:}
-	Calc_Linearization_f_ti(lin, n, p, dti, stv, par)
-
+	FOR e:=1 TO stv.N_Etr DO
+	BEGIN
+	    Calc_Linearization_f_t_Single_Level(lin_single, n, p, dti, e, stv, par);
+		IF e=1 THEN
+			FOR i:=1 TO par.NP DO
+			BEGIN
+				lin.f_tb_m[i]:= lin_single.f_tb_m[i];
+				lin.f_ti_up[i]:= lin_single.f_ti_up[i];
+				lin.f_ti_m[i]:= lin_single.f_ti_m[i];
+				lin.f_ti_lo[i]:= lin_single.f_ti_lo[i];
+			END
+		ELSE
+		BEGIN
+			FOR i:=1 TO par.NP DO
+			BEGIN
+				lin.f_tb_m[i]:= lin.f_tb_m[i] + lin_single.f_tb_m[i];
+				lin.f_ti_up[i]:= lin.f_ti_up[i] + lin_single.f_ti_up[i];
+				lin.f_ti_m[i]:= lin.f_ti_m[i] + lin_single.f_ti_m[i];
+				lin.f_ti_lo[i]:= lin.f_ti_lo[i] + lin_single.f_ti_lo[i];
+			END;
+		END;
+	END;
 END;
 
-PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion	: vector; VAR f_tb, f_ti, f_ti_numer, f_ti_inv_denom : TTrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF Old_f_tb, Old_f_ti : TTrapArray;
+PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion	: vector; VAR f_tb, f_ti : TrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF Old_f_tb, Old_f_ti : TrapArray;
 						VAR conv, coupleIonsPoisson	: BOOLEAN; VAR PoissMsg : STRING; dti : myReal;
-						CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+						CONSTREF stv				: TStaticVars; CONSTREF par : TInputParameters);
 {Solves the Poisson equation, can be used in steady-state and transient simulations}
 {Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
-VAR it, i, j : INTEGER;
+VAR it, i : INTEGER;
 	sumPre, sumPost, NormDelV : myReal;
     delV, rhs, lower, upper, main : vector;
     fac_m, fac_u, fac_l, fac2, fac3, val, lnr : myReal;
     IonsOK : BOOLEAN;
-	lin : TLinFt; {this type (a record) stores the linearisation of the trapping terms.}
+	lin	  : TLinFt; {this type (a record) stores the linearisation of the trapping terms.}
 BEGIN
     FOR i:=1 TO par.NP DO delV[i]:=1; {init delV}
     delV[0]:=0; {delV=0 at contacts, by definition, since we know V(0,L)}
@@ -1725,28 +1737,25 @@ BEGIN
 	lnr:=LN(1 + par.couplePC);
 
 	{if needed, check the total number of ions in volume}
-	IF coupleIonsPoisson THEN 
-    BEGIN
+	IF (par.negIonsMove OR par.posIonsMove) AND coupleIonsPoisson THEN
+	BEGIN
 		sumPre:=0;
-		FOR j:=1 TO stv.NLayers DO {loop over layers}
-			IF (par.lyr[j].negIons OR par.lyr[j].posIons) AND coupleIonsPoisson THEN {if ions are moving in this layer, then}
-				FOR i:=stv.i0[j] TO stv.i1[j] DO {sum over ion concentrations over all grid points in this layer}
-					sumPre:=sumPre + nion[i] + pion[i]
+		FOR i:=0 TO par.NP DO
+			sumPre:=sumPre + nion[i] + pion[i];
 	END;
-
-    WHILE (NOT conv) AND (it < par.maxItPois) DO
+	
+    WHILE (NOT conv) AND (it < par.MaxItPois) DO
     BEGIN
-
-		Calc_Trap_Filling_Charge(f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, n, p, Old_f_tb, Old_f_ti, dti, stv, par);
+		Calc_Trap_Filling_Charge(f_tb, f_ti, Ntb_charge, Nti_charge, n, p, Old_f_tb, Old_f_ti, dti, stv, par);
 		Calc_Linearization_f_t_All(lin, n, p, dti, stv, par);
 
         FOR i:=1 TO par.NP DO {filling the matrix and the right-hand side}
 			WITH stv DO
 			BEGIN
 			    {to properly deal with non-uniform dielectric constants we need an extra term in the Poisson equation, that's where these factors originate.}
-				fac_m:= (eps[i]-eps[i-1])/(SQR(h[i-1])*SQR(Ltot)) - 2*eps[i]*(1 / (h[i]*(h[i]+h[i-1])*SQR(Ltot)) + 1 / (h[i-1]*(h[i]+h[i-1])*SQR(Ltot)));
-				fac_l:= 2*eps[i] / (h[i-1]*(h[i]+h[i-1])*SQR(Ltot)) -(eps[i]-eps[i-1])/(SQR(h[i-1])*SQR(Ltot));
-				fac_u:= 2*eps[i] / (h[i]*(h[i]+h[i-1])*SQR(Ltot));
+				fac_m:= (eps[i]-eps[i-1])/(SQR(h[i-1])*SQR(par.L)) - 2*eps[i]*(1 / (h[i]*(h[i]+h[i-1])*SQR(par.L)) + 1 / (h[i-1]*(h[i]+h[i-1])*SQR(par.L)));
+				fac_l:= 2*eps[i] / (h[i-1]*(h[i]+h[i-1])*SQR(par.L)) -(eps[i]-eps[i-1])/(SQR(h[i-1])*SQR(par.L));
+				fac_u:= 2*eps[i] / (h[i]*(h[i]+h[i-1])*SQR(par.L));
 
 				rhs[i]:=- fac_l*V[i-1] - fac_u*V[i+1] -fac_m*V[i]
 				        + q*(n[i] + nion[i] + pid[i] - p[i] - pion[i] - nid[i] - Nti_charge[i] - Ntb_charge[i]); {add all negative charges and substract all positive charges.}
@@ -1755,11 +1764,10 @@ BEGIN
 				upper[i]:= fac_u - q*lin.f_ti_up[i]; {linearization of f_ti with respect to delV at gridpoint i}
 				{While unintuitive, the main diagonal adds all charges regardless of sign. This is because we don't add the charges but their derivatives to delV, which is also the source of the factor Vti.}
 				main[i]:= fac_m - q*Vti*(n[i] + p[i] + nion[i] + pion[i] + lin.f_tb_m[i] + lin.f_ti_m[i]);
-
 			END;
 
         Tridiag(delV, lower, main, upper, rhs, 1, par.NP); {solve for delV}
-
+	
         FOR i:=1 TO par.NP DO 
         BEGIN
 			delV[i]:=SIGN(delV[i])*MIN(par.maxDelV*stv.Vt, ABS(delV[i])); {limit delV to a pre-set max}
@@ -1772,102 +1780,107 @@ BEGIN
 				n[i]:=n[i]*fac2; {now update the densities: we have to do this}
 				p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
 				{we also apply this to the ions. If IonsInTLs = 0 then we can still do this even though it's redundant for i<i1 and i>i2}
-				IF par.lyr[stv.lid[i]].negIons AND coupleIonsPoisson THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
-				IF par.lyr[stv.lid[i]].posIons AND coupleIonsPoisson THEN pion[i]:=pion[i]*fac3
+				IF par.negIonsMove AND coupleIonsPoisson THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
+				IF par.posIonsMove AND coupleIonsPoisson THEN pion[i]:=pion[i]*fac3
 			END
 		END; {for loop}
 
         it:=it+1;
         NormDelV:=Norm_Eucl(delV, 1, par.NP);
         conv:=NormDelV <= par.tolPois  {finally, check for convergence}
-
     END;
 	
 	PoissMsg:=PoissMsg +'- delV ='+FloatToStrF(NormDelV, ffGeneral,5,0) + LineEnding;
-  
-    {OK, now see if we haven't changed the ions too much, so again we sum their concentrations}
-    IF coupleIonsPoisson THEN 
-    BEGIN 
+    
+    {OK, now see if we haven't changed the ions too much:}
+    IF (par.negIonsMove OR par.posIonsMove) AND coupleIonsPoisson THEN
+    BEGIN
 		sumPost:=0;
-		FOR j:=1 TO stv.NLayers DO {loop over layers}
-			IF (par.lyr[j].negIons OR par.lyr[j].posIons) THEN {if ions are moving in this layer, then}
-				FOR i:=stv.i0[j] TO stv.i1[j] DO {sum over ion concentrations over all grid points in this layer}
-					sumPost:=sumPost + nion[i] + pion[i];
-
+		FOR i:=0 TO par.NP DO
+			sumPost:=sumPost + nion[i] + pion[i];
 		{note: by now, sumPost cannot be zero as there are ions}
 		IonsOK:=(ABS(sumPre-sumPost)/sumPost) < par.tolPois;
 		conv:=conv AND IonsOK;
 		PoissMsg:=PoissMsg + '- movement of ions acceptable: ' + myBoolStr(IonsOK) + LineEnding;
 	END;
-
-	PoissMsg:=PoissMsg + '- Poisson solver converged: ' + myBoolStr(conv)
-
+	
+	PoissMsg:=PoissMsg + '- converged: ' + myBoolStr(conv);
+	
 END;
 
 PROCEDURE Calc_Elec_Mob(VAR mu : vector; CONSTREF V, n : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-VAR i, j : INTEGER;
+VAR i : INTEGER;
 {calculates the elec. mob. on the interleaved mesh, mun[i]=mun at x=i+1/2}
 {therefore the field or concentration on x=i+1/2 is needed}
 BEGIN
-	{we loop over the layers:}
-	FOR j:=1 TO stv.NLayers DO
-		WITH par.lyr[j] DO
-			CASE mobnDep OF
-				0 : FOR i:=stv.i0[j] TO stv.i1[j] DO mu[i]:=mu_n; { mob. is constant }
-				1 : FOR i:=stv.i0[j] TO stv.i1[j] DO {field-dep. mob}
-						mu[i]:=mu_n * EXP(gamma_n*SQRT(ABS(V[i+1]-V[i])/(stv.Ltot*stv.h[i])));
-				ELSE Stop_Prog('Only very simple mobility models (0 and 1) currently implemented.', EC_ProgrammingError);
-			END; {case selector}
-		
-	{now we need to re-assess the interfaces and use nu_int_n to compute the mobility:}
-	FOR j:=1 TO stv.NLayers-1 DO {note: -1!}
-		mu[stv.i1[j]]:=(stv.Ltot*stv.h[stv.i1[j]])*par.lyr[j].nu_int_n*stv.Vti; 		
-		
+    CASE par.mob_n_dep OF
+        0 : FOR i:=0 TO par.NP DO mu[i]:=par.mun_0; { mob. is constant }
+        1 : FOR i:=0 TO par.NP DO {field-dep. mob}
+                mu[i]:=par.mun_0 * EXP(par.gamma_n*SQRT(ABS(V[i+1]-V[i])/(par.L*stv.h[i])));
+		ELSE Stop_Prog('Only very simple mobility models (0 and 1) currently implemented.', EC_ProgrammingError);
+    END; {case selector}
+
+    mu[par.NP+1]:=mu[par.NP]; {does not have a meaning, should not be used}
+
+	IF stv.i1>0 THEN
+    BEGIN
+		FOR i:=0 TO stv.i1-1 DO mu[i]:=par.mob_LTL;
+		{remember: i1 is the last point (highest index) in the right TL}
+		mu[stv.i1]:=(par.L*stv.h[stv.i1])*par.nu_int_LTL*stv.Vti; {mobility AT the TL/main absorber interface}
+	END;
+	IF stv.i2<par.NP+1 THEN
+	BEGIN
+		mu[stv.i2-1]:=(par.L*stv.h[stv.i2-1])*par.nu_int_RTL*stv.Vti; {mobility AT the TL/main absorber interface}
+		{remember: i2 is the first point (lowest index) in the right TL}
+		FOR i:=stv.i2 TO par.NP+1 DO mu[i]:=par.mob_RTL;
+	END
 END;
 
 PROCEDURE Calc_Hole_Mob(VAR mu : vector; CONSTREF V, p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-VAR i, j : INTEGER;
-{calculates the hole mob. on the interleaved mesh, mun[i]=mun at x=i+1/2}
+VAR i : INTEGER;
+{calculates the hole mob. on the interleaved mesh, mup[i]=mup at x=i+1/2}
 {therefore the field or concentration on x=i+1/2 is needed}
 BEGIN
-	{we loop over the layers:}
-	FOR j:=1 TO stv.NLayers DO
-		WITH par.lyr[j] DO
-			CASE mobpDep OF
-				0 : FOR i:=stv.i0[j] TO stv.i1[j] DO mu[i]:=mu_p; { mob. is constant }
-				1 : FOR i:=stv.i0[j] TO stv.i1[j] DO {field-dep. mob}
-						mu[i]:=mu_p * EXP(gamma_p*SQRT(ABS(V[i+1]-V[i])/(stv.Ltot*stv.h[i])));
-				ELSE Stop_Prog('Only very simple mobility models (0 and 1) currently implemented.', EC_ProgrammingError);
-			END; {case selector}
-		
-	{now we need to re-assess the interfaces and use nu_int_p to compute the mobility:}
-	FOR j:=1 TO stv.NLayers-1 DO {note: -1!}
-		mu[stv.i1[j]]:=(stv.Ltot*stv.h[stv.i1[j]])*par.lyr[j].nu_int_p*stv.Vti; 		
-		
+    CASE par.mob_p_dep OF
+        0 : FOR i:=0 TO par.NP DO mu[i]:=par.mup_0; { mob. is constant }
+        1 : FOR i:=0 TO par.NP DO {field-dep. mob}
+                mu[i]:=par.mup_0 * EXP(par.gamma_p*SQRT(ABS(V[i+1]-V[i])/(par.L*stv.h[i])));
+		ELSE Stop_Prog('Only very simple mobility models (0 and 1) currently implemented.', EC_ProgrammingError);
+    END; {case selector}
+    mu[par.NP+1]:=mu[par.NP]; {does not have a meaning, should not be used}
+
+    IF stv.i1>0 THEN
+    BEGIN
+		FOR i:=0 TO stv.i1-1 DO mu[i]:=par.mob_LTL;
+		{remember: i1 is the last point (highest index) in the right TL}
+		mu[stv.i1]:=(par.L*stv.h[stv.i1])*par.nu_int_LTL*stv.Vti; {mobility AT the TL/main absorber interface}
+	END;
+	IF stv.i2<par.NP+1 THEN
+	BEGIN
+		mu[stv.i2-1]:=(par.L*stv.h[stv.i2-1])*par.nu_int_RTL*stv.Vti; {mobility AT the TL/main absorber interface}
+		{remember: i2 is the first point (lowest index) in the right TL}
+		FOR i:=stv.i2 TO par.NP+1 DO mu[i]:=par.mob_RTL;
+	END
+
 END;
 
 PROCEDURE Calc_Langevin_Factor(VAR Lan : vector; mob_n, mob_p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculates the Langevin recombination strength. Lan[i] is defined on the
 regular grid, i.e., Lan[i]=Lan at x=xi. Note that mobilities are defined on the
 interleaved mesh!}
-VAR i, j : INTEGER;
+VAR i : INTEGER;
     rec_mob : myReal;
 BEGIN
-	{we loop over the layers:}
-	FOR j:=1 TO stv.NLayers DO
-		WITH par.lyr[j] DO 
-		BEGIN
-			IF useLangevin THEN {use Langevin formula to calculate bimolecular, direct, band-to-band recombination rate}
-			FOR i:=MAX(1, stv.i0[j]) TO stv.i1[j] DO {why the MAX? we cannot have i=1, that's why}
-			BEGIN
-				rec_mob:=0.5 * (mob_n[i-1] + mob_n[i]+ mob_p[i-1] + mob_p[i] );
-				{we take mob(x=xi)=(mob(x=xi-1/2)+mob(x=xi+1/2))/2}
-				Lan[i]:=preLangevin * q * rec_mob/stv.eps[i]
-			END
-			ELSE
-				FOR i:=stv.i0[j] TO stv.i1[j] DO
-					Lan[i]:=k_direct			
-		END;
+    IF par.UseLangevin THEN {use Langevin formula to calculate bimolecular, direct, band-to-band recombination rate}
+    FOR i:=1 TO par.NP DO
+    BEGIN
+		rec_mob:=(mob_n[i-1] + mob_n[i]+ mob_p[i-1] + mob_p[i] )/2;
+		{we take mob(x=xi)=(mob(x=xi-1/2)+mob(x=xi+1/2))/2}
+		Lan[i]:=par.Lang_pre * q * rec_mob/stv.eps[i];
+    END
+    ELSE
+        FOR i:=1 TO par.NP DO {use input value for direct recombination}
+            Lan[i]:=par.kdirect;
 
     Lan[0]:=0; {no recombination (or generation) at the contacts}
     Lan[par.NP+1]:=0;
@@ -1876,17 +1889,17 @@ END;
 
 FUNCTION Diss_Prob_Delta(r : myReal; vals : Row) : myReal;
 {Calculates the dissociation probability as a function of distance r}
-VAR b, kdF, delE, epsi, Vti, Braun_rec, F, k_f : myReal;
+VAR b, kdF, delE, epsi, Vti, Braun_rec, F, kf : myReal;
 BEGIN
     Vti:=vals[1]; {local inverse thermal voltage}
     epsi:=vals[2]; {local relative dielectric constant}
     Braun_rec:=vals[3]; {local copy of Braun recombination strength}
     F:=vals[4]; {local copy of electric field}
-    k_f:=vals[5]; {local copy of k_f}
+    kf:=vals[5]; {local copy of kf}
     delE:=q/(4*PI*epsi*r); {binding energy in eV}
     b:=q*ABS(F)*SQR(Vti)/(8*PI*epsi); {scaled ABOLUTE field strength}
     kdF:=3*Braun_rec/(4*PI*r*SQR(r))*EXP(-delE*Vti)*Bessel(b);
-    Diss_Prob_Delta:=kdF/(kdF + k_f)
+    Diss_Prob_Delta:=kdF/(kdF + kf)
 END;
 
 FUNCTION Diss_Prob_Gauss(r : myReal; vals : Row) : myReal;
@@ -1927,40 +1940,35 @@ END;
 PROCEDURE Calc_Dissociation(VAR dp, g : vector; Gm, Lan, V, mob_n, mob_p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {calculates the field-dependent dissociation rate dp and the generation rate,
 g[i]=g at x=i, see C. Braun, J. Chem. Phys. 80, p. 4157 (1984)}
-VAR i, j : INTEGER;
+VAR i : INTEGER;
     vals : Row; {array with values needed for Romberg integration}
 BEGIN
-	{we loop over the layers:}
-	FOR j:=1 TO stv.NLayers DO
-		WITH par.lyr[j] DO
-			IF fieldDepG THEN { calc. field dep. G }
-			BEGIN
-				SetLength(vals, 6); {vals: needed to pass values to MathFuncValues}
-				vals[0]:=a; {we'll use it (here) to pass the charge separation distance}
-				vals[1]:=stv.Vti; {and the inverse thermal voltage} 
-				vals[5]:=k_f; 
-				{we exclude the contacts (0, par.NP+1) in the loop:}
-				FOR i:=MAX(1,stv.i0[j]) TO MIN(par.NP,stv.i1[j]) DO
-				BEGIN
-					vals[4]:=(V[i+1]-V[i-1])/(stv.x[i+1]-stv.x[i-1]); {local electric field}
-					{F= field on mesh point i, centered difference, global variable}      
+    IF par.Field_dep_G THEN { calc. field dep. G }
+    BEGIN
+		SetLength(vals, 6); {vals: needed to pass values to MathFuncValues}
+		vals[0]:=par.a; {we'll use it (here) to pass the charge separation distance}
+		vals[1]:=stv.Vti; {and the inverse thermal voltage} 
+        vals[5]:=par.kf; 
+        FOR i:=1 TO par.NP DO
+        BEGIN
+            vals[4]:=(V[i+1]-V[i-1])/(par.L*(stv.h[i]+stv.h[i-1])); {local electric field}
+            {F= field on mesh point i, centered difference, global variable}      
 
-					vals[2]:=stv.eps[i]; {copy local dielectric constant into vals as Diss_Prob_Delta needs it}
-					vals[3]:=Lan[i]; {Braun recombination strength at x=xi, equal to Langevin (direct)}
+            vals[2]:=stv.eps[i]; {copy local dielectric constant into vals as Diss_Prob_Delta needs it}
+            vals[3]:=Lan[i]; {Braun recombination strength at x=xi, equal to Langevin (direct)}
 
-					CASE thermLengDist OF  {a = thermalization length}
-						1 : dp[i]:=Diss_Prob_Delta(a, vals); {delta-function distribution}
-						2 : WITH par DO dp[i]:=RombergIntegrationValues(@Diss_Prob_Gauss, vals, LowerLimBraun*a, UpperLimBraun*a, TolRomb, MaxRombIt, FALSE);
-						3 : WITH par DO dp[i]:=RombergIntegrationValues(@Diss_Prob_Exp, vals, LowerLimBraun*a, UpperLimBraun*a, TolRomb, MaxRombIt, FALSE);
-						4 : WITH par DO dp[i]:=RombergIntegrationValues(@Diss_Prob_SQRrExp, vals, LowerLimBraun*a, UpperLimBraun*a, TolRomb, MaxRombIt, FALSE);
-						5 : WITH par DO dp[i]:=RombergIntegrationValues(@Diss_Prob_r4Gauss, vals, LowerLimBraun*a, UpperLimBraun*a, TolRomb, MaxRombIt, FALSE);
-					END; {case selector}
-					{total free-carrier yield is sum of direct generation (P0) and the field dependent part (1-P0)*(dp)}
-					g[i]:=(P0 + (1-P0)*dp[i]) * Gm[i]
-				END {for loop}
-			END { calc. field dep. G }
-			ELSE FOR i:=stv.i0[j] TO stv.i1[j] DO BEGIN dp[i]:=0; g[i]:=Gm[i] END; {G is constant}
-      
+            CASE par.ThermLengDist OF  {a = thermalization length}
+                1 : dp[i]:=Diss_Prob_Delta(par.a, vals); {delta-function distribution}
+                2 : WITH par DO dp[i]:=RombergIntegrationValues(@Diss_Prob_Gauss, vals, LowerLimBraun*a, UpperLimBraun*a, TolRomb, MaxRombIt, FALSE);
+                3 : WITH par DO dp[i]:=RombergIntegrationValues(@Diss_Prob_Exp, vals, LowerLimBraun*a, UpperLimBraun*a, TolRomb, MaxRombIt, FALSE);
+                4 : WITH par DO dp[i]:=RombergIntegrationValues(@Diss_Prob_SQRrExp, vals, LowerLimBraun*a, UpperLimBraun*a, TolRomb, MaxRombIt, FALSE);
+                5 : WITH par DO dp[i]:=RombergIntegrationValues(@Diss_Prob_r4Gauss, vals, LowerLimBraun*a, UpperLimBraun*a, TolRomb, MaxRombIt, FALSE);
+            END; {case selector}
+            {total free-carrier yield is sum of direct generation (P0) and the field dependent part (1-P0)*(dp)}
+            g[i]:=(par.P0 + (1-par.P0)*dp[i]) * Gm[i]
+        END {for loop}
+    END { calc. field dep. G }
+    ELSE FOR i:=1 TO par.NP DO BEGIN dp[i]:=0; g[i]:=Gm[i] END; {G is constant}
     dp[0]:=0;
     dp[par.NP+1]:=0;
     g[0]:=0;   {no generation at the contacts}
@@ -1968,267 +1976,428 @@ BEGIN
 END;
 
 
-PROCEDURE Calc_Recombination_n(VAR Rn : TRec; dti : myReal; CONSTREF n, p, dp, Lan : vector; f_tb, f_ti : TTrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Calculate all recombination processes and their contribution to the continuity equation for electrons.}
-{See Koopmans and Koster, Sol. RRL 2022, 2200560.} 
-VAR i, ii, j, e : INTEGER;
-	iiw,
-	sum_aj, sum_bj, sum_cj, sum_dj,
-	ciL, ciR, ai,
-	f_ti_level_inv_denom, numer, denom, a, b, c1, g, h, g0, g1, h0, h1, 
-	dum1, dum2 : myReal; {used to store partial results}
-BEGIN 
-	FILLCHAR(Rn, SIZEOF(Rn), 0); {first: reset all fields to 0}
-
-	{direct recombination:}
-	FOR i:=1 TO par.NP DO BEGIN {note: no net rec/gen on the electrodes}
-		Rn.dir_cont_rhs[i]:= (1-dp[i])*Lan[i]*SQR(stv.ni[i]);
-		Rn.dir_cont_m[i]:= (1-dp[i])*Lan[i]*p[i];
-		Rn.direct[i]:= Rn.dir_cont_m[i]*n[i] - Rn.dir_cont_rhs[i]
-	END;
-
-	{recombination via bulk traps}
-	FOR j:=1 TO stv.NLayers DO
-		FOR e:=1 TO stv.Ntb[j].NLevels DO {loop over trap levels}
-			FOR i:=MAX(1,stv.i0[j]) TO MIN(par.NP,stv.i1[j]) DO {loop over grid points in this layer, but as always, exclude the electrodes}
-				IF dti=0 THEN {steady-state}
-				BEGIN
-					numer:=par.lyr[j].C_n_bulk*par.lyr[j].C_p_bulk*(n[i]*p[i] - stv.Ntb[j].nt0[e]*stv.Ntb[j].pt0[e]);
-					denom:=(par.lyr[j].C_n_bulk*(n[i]+stv.Ntb[j].nt0[e]) + par.lyr[j].C_p_bulk*(p[i]+stv.Ntb[j].pt0[e]));
-					dum1:=stv.Ntb[j].Nt[e] * (numer / denom);
-					Rn.bulk[i]:=Rn.bulk[i] + dum1;
-					dum2:=stv.Ntb[j].Nt[e] * (denom*par.lyr[j].C_n_bulk*par.lyr[j].C_p_bulk*p[i] - numer*par.lyr[j].C_n_bulk) / SQR(denom);
-					Rn.bulk_cont_m[i]:=Rn.bulk_cont_m[i] + dum2;
-					Rn.bulk_cont_rhs[i]:=Rn.bulk_cont_rhs[j] + dum1 - n[i]*dum2
+PROCEDURE Init_nt0_And_pt0(VAR stv : TStaticVars; CONSTREF par : TInputParameters);
+{inits nt0 and pt0 arrays (detrapping rates) needed for SRH recombination}
+{note: stv are changed here (nt0 and pt0), so they are VAR parameters}
+VAR i, e : INTEGER;
+BEGIN
+    WITH stv DO BEGIN
+		FOR e:=1 TO stv.N_Etr DO BEGIN
+			nt0b[0,e] := 0;
+			nt0b[par.NP+1,e] := 0;
+			pt0b[0,e] := 0;
+			pt0b[par.NP+1,e] := 0;
+			nt0i[0,e] := 0;
+			nt0i[par.NP+1,e] := 0;
+			pt0i[0,e] := 0;
+			pt0i[par.NP+1,e] := 0;
+			
+			FOR i := 1 TO par.NP DO
+			BEGIN
+				IF stv.BulkTrapDist[e] > 0 THEN BEGIN
+				nt0b[i,e]:=NcLoc[i]*EXP((E_CB[i]-stv.ETrapBulk[e])*Vti);
+				pt0b[i,e]:=NcLoc[i]*EXP((stv.ETrapBulk[e]-E_VB[i])*Vti);
 				END
-				ELSE BEGIN {transient}
-					{We solve the integral of the ODE we solved for calculating the trap occupance.}
-					b:=par.lyr[j].C_n_bulk*n[i] + par.lyr[j].C_p_bulk*stv.Ntb[j].pt0[e];
-					a:=par.lyr[j].C_n_bulk*n[i] + par.lyr[j].C_n_bulk*stv.Ntb[j].nt0[e] + par.lyr[j].C_p_bulk*stv.Ntb[j].pt0[e] + par.lyr[j].C_p_bulk*p[i];
-					g:=par.lyr[j].C_n_bulk*n[i]*stv.Ntb[j].Nt[e] + par.lyr[j].C_n_bulk*stv.Ntb[j].nt0[e]*stv.Ntb[j].Nt[e];
-					h:=par.lyr[j].C_n_bulk*n[i]*stv.Ntb[j].Nt[e];
-					c1:=f_tb[i,e] - b/a;
-		
-					Rn.bulk_cont_m[i]:=0;
-					Rn.bulk_cont_rhs[i]:=Rn.bulk_cont_rhs[i] + ((h - g*b/a) / dti + g*c1* EXP(-a/dti)/a - g*c1/a)*dti;
-					Rn.bulk[i]:=Rn.bulk_cont_rhs[i]			
+				ELSE BEGIN
+					nt0b[i,e]:= 0;
+					pt0b[i,e]:= 0;
 				END;
-
-	{recombination via interface traps:}
-	
-	FOR j:=1 TO stv.NLayers-1 DO {loop over interfaces. Each interface involves 2 points: i1[j] and i1[j]+1 (in the adjacent layer)}
-	BEGIN
-		{note: the interface sits between i1[j] and i1[j]+1}
-		ii:=stv.i1[j]; {ii: i interface}	
-		iiw:=2 / (stv.Ltot*(0.5*stv.h[ii+1] + stv.h[ii] + 0.5*stv.h[ii-1])); {inverse of width of the interface}
-
-		IF dti=0 THEN {steady-state}
-		BEGIN
-			FOR e:=1 TO stv.Nti[j].NLevels DO {loop over trap levels}
-			BEGIN 
-				f_ti_level_inv_denom:=Calc_Inv_f_ti_Denom(n, p, ii, j, e, stv, par);
-				sum_aj:=par.lyr[j].C_n_int * stv.Nti[j].Nt[e] * (n[ii] + n[ii+1]);
-				sum_bj:=par.lyr[j].C_p_int * stv.Nti[j].Nt[e] * (p[ii] + p[ii+1]);
-				sum_cj:=par.lyr[j].C_n_int * stv.Nti[j].Nt[e] * (stv.Nti[j].nt0_R[e] + stv.Nti[j+1].nt0_L[e]); 
-				sum_dj:=par.lyr[j].C_p_int * stv.Nti[j].Nt[e] * (stv.Nti[j].pt0_R[e] + stv.Nti[j+1].pt0_L[e]); 
-
-				ciR:=par.lyr[j].C_n_int * stv.Nti[j].Nt[e] * stv.Nti[j].nt0_R[e]; 
-				ciL:=par.lyr[j].C_n_int * stv.Nti[j].Nt[e] * stv.Nti[j+1].nt0_L[e]; 
-		
-				ai:=par.lyr[j].C_n_int * stv.Nti[j].Nt[e]; {again, different from v4.57 as there's only 1 ai}
-				
-				{Interface recombination as calculated with the current n and p}
-				Rn.int[ii]:=Rn.int[ii] + iiw*(ai*n[ii] * (sum_bj + sum_cj) - ciR * (sum_aj + sum_dj)) * f_ti_level_inv_denom;
-				Rn.int[ii+1]:=Rn.int[ii+1] + iiw*(ai*n[ii+1] * (sum_bj + sum_cj) - ciL* (sum_aj + sum_dj)) * f_ti_level_inv_denom;
-
-				{Calculate the partial derivative of recombination to n[ii-1], n[ii], n[ii+1]}
-				dum1:=ciR * ai / f_ti_level_inv_denom;
-				dum1:=dum1 - ai * (ai*n[ii] * (sum_bj + sum_cj) - ciR * (sum_aj + sum_dj));
-				dum2:=ciL * ai / f_ti_level_inv_denom;
-				dum2:=dum2 - ai * (ai*n[ii+1] * (sum_bj + sum_cj) - ciL * (sum_aj + sum_dj));
-				Rn.int_cont_lo[ii]:=Rn.int_cont_lo[ii] + iiw*dum1 * SQR(f_ti_level_inv_denom);
-				Rn.int_cont_lo[ii+1]:=Rn.int_cont_lo[ii+1] + iiw*dum2 * SQR(f_ti_level_inv_denom);
-		
-				dum1:=-ciR* ai / f_ti_level_inv_denom;
-				dum1:=dum1 - ai * (ai*n[ii] * (sum_bj + sum_cj) - ciR * (sum_aj + sum_dj));
-				dum2:=-ciL * ai / f_ti_level_inv_denom;
-				dum2:=dum2 - ai * (ai*n[ii+1] * (sum_bj + sum_cj) - ciL * (sum_aj + sum_dj));
-				Rn.int_cont_up[ii]:= Rn.int_cont_up[ii] + iiw*dum1 * SQR(f_ti_level_inv_denom);
-				Rn.int_cont_up[ii+1]:=Rn.int_cont_up[ii+1] + iiw*dum2 * SQR(f_ti_level_inv_denom);
-				
-				dum1:=(-ciR + sum_bj + sum_cj) * ai  / f_ti_level_inv_denom;
-				dum1:=dum1 - ai * (ai*n[ii] * (sum_bj + sum_cj) - ciR * (sum_aj + sum_dj));
-				dum2:=(-ciL + sum_bj + sum_cj) * ai  / f_ti_level_inv_denom;
-				dum2:=dum2 - ai * (ai*n[ii+1] * (sum_bj + sum_cj) - ciL * (sum_aj + sum_dj));
-				Rn.int_cont_m[ii]:=Rn.int_cont_m[ii] + iiw*dum1 * SQR(f_ti_level_inv_denom);
-				Rn.int_cont_m[ii+1]:=Rn.int_cont_m[ii+1] + iiw*dum2 * SQR(f_ti_level_inv_denom);
-			
-			END; {steady-state, loop over trap levels}
-			
-			{The right hand side of the continuity equation contains the recombination term, but because we linearize in n we add the linearization terms as well.}
-			Rn.int_cont_rhs[ii]:=Rn.int[ii] - n[ii-1] * Rn.int_cont_lo[ii] - n[ii+1] * Rn.int_cont_up[ii] - n[ii] * Rn.int_cont_m[ii];
-			Rn.int_cont_rhs[ii+1]:=Rn.int[ii+1] - n[ii] * Rn.int_cont_lo[ii+1] - n[ii+2] * Rn.int_cont_up[ii+1] - n[ii+1] * Rn.int_cont_m[ii+1]	
-		END {steady-state}
-		ELSE 
-		BEGIN {transient}
-			FOR e:=1 TO stv.Nti[j].NLevels DO {loop over trap levels}
-			BEGIN 
-				{We solve the integral of the ODE we solved for calculating the trap occupance.}
-				a:=par.lyr[j].C_n_int * (n[ii] + n[ii+1] + stv.Nti[j].nt0_R[e] + stv.Nti[j+1].nt0_L[e]) +
-				   par.lyr[j].C_p_int * (p[ii] + p[ii+1] + stv.Nti[j].pt0_R[e] + stv.Nti[j+1].pt0_L[e]);
-				b:=par.lyr[j].C_n_int*(n[ii] + n[ii+1]) + par.lyr[j].C_p_int*(stv.Nti[j].pt0_R[e] + stv.Nti[j+1].pt0_L[e]);
-				g0:=par.lyr[j].C_n_int*stv.Nti[j].Nt[e]*(n[ii] + stv.Nti[j].nt0_R[e]);			  
-				g1:=par.lyr[j].C_n_int*stv.Nti[j].Nt[e]*(n[ii+1] + stv.Nti[j+1].nt0_L[e]);			  
-
-				h0:=par.lyr[j].C_n_int*n[ii]*stv.Nti[j].Nt[e];
-				h1:=par.lyr[j].C_n_int*n[ii+1]*stv.Nti[j].Nt[e];
-				
-				c1:= (f_ti[ii,e] - b/a);
-			
-				Rn.int_cont_rhs[ii]:=Rn.int_cont_rhs[ii] + iiw*((h0 - g0*b/a) / dti + g0*c1* EXP(-a/dti)/a - g0*c1/a)*dti;
-				Rn.int_cont_rhs[ii+1]:=Rn.int_cont_rhs[ii+1] + iiw*((h1 - g1*b/a) / dti + g1*c1* EXP(-a/dti)/a - g1*c1/a)*dti;
-
-				Rn.int[ii]:=Rn.int_cont_rhs[ii];
-				Rn.int[ii+1]:=Rn.int_cont_rhs[ii+1]	
+				IF stv.IntTrapDist[e] > 0 THEN BEGIN
+				nt0i[i,e]:=NcLoc[i]*EXP((E_CB[i]-stv.ETrapInt[e])*Vti);
+				pt0i[i,e]:=NcLoc[i]*EXP((stv.ETrapInt[e]-E_VB[i])*Vti);
+				END
+				ELSE BEGIN
+					nt0i[i,e]:= 0;
+					pt0i[i,e]:= 0;
+				END;
 			END;
-
 		END
-		
-	END; {loop over interfaces}
-
+	END
 END;
 
-PROCEDURE Calc_Recombination_p(VAR Rp : TRec; dti : myReal; CONSTREF n, p, dp, Lan : vector; f_tb, f_ti : TTrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{Calculate all recombination processes and their contribution to the continuity equation for holes.}
-{See Koopmans and Koster, Sol. RRL 2022, 2200560.}
-VAR i, ii, j, e : INTEGER;
-	iiw,
+PROCEDURE Calc_Recombination_n_Single_Level(VAR Rn : TRec; dti : myReal; CONSTREF e : INTEGER; CONSTREF n, p, dp, Lan : vector; CONSTREF f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Calculate all recombination processes and their contribution to the continuity equation for electrons. 
+For a derivation see the doc files.}
+VAR i, j : INTEGER;
+	f_ti_inv_denom, zeros	: vector;
 	sum_aj, sum_bj, sum_cj, sum_dj,
-	diL, diR, bi, 
-	f_ti_level_inv_denom, numer, denom, a, b, c1, g, h, g0, g1, h0, h1, 
-	dum1, dum2 : myReal; {used to store partial results}
-BEGIN 
-	FILLCHAR(Rp, SIZEOF(Rp), 0); {first: reset all fields to 0}
+	ci, ai_min, ai, ai_plus,
+	numer, denom, a, b, c1, g, g0, g1, h, h0, h1 : myReal;
+BEGIN	
+	{initialize a vector with zeros for all processes that do not contribute}
+	FOR i:=0 TO par.NP+1 DO zeros[i]:=0;
+
+	{make sure points on the electrodes are zero}
+	{Note: extended reals otherwise get initialised as 'NAN'}
+	Rn.direct[0]:=0; Rn.direct[par.NP+1]:=0;
+	Rn.bulk[0]:=0; Rn.bulk[par.NP+1]:=0;
+	Rn.int[0]:=0; Rn.int[par.NP+1]:=0;
 	
-	{direct recombination:}
-	FOR i:=1 TO par.NP DO BEGIN {note: no net rec/gen on the electrodes}
-		Rp.dir_cont_rhs[i]:= (1-dp[i])*Lan[i]*SQR(stv.ni[i]);
-		Rp.dir_cont_m[i]:= (1-dp[i])*Lan[i]*n[i];
-		Rp.direct[i]:= Rp.dir_cont_m[i]*p[i] - Rp.dir_cont_rhs[i]
+	{direct recombination}
+	IF e = 1 THEN
+		FOR i:=1 TO par.NP DO BEGIN
+			Rn.dir_cont_rhs[i]:= (1-dp[i])*Lan[i]*SQR(stv.ni[i]);
+			Rn.dir_cont_m[i]:= (1-dp[i])*Lan[i]*p[i];
+			Rn.direct[i]:= Rn.dir_cont_m[i]*n[i] - Rn.dir_cont_rhs[i];
+		END
+	ELSE BEGIN
+		Rn.dir_cont_rhs:= zeros;
+		Rn.dir_cont_m:= zeros;
+		Rn.direct:= zeros;
 	END;
 	
-	{recombination via bulk traps}
-	FOR j:=1 TO stv.NLayers DO
-		FOR e:=1 TO stv.Ntb[j].NLevels DO {loop over trap levels}
-			FOR i:=MAX(1,stv.i0[j]) TO MIN(par.NP,stv.i1[j]) DO {loop over grid points in this layer, but as always, exclude the electrodes}
-				IF dti=0 THEN {steady-state}
-				BEGIN
-					numer:=par.lyr[j].C_n_bulk*par.lyr[j].C_p_bulk*(n[i]*p[i] - stv.Ntb[j].nt0[e]*stv.Ntb[j].pt0[e]);
-					denom:=(par.lyr[j].C_n_bulk*(n[i]+stv.Ntb[j].nt0[e]) + par.lyr[j].C_p_bulk*(p[i]+stv.Ntb[j].pt0[e]));
-					dum1:=stv.Ntb[j].Nt[e] * (numer / denom);
-					Rp.bulk[i]:=Rp.bulk[i] + dum1;
-					dum2:=stv.Ntb[j].Nt[e] * (denom*par.lyr[j].C_n_bulk*par.lyr[j].C_p_bulk*n[i] - numer*par.lyr[j].C_p_bulk) / SQR(denom);
-					Rp.bulk_cont_m[i]:=Rp.bulk_cont_m[i] + dum2;
-					Rp.bulk_cont_rhs[i]:=Rp.bulk_cont_rhs[j] + dum1 - p[i]*dum2
-				END
-				ELSE BEGIN {transient}
-					{We solve the integral of the ODE we solved for calculating the trap occupance.}
-					b:=par.lyr[j].C_p_bulk*p[i] + par.lyr[j].C_n_bulk*stv.Ntb[j].nt0[e];
-					a:=par.lyr[j].C_n_bulk*n[i] + par.lyr[j].C_n_bulk*stv.Ntb[j].nt0[e] + par.lyr[j].C_p_bulk*stv.Ntb[j].pt0[e] + par.lyr[j].C_p_bulk*p[i];
-					g:=par.lyr[j].C_p_bulk*p[i]*stv.Ntb[j].Nt[e] + par.lyr[j].C_p_bulk*stv.Ntb[j].pt0[e]*stv.Ntb[j].Nt[e];
-					h:=par.lyr[j].C_p_bulk*p[i]*stv.Ntb[j].Nt[e];
-					c1:=1-f_tb[i,e] - b/a;
-				
-					Rp.bulk_cont_m[i]:=0;
-					Rp.bulk_cont_rhs[i]:=Rp.bulk_cont_rhs[i] + ((h - g*b/a) / dti + g*c1* EXP(-a/dti)/a - g*c1/a)*dti;
-					Rp.bulk[i]:=Rp.bulk_cont_rhs[i]			
-				END;
-
-	{recombination via interface traps:}
-	
-	FOR j:=1 TO stv.NLayers-1 DO {loop over interfaces. Each interface involves 2 points: i1[j] and i1[j]+1 (in the adjacent layer)}
-	BEGIN
-		{note: the interface sits between i1[j] and i1[j]+1}
-		ii:=stv.i1[j]; {ii: i interface}	
-		iiw:=2 / (stv.Ltot*(0.5*stv.h[ii+1] + stv.h[ii] + 0.5*stv.h[ii-1])); {inverse of width of the interface}
 		
-		IF dti=0 THEN {steady-state}
+  	{calculate bulk recombination and its linearization in n}
+	IF (par.bulk_tr > 0) AND (stv.BulkTrapDist[e] <> 0) THEN
+		FOR i:=1 TO par.NP DO
 		BEGIN
-			FOR e:=1 TO stv.Nti[j].NLevels DO {loop over trap levels}
-			BEGIN 
-				f_ti_level_inv_denom:=Calc_Inv_f_ti_Denom(n, p, ii, j, e, stv, par);
-				sum_aj:=par.lyr[j].C_n_int * stv.Nti[j].Nt[e] * (n[ii] + n[ii+1]);
-				sum_bj:=par.lyr[j].C_p_int * stv.Nti[j].Nt[e] * (p[ii] + p[ii+1]);
-				sum_cj:=par.lyr[j].C_n_int * stv.Nti[j].Nt[e] * (stv.Nti[j].nt0_R[e] + stv.Nti[j+1].nt0_L[e]); 
-				sum_dj:=par.lyr[j].C_p_int * stv.Nti[j].Nt[e] * (stv.Nti[j].pt0_R[e] + stv.Nti[j+1].pt0_L[e]); 
-			
-				diR:=par.lyr[j].C_p_int * stv.Nti[j].Nt[e] * stv.Nti[j].pt0_R[e]; 
-				diL:=par.lyr[j].C_p_int * stv.Nti[j].Nt[e] * stv.Nti[j+1].pt0_L[e]; 
-				
-				bi:=par.lyr[j].C_p_int * stv.Nti[j].Nt[e]; {again, different from v4.57 as there's only 1 bi}
-				
-				{Interface recombination as calculated with the current n and p}
-				Rp.int[ii]:=Rp.int[ii] + iiw*(bi*p[ii] * (sum_aj + sum_dj) - diR * (sum_bj + sum_cj)) / (sum_aj+sum_bj+sum_cj+sum_dj);
-				Rp.int[ii+1]:=Rp.int[ii+1] + iiw*(bi*p[ii+1] * (sum_aj + sum_dj) - diL * (sum_bj + sum_cj)) / (sum_aj+sum_bj+sum_cj+sum_dj);
-	
-				{Calculate the partial derivative of recombination to p[ii-1], p[ii], p[ii+1]}
-				dum1:=-diR * bi / f_ti_level_inv_denom;
-				dum1:=dum1 - bi * (bi*p[ii] * (sum_aj + sum_dj) - diR * (sum_bj + sum_cj));
-				dum2:=-diL * bi / f_ti_level_inv_denom;
-				dum2:=dum2 - bi * (bi*p[ii+1] * (sum_aj + sum_dj) - diL * (sum_bj + sum_dj));
-				Rp.int_cont_lo[ii]:=Rp.int_cont_lo[ii] + iiw*dum1 * SQR(f_ti_level_inv_denom);
-				Rp.int_cont_lo[ii+1]:=Rp.int_cont_lo[ii+1] + iiw*dum2 * SQR(f_ti_level_inv_denom);
-
-				dum1:=-diR * bi / f_ti_level_inv_denom;
-				dum1:=dum1 - bi * (bi*n[ii] * (sum_aj + sum_dj) - diR * (sum_bj + sum_cj));
-				dum2:=-diL * bi / f_ti_level_inv_denom;
-				dum2:=dum2 - bi * (bi*p[ii+1] * (sum_aj + sum_dj) - diL * (sum_bj + sum_cj));
-				Rp.int_cont_up[ii]:= Rp.int_cont_up[ii] + iiw*dum1 * SQR(f_ti_level_inv_denom);
-				Rp.int_cont_up[ii+1]:=Rp.int_cont_up[ii+1] + iiw*dum2 * SQR(f_ti_level_inv_denom);
-				
-				dum1:=(-diR + sum_aj + sum_dj) * bi  / f_ti_level_inv_denom;
-				dum1:=dum1 - bi * (bi*p[ii] * (sum_aj + sum_dj) - diR * (sum_bj + sum_cj));
-				dum2:=(-diL + sum_aj + sum_dj) * bi  / f_ti_level_inv_denom;
-				dum2:=dum2 - bi * (bi*p[ii+1] * (sum_aj + sum_dj) - diL * (sum_bj + sum_cj));
-				Rp.int_cont_m[ii]:=Rp.int_cont_m[ii] + iiw*dum1 * SQR(f_ti_level_inv_denom);
-				Rp.int_cont_m[ii+1]:=Rp.int_cont_m[ii+1] + iiw*dum2 * SQR(f_ti_level_inv_denom)		
-			END; {steady-state, loop over trap levels}
-			
-			{The right hand side of the continuity equation contains the recombination term, but because we linearize in n we add the linearization terms as well.}
-			Rp.int_cont_rhs[ii]:=Rp.int[ii] - p[ii-1] * Rp.int_cont_lo[ii] - p[ii+1] * Rp.int_cont_up[ii] - p[ii] * Rp.int_cont_m[ii];
-			Rp.int_cont_rhs[ii+1]:=Rp.int[ii+1] - p[ii] * Rp.int_cont_lo[ii+1] - p[ii+2] * Rp.int_cont_up[ii+1] - p[ii+1] * Rp.int_cont_m[ii+1]	
-		END {steady-state}
-		ELSE 
-		BEGIN {transient}
-			FOR e:=1 TO stv.Nti[j].NLevels DO {loop over trap levels}
-			BEGIN 
+			IF dti=0 THEN {steady-state}
+			BEGIN
+				numer:= par.Cn*par.Cp*(n[i]*p[i] - stv.nt0b[i,e]*stv.pt0b[i,e]);
+				denom:= (par.Cn*(n[i]+stv.nt0b[i,e]) + par.Cp*(p[i]+stv.pt0b[i,e]));
+				Rn.bulk[i]:= stv.Ntb[i,e] * (numer / denom);
+				Rn.bulk_cont_m[i]:= stv.Ntb[i,e] * (denom*par.Cn*par.Cp*p[i] - numer*par.Cn) / SQR(denom);
+				Rn.bulk_cont_rhs[i]:= Rn.bulk[i] - n[i]*Rn.bulk_cont_m[i];
+			END
+			ELSE BEGIN {transient}
 				{We solve the integral of the ODE we solved for calculating the trap occupance.}
-				a:=par.lyr[j].C_n_int * (n[ii] + n[ii+1] + stv.Nti[j].nt0_R[e] + stv.Nti[j+1].nt0_L[e]) +
-				   par.lyr[j].C_p_int * (p[ii] + p[ii+1] + stv.Nti[j].pt0_R[e] + stv.Nti[j+1].pt0_L[e]);
-				b:=par.lyr[j].C_p_int*(p[ii] + p[ii+1]) + par.lyr[j].C_n_int*(stv.Nti[j].nt0_R[e] + stv.Nti[j+1].nt0_L[e]);
-
-				g0:=par.lyr[j].C_p_int*stv.Nti[j].Nt[e]*(p[ii] + stv.Nti[j].pt0_R[e]);			  
-				g1:=par.lyr[j].C_p_int*stv.Nti[j].Nt[e]*(p[ii+1] + stv.Nti[j+1].pt0_L[e]);			  
-
-				h0:=par.lyr[j].C_p_int*p[ii]*stv.Nti[j].Nt[e];
-				h1:=par.lyr[j].C_p_int*p[ii+1]*stv.Nti[j].Nt[e];
+				b:= par.Cn*n[i] + par.Cp*stv.pt0b[i,e];
+			    a:= par.Cn*n[i] + par.Cn*stv.nt0b[i,e] + par.Cp*stv.pt0b[i,e] + par.Cp*p[i];
+				g:= (par.Cn*n[i]*stv.Ntb[i,e] + par.Cn*stv.nt0b[i,e]*stv.Ntb[i,e]);
+				h:= par.Cn*n[i]*stv.Ntb[i,e];
+				c1:= (f_tb[i,e] - b/a);
 				
-				c1:= (1-f_ti[ii,e] - b/a);
+				Rn.bulk_cont_m[i]:=0;
+				Rn.bulk_cont_rhs[i]:=((h - g*b/a) / dti + g*c1* EXP(-a/dti)/a - g*c1/a)*dti;
+				Rn.bulk[i]:= Rn.bulk_cont_rhs[i];			
+			END
+		END
+	ELSE
+    BEGIN
+		Rn.bulk:= zeros;
+		Rn.bulk_cont_m:= zeros;
+		Rn.bulk_cont_rhs:= zeros;
+	END;	
+
+	{Interface traps, first init to zero:}
+	Rn.int:= zeros;
+	Rn.int_cont_lo:= zeros;
+	Rn.int_cont_m:= zeros;
+	Rn.int_cont_up:= zeros;
+	Rn.int_cont_rhs:= zeros;
+	
+	{calculate interface recombination and its linearization in n}
+	{for the derivation check docs}
+	IF (stv.Traps_int) AND (stv.IntTrapDist[e] <> 0) THEN
+		IF dti=0 THEN
+		BEGIN {steady-state!}
+			f_ti_inv_denom := Calc_Inv_f_ti_Denom(n, p, e, stv, par);
+	   
+			FOR i:=1 TO par.NP DO
+			BEGIN
+				IF (stv.Nti[i,e] > 0) THEN
+				BEGIN {there are interface traps at this grid point}
+					sum_aj := 0;
+					sum_bj := 0;
+					sum_cj := 0;
+					sum_dj := 0;
+					FOR j:=-1 TO 1 DO
+					BEGIN
+						sum_aj := sum_aj + par.Cn * stv.Nti[i+j,e] * n[i+j];
+						sum_bj := sum_bj + par.Cp * stv.Nti[i+j,e] * p[i+j];
+						sum_cj := sum_cj + par.Cn * stv.Nti[i+j,e] * stv.nt0i[i+j,e];
+						sum_dj := sum_dj + par.Cp * stv.Nti[i+j,e] * stv.pt0i[i+j,e];
+					END;
+					ci := par.Cn * stv.Nti[i,e] * stv.nt0i[i,e];
+					ai_min := par.Cn * stv.Nti[i-1,e] ;
+					ai := par.Cn * stv.Nti[i,e] ;
+					ai_plus := par.Cn * stv.Nti[i+1,e];
+				
+					{Interface recombination as calculated with the current n and p}
+					Rn.int[i] := (ai*n[i] * (sum_bj + sum_cj) - ci * (sum_aj + sum_dj)) * f_ti_inv_denom[i];
+
+					{Calculate the partial derivative of recombination to n[i-1], n[i], n[i+1]}
+					Rn.int_cont_lo[i] := -ci * ai_min / f_ti_inv_denom[i];
+					Rn.int_cont_lo[i] := Rn.int_cont_lo[i] - ai_min * (ai*n[i] * (sum_bj + sum_cj) - ci * (sum_aj + sum_dj));
+					Rn.int_cont_lo[i] := Rn.int_cont_lo[i] * SQR(f_ti_inv_denom[i]);
+		
+					Rn.int_cont_up[i] := -ci * ai_plus / f_ti_inv_denom[i];
+					Rn.int_cont_up[i] := Rn.int_cont_up[i] - ai_plus * (ai*n[i] * (sum_bj + sum_cj) - ci * (sum_aj + sum_dj));
+					Rn.int_cont_up[i] := Rn.int_cont_up[i] * SQR(f_ti_inv_denom[i]);
+				
+					Rn.int_cont_m[i] := (-ci + sum_bj + sum_cj) * ai  / (f_ti_inv_denom[i]);
+					Rn.int_cont_m[i] := Rn.int_cont_m[i] - ai * (ai*n[i] * (sum_bj + sum_cj) - ci * (sum_aj + sum_dj));
+					Rn.int_cont_m[i] := Rn.int_cont_m[i] * SQR(f_ti_inv_denom[i]);
+
+					{The right hand side of the continuity equation contains the recombination term, but because we linearize in n we add the linearization terms as well.}
+					Rn.int_cont_rhs[i] := Rn.int[i] - n[i-1] * Rn.int_cont_lo[i] - n[i+1] * Rn.int_cont_up[i] - n[i] * Rn.int_cont_m[i];
+				END
+			END; {for loop over grid points}
+		END {steady-state!}
+		ELSE {so transient}
+		BEGIN
+			FOR i :=1 TO par.NP DO
+			BEGIN
+				IF stv.Nti[i-1,e] * stv.Nti[i,e] <> 0 THEN
+				BEGIN {now we have just crossed an interface}
+					{We solve the integral of the ODE we solved for calculating the trap occupance.}
+					a:= par.Cn*n[i] + par.Cn*stv.nt0i[i,e] + par.Cp*stv.pt0i[i,e] + par.Cp*p[i] +
+					par.Cn*n[i-1] + par.Cn*stv.nt0i[i-1,e] + par.Cp*stv.pt0i[i-1,e] + par.Cp*p[i-1];
+					b:= par.Cn*n[i] + par.Cp*stv.pt0i[i,e] +
+					par.Cn*n[i-1] + par.Cp*stv.pt0i[i-1,e];
+
+					g0:= (par.Cn*n[i-1]*stv.Nti[i-1,e] + par.Cn*stv.nt0i[i-1,e]*stv.Nti[i-1,e]);				  
+					g1:= (par.Cn*n[i]*stv.Nti[i,e] + par.Cn*stv.nt0i[i,e]*stv.Nti[i,e]);
+					h0:= par.Cn*n[i-1]*stv.Nti[i-1,e];
+					h1:= par.Cn*n[i]*stv.Nti[i,e];					
+					c1:= (f_ti[i,e] - b/a);
 					
-				Rp.int_cont_rhs[ii]:=Rp.int_cont_rhs[ii] + iiw*((h0 - g0*b/a) / dti + g0*c1* EXP(-a/dti)/a - g0*c1/a)*dti;
-				Rp.int_cont_rhs[ii+1]:=Rp.int_cont_rhs[ii+1] + iiw*((h1 - g1*b/a) / dti + g1*c1* EXP(-a/dti)/a - g1*c1/a)*dti;
+					Rn.int_cont_rhs[i-1]:=((h0 - g0*b/a) / dti + g0*c1* EXP(-a/dti)/a - g0*c1/a)*dti;
+					Rn.int_cont_rhs[i]:=((h1 - g1*b/a) / dti + g1*c1* EXP(-a/dti)/a - g1*c1/a)*dti;
 
-				Rp.int[ii]:=Rp.int_cont_rhs[ii];
-				Rp.int[ii+1]:=Rp.int_cont_rhs[ii+1]	
-			END;
-
-		END
-		
-	END; {loop over interfaces}
-
+					Rn.int[i-1]:= Rn.int_cont_rhs[i-1];
+					Rn.int[i]:= Rn.int_cont_rhs[i];
+				END
+			END
+		END {transient}
 END;
 
-PROCEDURE Cont_Eq_Elec(VAR n : vector; nPrevTime, V, Jn, p, mu, g, Lan, dp : vector; VAR f_tb, f_ti : TTrapArray; VAR Rn : TRec;
+PROCEDURE Calc_Recombination_p_Single_Level(VAR Rp : TRec; dti : myReal; CONSTREF e : INTEGER; CONSTREF n, p, dp, Lan : vector; CONSTREF f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Calculate all recombination processes and their contribution to the continuity equation for holes. 
+For a derivation see the doc files.}
+VAR i, j : INTEGER;
+	f_ti_inv_denom, zeros : vector;
+	sum_aj, sum_bj, sum_cj, sum_dj,
+	di, bi_min, bi, bi_plus,
+	numer, denom, a, b, c1, g, g0, g1, h, h0, h1 : myReal;
+BEGIN
+	{initialize a vector with zeros for all processes that do not contribute}
+	FOR i:=0 TO par.NP+1 DO zeros[i]:=0;
+
+	{make sure points on the electrodes are zero}
+	{Note: extended reals otherwise get initialised as 'NAN'}
+	Rp.direct[0]:=0; Rp.direct[par.NP+1]:=0;
+	Rp.bulk[0]:=0; Rp.bulk[par.NP+1]:=0;
+	Rp.int[0]:=0; Rp.int[par.NP+1]:=0;
+
+	{direct recombination}
+	IF e = 1 THEN
+		FOR i:=1 TO par.NP DO BEGIN
+			Rp.dir_cont_rhs[i]:= (1-dp[i])*Lan[i]*SQR(stv.ni[i]);
+			Rp.dir_cont_m[i]:= (1-dp[i])*Lan[i]*n[i];
+			Rp.direct[i]:= Rp.dir_cont_m[i]*p[i] - Rp.dir_cont_rhs[i];
+		END
+	ELSE BEGIN
+		Rp.dir_cont_rhs:= zeros;
+		Rp.dir_cont_m:= zeros;
+		Rp.direct:= zeros;
+	END;
+
+
+  	{calculate bulk recombination and its linearization in p}
+	IF (par.bulk_tr > 0) AND (stv.BulkTrapDist[e] <> 0) THEN
+		FOR i:=1 TO par.NP DO
+		BEGIN
+			IF dti=0 THEN {steady-state}
+			BEGIN
+				numer:= par.Cn*par.Cp*(n[i]*p[i] - stv.nt0b[i,e]*stv.pt0b[i,e]);
+				denom:= (par.Cn*(n[i]+stv.nt0b[i,e]) + par.Cp*(p[i]+stv.pt0b[i,e]));
+				Rp.bulk[i]:= stv.Ntb[i,e] * (numer / denom);
+				Rp.bulk_cont_m[i]:= stv.Ntb[i,e] * (denom*par.Cp*par.Cn*n[i] - numer*par.Cp) / SQR(denom);
+				Rp.bulk_cont_rhs[i]:= Rp.bulk[i] - p[i]*Rp.bulk_cont_m[i];
+			END
+			ELSE BEGIN {transient}
+				{We solve the integral of the ODE we solved for calculating the trap occupance.}
+				b:= par.Cp*p[i] + par.Cn*stv.nt0b[i,e]; 
+			    a:= par.Cn*n[i] + par.Cn*stv.nt0b[i,e] + par.Cp*stv.pt0b[i,e] + par.Cp*p[i];
+				g:= (par.Cp*p[i]*stv.Ntb[i,e] + par.Cp*stv.pt0b[i,e]*stv.Ntb[i,e]);
+				h:= par.Cp*p[i]*stv.Ntb[i,e];
+				c1:= (1-f_tb[i,e] - b/a);
+				
+				Rp.bulk_cont_m[i]:=0;
+				Rp.bulk_cont_rhs[i]:= ((h - g*b/a) / dti + g*c1* EXP(-a/dti)/a - g*c1/a)*dti;
+				Rp.bulk[i]:= Rp.bulk_cont_rhs[i];		
+			END
+		END
+	ELSE
+    BEGIN
+		Rp.bulk:= zeros;
+		Rp.bulk_cont_m:= zeros;
+		Rp.bulk_cont_rhs:= zeros;
+	END;	
+
+	{Interface traps, first init to zero:}
+	Rp.int:= zeros;
+	Rp.int_cont_lo:= zeros;
+	Rp.int_cont_m:= zeros;
+	Rp.int_cont_up:= zeros;
+	Rp.int_cont_rhs:= zeros;
+		
+	{calculate interface recombination and its linearization in p}
+	{for the derivation check Interface_trap_derivation.pdf in the doc files}
+	IF (stv.Traps_int) AND (stv.IntTrapDist[e] <> 0) THEN
+		IF dti=0 THEN
+		BEGIN {steady-state!}
+			f_ti_inv_denom := Calc_Inv_f_ti_Denom(n, p, e, stv, par);
+	
+			FOR i:=1 TO par.NP DO
+			BEGIN
+				IF (stv.Nti[i,e] > 0) THEN 
+				BEGIN {there are interface traps at this grid point}
+					sum_aj := 0;
+					sum_bj := 0;
+					sum_cj := 0;
+					sum_dj := 0;
+					FOR j:=-1 TO 1 DO
+					BEGIN
+						sum_aj := sum_aj + par.Cn * stv.Nti[i+j,e] * n[i+j];
+						sum_bj := sum_bj + par.Cp * stv.Nti[i+j,e] * p[i+j];
+						sum_cj := sum_cj + par.Cn * stv.Nti[i+j,e] * stv.nt0i[i+j,e];
+						sum_dj := sum_dj + par.Cp * stv.Nti[i+j,e] * stv.pt0i[i+j,e];
+					END;
+					di := par.Cp * stv.Nti[i,e] * stv.pt0i[i,e];
+					bi_min := par.Cp * stv.Nti[i-1,e];
+					bi := par.Cp * stv.Nti[i,e];
+					bi_plus := par.Cp * stv.Nti[i+1,e] ;
+
+					{Interface recombination as calculated with the current n and p}
+					Rp.int[i] := (bi * p[i] * (sum_aj + sum_dj) - di * (sum_bj + sum_cj)) / (sum_aj+sum_bj+sum_cj+sum_dj);
+	
+					{Calculate the partial derivative of recombination to p[i-1], p[i], p[i+1]}
+					Rp.int_cont_lo[i] := -di * bi_min / f_ti_inv_denom[i];
+					Rp.int_cont_lo[i] := Rp.int_cont_lo[i] - bi_min * (bi * p[i] * (sum_aj + sum_dj) - di * (sum_bj + sum_cj));
+					Rp.int_cont_lo[i] := Rp.int_cont_lo[i] * SQR(f_ti_inv_denom[i]);
+
+					Rp.int_cont_up[i] := -di * bi_plus / f_ti_inv_denom[i];
+					Rp.int_cont_up[i] := Rp.int_cont_up[i] - bi_plus * (bi * p[i] * (sum_aj + sum_dj) - di * (sum_bj + sum_cj));
+					Rp.int_cont_up[i] := Rp.int_cont_up[i] * SQR(f_ti_inv_denom[i]);
+
+					Rp.int_cont_m[i] := (-di + sum_aj + sum_dj) * bi  / (f_ti_inv_denom[i]);
+					Rp.int_cont_m[i] := Rp.int_cont_m[i] - bi * (bi * p[i] * (sum_aj + sum_dj) - di * (sum_bj + sum_cj));
+					Rp.int_cont_m[i] := Rp.int_cont_m[i] * SQR(f_ti_inv_denom[i]);
+
+					{The right hand side of the continuity equation contains the recombination term, but because we linearize in n we add the linearization terms as well.}			
+					Rp.int_cont_rhs[i] := Rp.int[i] - p[i-1] * Rp.int_cont_lo[i] - p[i+1] * Rp.int_cont_up[i] - p[i] * Rp.int_cont_m[i];	    
+				END
+			END; {for loop over grid points}
+		END {steady-state!}
+		ELSE {so transient}
+		BEGIN
+			FOR i := 1 TO par.NP DO
+			BEGIN
+				IF stv.Nti[i-1,e] * stv.Nti[i,e] <> 0 THEN
+				BEGIN {now we have just crossed an interface}
+				{We solve the integral of the ODE we solved for calculating the trap occupance.}
+					a:= par.Cn*n[i] + par.Cn*stv.nt0i[i,e] + par.Cp*stv.pt0i[i,e] + par.Cp*p[i] +
+					par.Cn*n[i-1] + par.Cn*stv.nt0i[i-1,e] + par.Cp*stv.pt0i[i-1,e] + par.Cp*p[i-1];
+					b:= par.Cp*p[i] + par.Cn*stv.nt0i[i,e] +
+					par.Cp*p[i-1] + par.Cn*stv.nt0i[i-1,e];
+					
+					g0:= (par.Cp*p[i-1]*stv.Nti[i-1,e] + par.Cp*stv.pt0i[i-1,e]*stv.Nti[i-1,e]);
+					g1:= (par.Cp*p[i]*stv.Nti[i,e] + par.Cp*stv.pt0i[i,e]*stv.Nti[i,e]);
+					h0:= par.Cp*p[i-1]*stv.Nti[i-1,e];
+					h1:= par.Cp*p[i]*stv.Nti[i,e];
+					c1:= (1-f_ti[i,e] - b/a);
+					
+					Rp.int_cont_rhs[i-1]:=((h0 - g0*b/a) / dti + g0*c1* EXP(-a/dti)/a - g0*c1/a)*dti;
+					Rp.int_cont_rhs[i]:=((h1 - g1*b/a) / dti + g1*c1* EXP(-a/dti)/a - g1*c1/a)*dti;
+					Rp.int[i-1]:= Rp.int_cont_rhs[i-1];
+					Rp.int[i]:= Rp.int_cont_rhs[i];
+				END
+			END
+		END {transient}
+END;
+
+PROCEDURE Calc_Recombination_n(VAR Rn : TRec; dti : myReal; CONSTREF n, p, dp, Lan : vector; f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Calculate all recombination processes and their contribution to the continuity equation for electrons. 
+For a derivation see the doc files.}
+VAR i, e : INTEGER;
+BEGIN
+	FOR e:=1 TO stv.N_Etr DO
+	BEGIN
+		{Note: we use global variable RecDum : TRec as a dummy variable. It is too larger to be a local variable.}
+		
+		Calc_Recombination_n_Single_Level(RecDum, dti, e, n, p, dp, Lan, f_tb, f_ti, stv, par);
+		IF e=1 THEN
+			FOR i:=1 TO par.NP DO
+			BEGIN
+				Rn.direct[i]:= RecDum.direct[i];
+				Rn.bulk[i]:= RecDum.bulk[i];
+				Rn.int[i] := RecDum.int[i];
+				Rn.dir_cont_rhs[i]:= RecDum.dir_cont_rhs[i];
+				Rn.dir_cont_m[i]:= RecDum.dir_cont_m[i];
+				Rn.bulk_cont_rhs[i]:= RecDum.bulk_cont_rhs[i];
+				Rn.bulk_cont_m[i]:= RecDum.bulk_cont_m[i];
+				Rn.int_cont_lo[i]:= RecDum.int_cont_lo[i];
+				Rn.int_cont_up[i]:= RecDum.int_cont_up[i];
+				Rn.int_cont_m[i]:= RecDum.int_cont_m[i];
+				Rn.int_cont_rhs[i]:= RecDum.int_cont_rhs[i];
+			END
+		ELSE
+		BEGIN
+			FOR i:=1 TO par.NP DO
+			BEGIN			
+				Rn.direct[i]:= Rn.direct[i] + RecDum.direct[i];
+				Rn.bulk[i]:= Rn.bulk[i] + RecDum.bulk[i];
+				Rn.int[i] := Rn.int[i] + RecDum.int[i];
+				Rn.dir_cont_rhs[i]:= Rn.dir_cont_rhs[i] + RecDum.dir_cont_rhs[i];
+				Rn.dir_cont_m[i]:= Rn.dir_cont_m[i] + RecDum.dir_cont_m[i];
+				Rn.bulk_cont_rhs[i]:= Rn.bulk_cont_rhs[i] + RecDum.bulk_cont_rhs[i];
+				Rn.bulk_cont_m[i]:= Rn.bulk_cont_m[i] + RecDum.bulk_cont_m[i];
+				Rn.int_cont_lo[i]:= Rn.int_cont_lo[i] + RecDum.int_cont_lo[i];
+				Rn.int_cont_up[i]:= Rn.int_cont_up[i] + RecDum.int_cont_up[i];
+				Rn.int_cont_m[i]:= Rn.int_cont_m[i] + RecDum.int_cont_m[i];
+				Rn.int_cont_rhs[i]:= Rn.int_cont_rhs[i] + RecDum.int_cont_rhs[i];
+			END
+		END;
+	END;
+END;
+
+PROCEDURE Calc_Recombination_p(VAR Rp : TRec; dti : myReal; CONSTREF n, p, dp, Lan : vector; f_tb, f_ti : TrapArray; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+{Calculate all recombination processes and their contribution to the continuity equation for electrons. 
+For a derivation see the doc files.}
+VAR i, e : INTEGER;
+BEGIN
+	FOR e:=1 TO stv.N_Etr DO
+	BEGIN
+		{Note: we use global variable RecDum : TRec as a dummy variable. It is too larger to be a local variable.}
+		Calc_Recombination_p_Single_Level(RecDum, dti, e, n, p, dp, Lan, f_tb, f_ti, stv, par);
+		IF e=1 THEN
+			FOR i:=1 TO par.NP DO
+			BEGIN
+				Rp.direct[i]:= RecDum.direct[i];
+				Rp.bulk[i]:= RecDum.bulk[i];
+				Rp.int[i] := RecDum.int[i];
+				Rp.dir_cont_rhs[i]:= RecDum.dir_cont_rhs[i];
+				Rp.dir_cont_m[i]:= RecDum.dir_cont_m[i];
+				Rp.bulk_cont_rhs[i]:= RecDum.bulk_cont_rhs[i];
+				Rp.bulk_cont_m[i]:= RecDum.bulk_cont_m[i];
+				Rp.int_cont_lo[i]:= RecDum.int_cont_lo[i];
+				Rp.int_cont_up[i]:= RecDum.int_cont_up[i];
+				Rp.int_cont_m[i]:= RecDum.int_cont_m[i];
+				Rp.int_cont_rhs[i]:= RecDum.int_cont_rhs[i];
+			END
+		ELSE
+		BEGIN
+			FOR i:=1 TO par.NP DO
+			BEGIN			
+				Rp.direct[i]:= Rp.direct[i] + RecDum.direct[i];
+				Rp.bulk[i]:= Rp.bulk[i] + RecDum.bulk[i];
+				Rp.int[i] := Rp.int[i] + RecDum.int[i];
+				Rp.dir_cont_rhs[i]:= Rp.dir_cont_rhs[i] + RecDum.dir_cont_rhs[i];
+				Rp.dir_cont_m[i]:= Rp.dir_cont_m[i] + RecDum.dir_cont_m[i];
+				Rp.bulk_cont_rhs[i]:= Rp.bulk_cont_rhs[i] + RecDum.bulk_cont_rhs[i];
+				Rp.bulk_cont_m[i]:= Rp.bulk_cont_m[i] + RecDum.bulk_cont_m[i];
+				Rp.int_cont_lo[i]:= Rp.int_cont_lo[i] + RecDum.int_cont_lo[i];
+				Rp.int_cont_up[i]:= Rp.int_cont_up[i] + RecDum.int_cont_up[i];
+				Rp.int_cont_m[i]:= Rp.int_cont_m[i] + RecDum.int_cont_m[i];
+				Rp.int_cont_rhs[i]:= Rp.int_cont_rhs[i] + RecDum.int_cont_rhs[i];
+			END
+		END;
+	END;
+END;
+
+PROCEDURE Cont_Eq_Elec(VAR n : vector; nPrevTime, V, Jn, p, mu, g, Lan, dp : vector; VAR f_tb, f_ti : TrapArray; VAR Rn : TRec;
 				CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters;  dti : myReal = 0);
 {dti: DeltaTInverse, so dti = 1/delt. If dti=0 then we're using the steady-state equations
 (Selberherr 6-1.73) as they correspond to an infinite timestep.
@@ -2241,7 +2410,7 @@ BEGIN
 	NP:=par.NP; {copy number of grid points into local variable NP}
 	
 	{Set the boundary conditions for finite surface recombination on the left side of the device}
-	IF (par.S_n_L < 0) OR (Jn[0]>0) THEN
+	IF (par.Sn_L < 0) OR (Jn[0]>0) THEN
 	BEGIN
 		{Infinite surface recombination}
 		lo[0]:= 0;
@@ -2253,9 +2422,9 @@ BEGIN
 	BEGIN
 		{Finite surface recombination}
 		lo[0]:= 0;
-		m[0]:=-mu[0]*stv.Vt*B((V[0]-V[1])*stv.Vti)/(stv.Ltot*stv.h[0]) - par.S_n_L;
-		u[0]:=mu[0]*stv.Vt*B((V[1]-V[0])*stv.Vti)/(stv.Ltot*stv.h[0]);
-		rhs[0]:= - par.S_n_L*stv.NcLoc[0] * EXP((stv.E_CB[0] - par.W_L)*stv.Vti);
+		m[0]:=-mu[0]*stv.Vt*B((V[0]-V[1])*stv.Vti)/(par.L*stv.h[0]) - par.Sn_L;
+		u[0]:=mu[0]*stv.Vt*B((V[1]-V[0])*stv.Vti)/(par.L*stv.h[0]);
+		rhs[0]:= - par.Sn_L*stv.NcLoc[0] * EXP((stv.E_CB[0] - par.W_L)*stv.Vti);
 	END;
 
 	{Calculate recombination and its contribution to the continuity equation} 
@@ -2265,7 +2434,7 @@ BEGIN
     FOR i:=1 TO NP DO  {continuity eq. in matrix vorm}
 		WITH stv DO {ni and h are static variables!}
 		BEGIN
-			fac := 0.5*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]); {repeats often in the equations}
+			fac := 0.5*SQR(par.L)*h[i]*h[i-1]*(h[i]+h[i-1]); {repeats often in the equations}
 			
 			rhs[i]:=- fac * (g[i] +nPrevTime[i]*dti)
         			- fac*Rn.dir_cont_rhs[i] {direct / Langevin recombination}
@@ -2287,7 +2456,7 @@ BEGIN
 		END;
 
   	{Set the boundary conditions on the right side of the device}
-	IF (par.S_n_R < 0) OR (Jn[NP]>0) THEN
+	IF (par.Sn_R < 0) OR (Jn[NP]>0) THEN
 	BEGIN
 		{Infinite surface recombination}
 		lo[NP+1]:= 0;
@@ -2298,10 +2467,10 @@ BEGIN
 	ELSE
 	BEGIN
 		{Finite surface recombination}
-		lo[NP+1]:=-mu[NP]*stv.Vt * B((V[NP]-V[NP+1])*stv.Vti)/(stv.Ltot*stv.h[NP]);
-		m[NP+1]:=mu[NP]*stv.Vt * B((V[NP+1]-V[NP])*stv.Vti)/(stv.Ltot*stv.h[NP]) - par.S_n_R;
+		lo[NP+1]:=-mu[NP]*stv.Vt * B((V[NP]-V[NP+1])*stv.Vti)/(par.L*stv.h[NP]);
+		m[NP+1]:=mu[NP]*stv.Vt * B((V[NP+1]-V[NP])*stv.Vti)/(par.L*stv.h[NP]) - par.Sn_R;
 		u[NP+1]:=0;
-		rhs[NP+1]:=-par.S_n_R*stv.NcLoc[NP+1] * EXP((stv.E_CB[NP+1] - par.W_R)*stv.Vti);
+		rhs[NP+1]:=-par.Sn_R*stv.NcLoc[NP+1] * EXP((stv.E_CB[NP+1] - par.W_R)*stv.Vti);
 	END;
 
     Tridiag(n, lo, m, u, rhs, 0, NP+1); {Solve for the new electron densities}
@@ -2321,12 +2490,12 @@ BEGIN
 			ResetDens:=TRUE;
 			n[i]:=nmin
 		END;
- 
-	IF ResetDens AND (NOT par.ignoreNegDens) THEN Stop_Prog('Negative electron concentration encountered!' , EC_NumericalFailure)
+
+	IF ResetDens AND (NOT par.IgnoreNegDens) THEN Stop_Prog('Negative electron concentration encountered!' , EC_NumericalFailure)
 END;
 
 
-PROCEDURE Cont_Eq_Holes(VAR p : vector; pPrevTime, V, Jp, n, mu, g, Lan, dp : vector; VAR f_tb, f_ti : TTrapArray; VAR Rp : TRec;
+PROCEDURE Cont_Eq_Holes(VAR p : vector; pPrevTime, V, Jp, n, mu, g, Lan, dp : vector; VAR f_tb, f_ti : TrapArray; VAR Rp : TRec;
 				CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; dti : myReal = 0);
 {dti: DeltaTInverse, so dti = 1/delt. If dti=0 then we're using the steady-state equations
 (Selberherr 6-1.74) as they correspond to an infinite timestep.
@@ -2339,7 +2508,7 @@ BEGIN
     NP:=par.NP; {copy number of grid points into local variable NP}
 
     {Set the boundary conditions for finite surface recombination on the left side of the device}
-	IF (par.S_p_L < 0) OR (Jp[0]>0) THEN
+	IF (par.Sp_L < 0) OR (Jp[0]>0) THEN
 	BEGIN
 		{Infinite surface recombination}
 		lo[0]:= 0;
@@ -2351,9 +2520,9 @@ BEGIN
 	BEGIN
 		{Finite surface recombination}
 		lo[0]:= 0;
-		m[0]:=mu[0]*stv.Vt * B((V[1]-V[0])*stv.Vti)/(stv.Ltot*stv.h[0]) - par.S_p_L;
-		u[0]:=-mu[0]*stv.Vt * B((V[0]-V[1])*stv.Vti)/(stv.Ltot*stv.h[0]);
-		rhs[0]:=-par.S_p_L*stv.NcLoc[0] * EXP((par.W_L - stv.E_VB[0])*stv.Vti);
+		m[0]:=mu[0]*stv.Vt * B((V[1]-V[0])*stv.Vti)/(par.L*stv.h[0]) - par.Sp_L;
+		u[0]:=-mu[0]*stv.Vt * B((V[0]-V[1])*stv.Vti)/(par.L*stv.h[0]);
+		rhs[0]:=-par.Sp_L*stv.NcLoc[0] * EXP((par.W_L - stv.E_VB[0])*stv.Vti);
 	END;
 
 	{Calculate recombination and its contribution to the continuity equation} 	
@@ -2363,7 +2532,7 @@ BEGIN
     FOR i:=1 TO NP DO  {continuity eq. in matrix vorm}
 		WITH stv DO {ni and h are static variables!}
 		BEGIN
-			fac := 0.5*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]); {repeats often in the equations}
+			fac := 0.5*SQR(par.L)*h[i]*h[i-1]*(h[i]+h[i-1]); {repeats often in the equations}
 			
 			rhs[i]:=- fac * (g[i] +pPrevTime[i]*dti)
 			        - fac*Rp.dir_cont_rhs[i] {direct / Langevin recombination}
@@ -2380,12 +2549,13 @@ BEGIN
 			      - fac*Rp.bulk_cont_m[i] {part of Rp_bulk that depends on p[i]}
 			      - fac*Rp.int_cont_m[i]; {the part of Rp_int that depends on p[i]}
 
+			
 			u[i]:=  h[i-1]*mu[i]*stv.Vt*B((V[i]-V[i+1])*stv.Vti)
 			      - fac*Rp.int_cont_up[i]; {the part of Rp_int that depends on p[i+1]}
 		END;
 
     {Set the boundary conditions on the right side of the device}
-	IF (par.S_p_R < 0) OR (Jp[NP]>0) THEN
+	IF (par.Sp_R < 0) OR (Jp[NP]>0) THEN
 	BEGIN
 		{Infinite surface recombination}
 		lo[NP+1]:= 0;
@@ -2396,15 +2566,15 @@ BEGIN
 	ELSE
 	BEGIN
 		{Finite surface recombination}
-		lo[NP+1]:=mu[NP]*stv.Vt*B((V[NP+1]-V[NP])*stv.Vti)/(stv.Ltot*stv.h[NP]);
-		m[NP+1]:=-mu[NP]*stv.Vt*B((V[NP]-V[NP+1])*stv.Vti)/(stv.Ltot*stv.h[NP]) - par.S_p_R;
+		lo[NP+1]:=mu[NP]*stv.Vt*B((V[NP+1]-V[NP])*stv.Vti)/(par.L*stv.h[NP]);
+		m[NP+1]:=-mu[NP]*stv.Vt*B((V[NP]-V[NP+1])*stv.Vti)/(par.L*stv.h[NP]) - par.Sp_R;
 		u[NP+1]:=0;
-		rhs[NP+1]:=-par.S_p_R*stv.NcLoc[NP+1] * EXP((par.W_R - stv.E_VB[NP+1])*stv.Vti);
+		rhs[NP+1]:=-par.Sp_R*stv.NcLoc[NP+1] * EXP((par.W_R - stv.E_VB[NP+1])*stv.Vti);
 	END;
 
     {Solve for all grid points, so including i=0 and i=NP+1:}
     Tridiag(p, lo, m, u, rhs, 0, NP+1); {Solve for the new hole densities}
- 
+
     {now check if p is still well behaved, i.e. positive.
 	They're sometimes negative, for example close to the cathode (and if recombination is strong)
 	the very large electron density will make the hole density very small, virtually zero.
@@ -2421,7 +2591,7 @@ BEGIN
 			p[i]:=pmin
 		END;
 
-	IF ResetDens AND (NOT par.ignoreNegDens) THEN Stop_Prog('Negative hole concentration encountered!', EC_NumericalFailure)
+	IF ResetDens AND (NOT par.IgnoreNegDens) THEN Stop_Prog('Negative hole concentration encountered!', EC_NumericalFailure)
 
 END;
 
@@ -2430,14 +2600,15 @@ PROCEDURE Calc_Displacement_Curr(VAR JD : vector; V, VPrevTime : vector; dti : m
 VAR i : INTEGER;
 BEGIN
 	FOR i:=0 TO par.NP DO
-		JD[i]:=stv.eps[i] * (V[i+1]-V[i]-VPrevTime[i+1]+VPrevTime[i]) * dti / (stv.Ltot*stv.h[i]);
+		JD[i]:=stv.eps[i] * (V[i+1]-V[i]-VPrevTime[i+1]+VPrevTime[i]) * dti / (par.L*stv.h[i]);
 	JD[par.NP+1]:=JD[par.NP]; {doesn't have a physical meaning though}
 END;
 
 PROCEDURE Calc_Curr_Diff(sn : ShortInt; istart, ifinish : INTEGER; VAR J : vector; V, dens, mu, Rint : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {This procedure calculates the current density in differential form, see Selberherr eq. 6.1-39 or 6.1-41}
 {sn denotes the sign of the carrier, so -1 for electrons, +1 for holes}
-VAR i : INTEGER;
+VAR i, e	  : INTEGER;
+	int_traps : BOOLEAN;
 BEGIN
 	IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Diff', EC_ProgrammingError);
 	IF (istart<0) OR (ifinish>=par.NP+1) THEN Stop_Prog('Incorrect istart and/or ifinish passed to Calc_Curr_Diff.', EC_ProgrammingError);
@@ -2448,15 +2619,16 @@ BEGIN
 	
 	{now actually calc the current:}
 	FOR i:=istart TO ifinish DO
-		J[i]:=sn*q*mu[i]*stv.Vt*(dens[i+1]*B(sn*(V[i]-V[i+1])*stv.Vti) - dens[i]*B(sn*(V[i+1]-V[i])*stv.Vti))/(stv.Ltot*stv.h[i]);
+	BEGIN
+		J[i]:=sn*q*mu[i]*stv.Vt*(dens[i+1]*B(sn*(V[i]-V[i+1])*stv.Vti) - dens[i]*B(sn*(V[i+1]-V[i])*stv.Vti))/(par.L*stv.h[i]);
+		int_traps := FALSE;
+		FOR e:=1 TO stv.N_Etr DO
+			IF (stv.Nti[i,e] <> 0) AND (stv.Nti[i+1,e] <> 0) THEN int_traps:= TRUE;
+		IF int_traps THEN
+			J[i]:=J[i] - sn*0.5*q*par.L*stv.h[i]*(Rint[i] - Rint[i+1]);
+	END;
 
-	{now correct for interface recombination. This represents the current THROUGH the interface traps.}
-	{do NOT be tempted to combine this in the previous for loop!!}
-	FOR i:=istart+1 TO ifinish DO
-		IF (i = stv.i1[stv.lid[i]]) THEN {we're crossing an interface}
-			J[i]:=J[i-1] + sn*0.5*q*stv.Ltot*stv.h[i]*(Rint[i] + Rint[i+1]);
-	
-	{last point as this is in the output (varFile)}
+	{last point as this is in the output (Var_file)}
 	J[par.NP+1]:=J[par.NP]; {doesn't have a physical meaning: J[NP+1] is current between NP+1 and NP+2}
 END;
 
@@ -2466,9 +2638,10 @@ PROCEDURE Calc_Curr_Int(sn : ShortInt; istart, ifinish : INTEGER; dti : myReal; 
 {Calculates the current density in integral form, see De Mari, solid-state elec. vol 11 p.33 (68) eq. 15}
 {istart and ifinish exclude the electrodes, so istart>=1, ifinish<=NP}
 {sn denotes the sign of the carrier, so -1 for electrons, +1 for holes}
-VAR i : INTEGER;
+VAR i, e : INTEGER;
     K, single_int, double_int, int_U, int_U_old, dx : myReal;
     U : vector;
+	int_traps : BOOLEAN;
 BEGIN
     {first check a few things:}
     IF ABS(sn)<>1 THEN Stop_Prog('Incorrect sn passed to Calc_Curr_Int', EC_ProgrammingError);
@@ -2506,69 +2679,70 @@ BEGIN
 		- sn*double_int)/single_int;
 
     J[istart]:=q*K;
-    FOR i:=istart+1 TO ifinish DO 
-        J[i]:=J[i-1] + sn*q*stv.Ltot*stv.h[i]*U[i];
-
+    FOR i:=istart+1 TO ifinish DO
+        J[i]:=J[i-1] + sn*q*par.L*stv.h[i]*U[i];
+	
 	{now correct for interface recombination. This represents the current THROUGH the interface traps.}
-	{do NOT be tempted to combine this in the previous for loop!!}
-	FOR i:=istart+1 TO ifinish DO
-		IF (i = stv.i1[stv.lid[i]]) THEN {we're crossing an interface}
-			J[i]:=J[i-1] + sn*0.5*q*stv.Ltot*stv.h[i]*(Rec.int[i] + Rec.int[i+1]);
-
-	{last point as this is in the output (varFile)}	
+	FOR i:=1 TO par.NP+1 DO 
+	BEGIN
+		int_traps := FALSE;
+		FOR e:=1 TO stv.N_Etr DO
+			IF (stv.Nti[i,e] <> 0) AND (stv.Nti[i+1,e] <> 0) THEN int_traps:= TRUE;
+		IF int_traps THEN
+			J[i]:=J[i-1] + sn*0.5*q*par.L*stv.h[i]*(Rec.int[i] + Rec.int[i+1])
+	END;
+	
     J[par.NP+1]:=J[par.NP]; {doesn't have a physical meaning: J[NP+1] is current between NP+1 and NP+2}
 END;
 
 PROCEDURE Calc_All_Currents(VAR new : TState; CONSTREF curr : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
 {calculates all the currents for state new}
-VAR Jsum, GenDum : vector;
-	i : INTEGER;
+VAR mob, Jsum, GenDum : vector;
+	i, istart, ifinish : INTEGER;
 BEGIN
 	WITH new DO 
 	BEGIN
 		{Note: we use global variable RecDum : TRec as a dummy variable. It is too larger to be a local variable.}
-	
+		
 		{first do the electrons}
-		CASE par.currDiffInt OF
+		CASE par.CurrDiffInt OF
 			1 : Calc_Curr_Diff(-1, 0, par.NP, Jn, Vgn, n, mun, Rn.int, stv, par); {only needs part of Rn with interface recombination}
 			2 : Calc_Curr_Int(-1, 0, par.NP, dti, Jn, Vgn, n, curr.n, mun, gen, Rn, stv, par); {needs full Rn and curr.n}
 		END;	
 
 		{now do the holes}
-		CASE par.currDiffInt OF
+		CASE par.CurrDiffInt OF
 			1 : Calc_Curr_Diff(1, 0, par.NP, Jp, Vgp, p, mup, Rp.int, stv, par);{only needs part of Rp with interface recombination}
 			2 : Calc_Curr_Int(1, 0, par.NP, dti, Jp, Vgp, p, curr.p, mup, gen, Rp, stv, par); {needs full Rp and curr.p}
 		END;	
 
-		{first, set all ionic currents to zero:}
-		FILLCHAR(Jnion, SIZEOF(Jnion), 0); 
-		FILLCHAR(Jpion, SIZEOF(Jpion), 0);
-	
-		IF dti<>0 THEN {only in transient simulations can the ionic currents be non-zero}
-		BEGIN
-			FILLCHAR(RecDum, SIZEOF(RecDum), 0); {set all fields of RecDum to zero as ions don't have generation/recombination}
-			FILLCHAR(GenDum, SIZEOF(GenDum), 0); {likewise for the generation rate of ions}
-			
-			{Next, we loop over the ionic regions to see what's there}
-			{first, the negative ions}
-			FOR i:=0 TO LENGTH(stv.NegIonRegion)-1 DO
-				WITH stv.NegIonRegion[i] DO
-					IF AvC > 0 THEN
-						CASE par.currDiffInt OF
-							1 : Calc_Curr_Diff(-1, istart, ifinish-1, Jnion, V, nion, stv.mu_n_ion, RecDum.int, stv, par);		
-							2 : Calc_Curr_Int(-1, istart, ifinish-1, dti, Jnion, V, nion, curr.nion, stv.mu_n_ion, GenDum, RecDum, stv, par);
-						END; {case}	
-				
-			{next: positive ions}
-			FOR i:=0 TO LENGTH(stv.PosIonRegion)-1 DO
-				WITH stv.PosIonRegion[i] DO
-					IF AvC > 0 THEN
-						CASE par.currDiffInt OF
-							1 : Calc_Curr_Diff(1, istart, ifinish-1, Jpion, V, pion, stv.mu_p_ion, RecDum.int, stv, par);		
-							2 : Calc_Curr_Int(1, istart, ifinish-1, dti, Jpion, V, pion, curr.pion, stv.mu_p_ion, GenDum, RecDum, stv, par);
-						END
+		{ions can be limited to the middle layer (which can take up the whole device i=0...NP+1.}
+		{we calc the current between points istart and ifinish:}
+		IF (stv.i1>0) AND (NOT par.IonsInTLs) THEN istart:=stv.i1+1 ELSE istart:=0;
+		IF (stv.i2<par.NP+1) AND (NOT par.IonsInTLs) THEN ifinish:=stv.i2-2 ELSE ifinish:=par.NP;
 
-		END; {transients}
+		FILLCHAR(RecDum, SIZEOF(RecDum), 0); {set all fields of RecDum to zero as ions don't have generation/recombination}
+		FILLCHAR(GenDum, SIZEOF(GenDum), 0); {likewise for the generation rate of ions}
+
+		IF par.negIonsMove AND (dti<>0) THEN {dti=0, then we're in steady-state => ionic currents are zero!}
+		BEGIN 
+			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobnion;
+			CASE par.CurrDiffInt OF
+				1 : Calc_Curr_Diff(-1, istart, ifinish, Jnion, V, nion, mob, RecDum.int, stv, par);		
+				2 : Calc_Curr_Int(-1, istart, ifinish, dti, Jnion, V, nion, curr.nion, mob, GenDum, RecDum, stv, par);
+			END	
+		END
+		ELSE FILLCHAR(Jnion, SIZEOF(Jnion), 0); {set ionic current to zero}
+	
+		IF par.posIonsMove AND (dti<>0) THEN {dti=0, then we're in steady-state => ionic currents are zero!}
+		BEGIN 
+			FOR i:=0 TO par.NP+1 DO mob[i]:=par.mobpion;
+			CASE par.CurrDiffInt OF
+				1 : Calc_Curr_Diff(1, istart, ifinish, Jpion, V, pion, mob, RecDum.int, stv, par);
+				2 : Calc_Curr_Int(1, istart, ifinish, dti, Jpion, V, pion, curr.pion, mob, GenDum, RecDum, stv, par);
+			END
+		END
+		ELSE FILLCHAR(Jpion, SIZEOF(Jpion), 0); {set ionic current to zero}
 		
 		{lastly, the displacement current:}
 		IF (dti<>0)
@@ -2593,12 +2767,12 @@ VAR i : INTEGER;
 	rV, rt : myReal;
 BEGIN
 	{what we will doing depends on the number of accepted solutions (AccSols)}
-
+	
 	CASE AccSols OF
 		0 : ; {here we might add the initial guess for the first solution}
 		1 : IF new.Vint <> curr.Vint THEN {all we can do is extrapolate the electric field}
 				FOR i:=1 TO par.NP DO {only loop over interior points, not the contacts}
-					new.V[i]:=curr.V[i] + 1*(stv.x[i]/stv.Ltot - 0.5)*(new.Vint-curr.Vint);
+					new.V[i]:=curr.V[i] + 1*(stv.x[i]/par.L - 0.5)*(new.Vint-curr.Vint);
 	OTHERWISE BEGIN
 		{so at least 2 accepted solutions are available}
 		{first calculate the factors (rV,G,t) by which the voltage, generation and time have increased:}
@@ -2608,7 +2782,7 @@ BEGIN
 				IF curr.tijd <> prev.tijd THEN
 			rt:=(new.tijd - curr.tijd)/(curr.tijd - prev.tijd)
 		ELSE rt:=0; {In SimSS this will always be zero, in ZimT mostly not}
-		IF (rV<>0) AND (curr.G_frac = prev.G_frac) THEN 
+		IF (rV<>0) AND (curr.Gehp = prev.Gehp) THEN 
 			FOR i:=1 TO par.NP DO {only loop over interior points, not the contacts}
 			BEGIN
 				{use linear extrapolation. Simple and it works!}
@@ -2621,13 +2795,13 @@ BEGIN
 
 				{now IF there are moving ions:}
 				IF new.UpdateIons THEN BEGIN
-					IF par.lyr[stv.lid[i]].negIons THEN	new.nion[i]:=MAX(0, curr.nion[i] + rV*(curr.nion[i]-prev.nion[i])); {these need to be non-negative}
-					IF par.lyr[stv.lid[i]].posIons THEN new.pion[i]:=MAX(0, curr.pion[i] + rV*(curr.pion[i]-prev.pion[i]))
+					IF par.negIonsMove THEN	new.nion[i]:=MAX(0, curr.nion[i] + rV*(curr.nion[i]-prev.nion[i])); {these need to be non-negative}
+					IF par.posIonsMove THEN new.pion[i]:=MAX(0, curr.pion[i] + rV*(curr.pion[i]-prev.pion[i]))
 				END; {ions}
 			
 			END {for loop interior grid points}
 		
-		ELSE {rV=0 and/or (curr.G_ehp<>prev.G_ehp). In either case, simply extrapolate using the time difference}
+		ELSE {rV=0 and/or (curr.Gehp<>prev.Gehp). In either case, simply extrapolate using the time difference}
 			FOR i:=1 TO par.NP DO {only loop over interior points, not the contacts}
 			BEGIN
 				{use linear extrapolation. Simple and it works!}
@@ -2640,39 +2814,33 @@ BEGIN
 			
 				{now IF there are moving ions:}
 				IF new.UpdateIons THEN BEGIN
-					IF par.lyr[stv.lid[i]].negIons AND (prev.nion[i]<>0) THEN new.nion[i]:=curr.nion[i]*power(abs(curr.nion[i]/prev.nion[i]), rt); {these need to be non-negative}
-					IF par.lyr[stv.lid[i]].posIons AND (prev.nion[i]<>0) THEN new.pion[i]:=curr.pion[i]*power(abs(curr.pion[i]/prev.pion[i]), rt)
+					IF par.negIonsMove AND (prev.nion[i]<>0) THEN new.nion[i]:=curr.nion[i]*power(abs(curr.nion[i]/prev.nion[i]), rt); {these need to be non-negative}
+					IF par.posIonsMove AND (prev.nion[i]<>0) THEN new.pion[i]:=curr.pion[i]*power(abs(curr.pion[i]/prev.pion[i]), rt)
 				END; {ions}
 		
 			END {for loop interior grid points}
 	
 	END {otherwise}
 	END {case statement}	
-
+	
 END;
 
 FUNCTION Deterimine_Convergence_Densities(CONSTREF deln, delp, delnion, delpion, n, p, nion, pion : vector; 
 							UpdateIons : BOOLEAN; accDens : myReal; VAR ConvMsg : STRING; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : BOOLEAN;
 {Determines whether the densities have converged}
 VAR totRelChange : myReal;
-	j : INTEGER;
 BEGIN
 	totRelChange:=0; {total relative change of all charges}
-
+	
 	{now compute relative changes of densities:}
 	totRelChange:=totRelChange + Norm_Eucl(deln, 0, par.NP+1) / Norm_Eucl(n, 0, par.NP+1);
 	totRelChange:=totRelChange + Norm_Eucl(delp, 0, par.NP+1) / Norm_Eucl(p, 0, par.NP+1);
-
-	{now we add the relative changes of the ions}
-	IF UpdateIons THEN
-		FOR j:=1 TO stv.NLayers DO 
-		BEGIN
-			{we simply loop over all layers, check if there are ions (NormIons<>0). If so, then we add the relative change to totRelChange}
-			IF par.lyr[j].negIons THEN
-				totRelChange:=totRelChange + Norm_Eucl(delnion, stv.i0[j], stv.i1[j]) / Norm_Eucl(nion, stv.i0[j], stv.i1[j]);
-			IF par.lyr[j].posIons THEN
-				totRelChange:=totRelChange + Norm_Eucl(delpion, stv.i0[j], stv.i1[j]) / Norm_Eucl(pion, stv.i0[j], stv.i1[j])
-		END;
+	
+	{for ions, only if they move (note: if they move, their densities is non-zero!}
+	IF par.negIonsMove THEN
+		totRelChange:=totRelChange + Norm_Eucl(delnion, 0, par.NP+1) / Norm_Eucl(nion, 0, par.NP+1);
+	IF par.posIonsMove THEN
+		totRelChange:=totRelChange + Norm_Eucl(delpion, 0, par.NP+1) / Norm_Eucl(pion, 0, par.NP+1);
 
 	ConvMsg:='- relative change of densities: ' + FloatToStrF(totRelChange, ffExponent,5,0) + LineEnding; {our message string}
 
@@ -2684,7 +2852,7 @@ PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLE
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
 {can be used in steady-state and transient cases}
 VAR i, MaxIt : INTEGER;
-	check_Poisson, coupleIonsPoisson, convDensities, AnyMovingIons : BOOLEAN;
+	check_Poisson, coupleIonsPoisson, convDensities : BOOLEAN;
 	oldn, oldp, oldnion, oldpion, deln, delp, delnion, delpion : vector; {we need this to monitor the iteration loops}
 	PoissMsg, ConvMsg : STRING;
 	accDens : myReal;
@@ -2696,16 +2864,11 @@ BEGIN
 	it:=0;
 
 	IF new.dti=0 {max number of iterations depends on whether we're in steady-state(dti=0) or not}
-		THEN MaxIt:=par.maxItSS 
-		ELSE MaxIt:=par.maxItTrans;
+		THEN MaxIt:=par.MaxItSS 
+		ELSE MaxIt:=par.MaxItTrans;
 
-	{are there ANY moving ions in any of the layers?}
-	AnyMovingIons:=FALSE;
-	FOR i:=1 TO stv.NLayers DO
-		AnyMovingIons:=AnyMovingIons OR par.lyr[i].negIons OR par.lyr[i].posIons;
-
-	coupleIonsPoisson:=AnyMovingIons; {signfies whether ion density can be modified by Poisson solver}
-
+	coupleIonsPoisson:=TRUE; {signfies whether ion density can be modified by Poisson solver}
+	
 	REPEAT WITH new DO
 	BEGIN
 		INC(it);
@@ -2721,22 +2884,19 @@ BEGIN
 		oldpion:=pion;
 
 		{note: Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
-		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
+		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
 		Update_Gen_Pot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 		{note: pass (new) p to Cont_Eq_Elec nor (new) n to Cont_Eq_Holes. This is needed so we can also do t=0!}
 		Cont_Eq_Elec(n, curr.n, Vgn, Jn, p, mun, gen, Lang, diss_prob, curr.f_tb, curr.f_ti, Rn, stv, par, dti); {calc. new elec. density}
 		Cont_Eq_Holes(p, curr.p, Vgp, Jp, n, mup, gen, Lang, diss_prob, curr.f_tb, curr.f_ti, Rp, stv, par, dti); {calc. new hole density}
-
 		{note: transient ion solvers cannot (as yet) do steady-state, as that yields all densities=0!}
 		IF UpdateIons THEN 
 		BEGIN
-			IF dti=0 THEN BEGIN {dti=0 => steady-state} 
-				Calc_Ion_Distribution_Steady_State(nion, V, -1, stv.NegIonRegion, stv, par); {use steady-state proc for negative ions}
-				Calc_Ion_Distribution_Steady_State(pion, V, 1, stv.PosIonRegion, stv, par) {use steady-state proc for positive ions}
-			END
+			IF dti=0 {dti=0 => steady-state}
+				THEN Calc_Ion_Distribution_Steady_State(nion, pion, V, stv, par) {use steady-state proc for ions}
 			ELSE BEGIN {use transient versions:}
-				Solve_Neg_Ions(nion, curr.nion, V, dti, stv, par); {update neg ions}
-				Solve_Pos_Ions(pion, curr.pion, V, dti, stv, par) {update pos ions}
+				IF par.negIonsMove THEN Solve_Neg_Ions(nion, curr.nion, V, dti, stv, par); {update neg ions}
+				IF par.posIonsMove THEN Solve_Pos_Ions(pion, curr.pion, V, dti, stv, par) {update neg ions}
 			END
 		END;
 
@@ -2760,18 +2920,18 @@ BEGIN
 
 		{now check if the charge densities (n,p,nion,pion) have converged:}
 		convDensities:=Deterimine_Convergence_Densities(deln, delp, delnion, delpion, n, p, nion, pion, UpdateIons, accDens, ConvMsg, stv, par);
-
+			
 		{if there are ions: Until the first time that convDensities, we have coupled the Poisson solver
 		 and the ion solver by allowing the Poisson solver to modify the ions densities on the fly.
 		 Now we see if the convergence is also OK if we forbid the Poisson solver to change the ion densities.}
-		IF convDensities AND AnyMovingIons AND coupleIonsPoisson THEN
+		IF convDensities AND (par.negIonsMove OR par.posIonsMove) AND coupleIonsPoisson THEN
 		BEGIN {force main solver to keep iterating, but now don't touch ions in Poisson solver}
 			coupleIonsPoisson:=FALSE; {no longer update ions inside Poisson solver}
 			convDensities:=FALSE {reset convDensities to make sure we'll keep iterating}
 		END;	
 		
 		conv:=convDensities AND check_Poisson; {so convergence=true if index is positive}
-	
+		
 		{now check if time is up!}
 		IF (par.timeOut > 0) AND (SecondSpan(NOW, TimeStart) > par.timeOut) THEN 
 			Stop_Prog('SIMsalabim terminates due to time-out.', EC_TimeOut)
@@ -2779,59 +2939,44 @@ BEGIN
 	END; {WITH new statement}
 
 	UNTIL conv OR (it = MaxIt); 
-
+	
 	{now compute the currents:}
 	Calc_All_Currents(new, curr, stv, par); {calcs vectors Jn, Jp, Jnion, Jpion, JD and overall current Jint plus its rms error} 
-	
+
 	{finally, compute the effects of series and shunt resistance:}
 	WITH new DO BEGIN
-		IF par.R_shunt>0 THEN Jext:=Jint + Vint/par.R_shunt ELSE Jext:=Jint; {note: infinite R_shunt (no shunt) means R_shunt<0}
-		Vext:=Vint + Jext*par.R_series
+		IF par.Rshunt>0 THEN Jext:=Jint + Vint/par.Rshunt ELSE Jext:=Jint; {note: infinite Rshunt (no shunt) means Rshunt<0}
+		Vext:=Vint + Jext*par.Rseries
 	END;
-
+	
 	{now construct string to report on our progress:}
 	StatusStr:='Overall convergence: '+myBoolStr(conv) + LineEnding;
 	StatusStr:=StatusStr + 'Iterations perfomed: '+IntToStr(it) + LineEnding;
 	StatusStr:=StatusStr + PoissMsg + LineEnding;
 	StatusStr:=StatusStr + ConvMsg;
-
+	
 END;
 
-PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN; CONSTREF stv : TStaticVars); 
+PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN); 
 {create a new tJV_file with appropriate heading
 after running this, the TEXT file 'uitv' is still open and ready for writing}
-VAR j : INTEGER;
 BEGIN
 	ASSIGN(uitv, filename);
 	REWRITE(uitv); {rewrite old file (if any) or create new one}
     {write header, in the simulation we'll simply output the variables, but not change this header:}
 	IF transient THEN WRITE(uitv,' t');
-	WRITE(uitv,' Vext Jext errJ Jint ');
-	
-	{next we show a break down of the photo- and recombination currents for each layer/interface:}
-	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JphotoL',IntToStr(j),' ');
-	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JdirL',IntToStr(j),' ');
-	IF transient THEN BEGIN {trapping currents for electrons and holes may be different, so show BOTH}
-		FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JbulkElecL',IntToStr(j),' ');
-		FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JbulkHolesL',IntToStr(j),' ');
-		FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 'JintElecL',IntToStr(j),'L',IntToStr(j+1),' ');		
-		FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 'JintHolesL',IntToStr(j),'L',IntToStr(j+1),' ')		
-	
-	END
-	ELSE BEGIN {so steady-state}
-		FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JbulkL',IntToStr(j),' ');
-		FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 'JintL',IntToStr(j),'L',IntToStr(j+1),' ')
-	END;
-	
+	WRITE(uitv,' Vext Jext errJ P Jphoto Jdir ');
+	IF transient THEN WRITE(uitv, 'JBulkSRHn JBulkSHRp JIntLeftn JIntLeftp JIntRightn JintRightp ') 
+		ELSE WRITE(uitv, 'JBulkSRH JIntLeft JIntRight ');
 	WRITE(uitv,'JminLeft JminRight JShunt'); 
-	IF transient THEN WRITELN(uitv,' Jnion Jpion JD') ELSE WRITELN(uitv)
+	IF transient THEN WRITELN(uitv,' Jdndt Jdpdt Jnion Jpion JD') ELSE WRITELN(uitv);
 END;
 
 PROCEDURE Write_To_tJV_File(VAR uitv : TEXT; CONSTREF CurrState, PrevState : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
 {before running this proc, uitv must be open (by running Prepare_tJV_File). It must be closed in the main code.
 This proc writes the (time), voltage, currents, recombination currents to a file that contains the JV-curve}
-VAR JminLeft, JminRight : myReal;
-	j, NP : INTEGER;
+VAR JminLeft, JminRight, J1, J2 : myReal;
+	NP : INTEGER;
 
 	{first: 2 short functions that will aid in compact notation:}
 	FUNCTION Ave(Vec : vector; onGrid : BOOLEAN = FALSE) : myReal;
@@ -2840,10 +2985,10 @@ VAR JminLeft, JminRight : myReal;
 		Ave:=Average(Vec, stv.h, 0, par.NP+1, onGrid);
 	END;
 	
-	FUNCTION EquiCurr(Vec : vector; i0, i1 : INTEGER) : myReal;
+	FUNCTION EquiCurr(Vec : vector) : myReal;
 	{local function to calc the Equivalent Current (A/m2) of a volume generation or recombination process}
 	BEGIN
-		EquiCurr:=q*Average(Vec, stv.h, i0, i1, FALSE)*(stv.x[i1]-stv.x[i0])
+		EquiCurr:=q*Ave(Vec, FALSE)*par.L
 	END;
 	
 BEGIN
@@ -2856,86 +3001,98 @@ BEGIN
 		IF n[0]<p[0] THEN JminLeft:=Jn[0] ELSE JminLeft:=Jp[0];
 		IF n[NP+1]<p[NP+1] THEN JminRight:=Jn[NP+1] ELSE JminRight:=Jp[NP+1];   
         
-        WRITE(uitv,Vext:nd,' ',Jext:nd,' ',errJ:nd,' ',Jint:nd,' ');
-        
-        {now we look at the photo- and recombination currents in each layer/interface:}
-        {first: photo current and direct recombination:}
-        FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(gen,stv.i0[j],stv.i1[j]):nd,' ');
-        FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(Rn.direct,stv.i0[j],stv.i1[j]):nd,' ');
-        {the other recombination currents can be different in steady-state v transient:}
-        IF transient THEN BEGIN
-         	FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(Rn.bulk,stv.i0[j],stv.i1[j]):nd,' ');       
-         	FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(Rp.bulk,stv.i0[j],stv.i1[j]):nd,' ');  
-         	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 0.5*q*stv.Ltot*stv.h[stv.i1[j]]*(Rn.int[stv.i1[j]] + Rn.int[stv.i1[j]+1]):nd,' ') ;      	     
-         	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 0.5*q*stv.Ltot*stv.h[stv.i1[j]]*(Rp.int[stv.i1[j]] + Rp.int[stv.i1[j]+1]):nd,' ')       	     
-        END
-        ELSE BEGIN
-        	FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(Rn.bulk,stv.i0[j],stv.i1[j]):nd,' ');
-        	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 0.5*q*stv.Ltot*stv.h[stv.i1[j]]*(Rp.int[stv.i1[j]] + Rp.int[stv.i1[j]+1]):nd,' ')
-        END;
+        WRITE(uitv,Vext:nd,' ',Jext:nd,' ',errJ:nd,' ',Ave(diss_prob):nd,' ',EquiCurr(gen):nd,' ',
+			EquiCurr(Rn.direct):nd,' ',EquiCurr(Rn.bulk):nd);
+		IF transient THEN WRITE(uitv,' ',EquiCurr(Rp.bulk):nd); {transient => SRH Bulk n and p might be different!}
+
+		{LEFT interface recombination currents:}
+		IF stv.i1>0 THEN {interface rec at left interface for electrons}
+			J1:=0.5*q*par.L*stv.h[stv.i1]*(Rn.int[stv.i1] + Rn.int[stv.i1+1])
+		ELSE J1:=0; 
+		WRITE(uitv,' ',J1:nd); {in steady-state J1 is equal to J2}
+		IF transient THEN BEGIN
+			IF stv.i1>0 THEN 
+				J2:=0.5*q*par.L*stv.h[stv.i1]*(Rp.int[stv.i1] + Rp.int[stv.i1+1])
+			ELSE J2:=0; {for transient, we also need the interface rec for holes}
+			WRITE(uitv,' ',J2:nd);
+		END;
+		
+		{RIGHT interface recombination currents:}
+		IF stv.i2<par.NP+1 THEN {interface rec at right interface for electrons}
+			J1:=0.5*q*par.L*stv.h[stv.i2]*(Rn.int[stv.i2-1] + Rn.int[stv.i2])
+		ELSE J1:=0; 
+		WRITE(uitv,' ',J1:nd); {in steady-state J1 is equal to J2}
+		IF transient THEN BEGIN
+			IF stv.i2<par.NP+1 THEN 
+				J2:=0.5*q*par.L*stv.h[stv.i2]*(Rp.int[stv.i2-1] + Rp.int[stv.i2]) 
+			ELSE J2:=0; {for transient, we also need the interface rec for holes}
+			WRITE(uitv,' ',J2:nd);
+		END;
 	
-		WRITE(uitv,JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);
+		WRITE(uitv,' ',JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);
 
         IF transient 
-			THEN WRITELN(uitv,' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
+			THEN WRITELN(uitv,' ',q*par.L*dti*(Ave(n, TRUE)-Ave(PrevState.n, TRUE)):nd,' ',q*par.L*dti*(Ave(p, TRUE)-Ave(PrevState.p, TRUE)):nd,' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
 			ELSE WRITELN(uitv);
     END; {with astate}
-    FLUSH(uitv)
+    FLUSH(uitv);
 END;
 
 PROCEDURE Prepare_Var_File(CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN); {create a new var_file with appropriate heading}
 VAR uitv : TEXT;
+	e : INTEGER;
 BEGIN
-	ASSIGN(uitv, par.varFile);
+	ASSIGN(uitv, par.Var_file);
 	REWRITE(uitv); {rewrite old file (if any) or create new one}
     {write header, in the simulation we'll simply output the variables, but not change this header:}
-    WRITE(uitv, ' x V Evac Ec Ev phin phip n p ND NA anion cation ntb nti mun mup G_ehp Gfree Rdir BulkSRHn BulkSRHp IntSRHn IntSRHp Jn Jp Jint');
+    WRITE(uitv, ' x V Evac Ec Ev phin phip n p nion pion ');
+    
+    {header depends on how many trap levels we have:}
+    FOR e:=1 TO stv.N_Etr DO WRITE(uitv, 'ftb',e,' '); {filling of bulk trap level}
+    FOR e:=1 TO stv.N_Etr DO WRITE(uitv, 'fti',e,' '); {filling interface trap level}
 
+    {now write the rest:}
+    WRITE(uitv, 'mun mup Gehp Gfree Rdir BulkSRHn BulkSRHp IntSRHn IntSRHp Jn Jp Jtot');
     IF transient 
-		THEN WRITELN(uitv,' Jnion Jpion JD lid time') {add time! the ion & displacement currents are zero if not transient!}
-		ELSE WRITELN(uitv,' lid Vext'); {add Vext so we can identify the different voltages}
+		THEN WRITELN(uitv,' Jnion Jpion JD time') {add time! the ion & displacement currents are zero if not transient!}
+		ELSE WRITELN(uitv,' Vext'); {add Vext so we can identify the different voltages}
     CLOSE(uitv);
 END;
 
 PROCEDURE Write_Variables_To_File(VAR CurrState : TState; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
-{writes the internal variables (astate) to file par.varFile. It assumes the file has a header produced by Prepare_Var_File}
-VAR i, j, e : INTEGER;
+{writes the internal variables (astate) to file par.Var_file. It assumes the file has a header produced by Prepare_Var_File}
+VAR i, e : INTEGER;
 	uitv : TEXT;
-	Evac, Ec, Ev, Jtot, phin, phip, ntb, nti : myReal;
+	Evac, Ec, Ev, Jtot, phin, phip : myReal;
 BEGIN
-    ASSIGN(uitv, par.varFile);
+    ASSIGN(uitv, par.Var_file);
     APPEND(uitv);
-
+	
     FOR i:=0 TO par.NP+1 DO
     WITH CurrState DO BEGIN
 		Evac:=V[0] - V[i]; {the vacuum level. We take it zero at x=0}
-		Ec:=Evac - stv.E_CB[i];
-		Ev:=Evac - stv.E_VB[i];
+		{use the generalised potentials to take care of the band-offsets}
+		{but we need to correct for the effect of the DOS on Vgn/p:}
+		Ec:=V[0] - Vgn[i] - par.CB + stv.Vt*LN(stv.NcLoc[i]/par.Nc);
+		Ev:=V[0] - Vgp[i] - par.VB - stv.Vt*LN(stv.NcLoc[i]/par.Nc);
 		Jtot:=Jn[i]+Jp[i]+JD[i]+Jnion[i]+Jpion[i]; {total current on grid point}
 		{electron and hole quasi-Fermi levels:}
 		phin:=Ec + stv.Vt*LN(n[i]/stv.NcLoc[i]);
 		phip:=Ev - stv.Vt*LN(p[i]/stv.NcLoc[i]); 
 
-		{calculate number of trapped electrons in bulk/interface traps:}
-		j:=stv.lid[i]; {indicates the current layer}
-		ntb:=0;
-
-		IF (i>0) AND (i<=par.NP) THEN {as always, exclude the electrodes}
-			FOR e:=1 TO stv.Ntb[j].NLevels DO
-				ntb:=ntb + stv.Ntb[j].Nt[e] * f_tb[i,e];
-
-		nti:=0;
-		{for interfaces: check if we're about to cross an interface:}
-		IF i=stv.i1[j] THEN
-			FOR e:=1 TO stv.Nti[j].NLevels DO
-				nti:=nti + stv.Nti[j].Nt[e] * f_ti[i,e];			
-
         WRITE(uitv, stv.x[i]:nd,' ',V[i]:nd,' ',
 				Evac:nd,' ',Ec:nd,' ',Ev:nd,' ',phin:nd,' ',phip:nd,' ', {band diagram}
 				{all charged species:}
-				n[i]:nd,' ',p[i]:nd,' ',stv.nid[i]:nd,' ',stv.pid[i]:nd,' ',nion[i]:nd,' ', pion[i]:nd,' ',
-				{trapped electrons in bulk and interface traps:}
-				ntb:nd,' ',nti:nd,' ',
+				n[i]:nd,' ',p[i]:nd,' ',nion[i]:nd,' ', pion[i]:nd,' ');
+		{traps are seperate, per level:}
+		FOR e:=1 TO stv.N_Etr DO {first bulk}
+			WRITE(uitv, f_tb[i,e]:nd,' ');
+		
+		FOR e:=1 TO stv.N_Etr DO {then interface traps}
+			WRITE(uitv, f_ti[i,e]:nd,' ');
+		
+		{continue with the rest:}
+		WRITE(uitv,
 				{transport:}
 				mun[i]:nd,' ',mup[i]:nd,' ',
 				{generation:}
@@ -2945,23 +3102,28 @@ BEGIN
 				{current densities:}
 				Jn[i]:nd,' ',Jp[i]:nd,' ',Jtot:nd);	        
         IF transient 
-			THEN WRITELN(uitv,' ',Jnion[i]:nd,' ',Jpion[i]:nd,' ',JD[i]:nd,' ',stv.lid[i],' ',tijd:nd)
-			ELSE WRITELN(uitv,' ',stv.lid[i],' ',Vext:nd)
+			THEN WRITELN(uitv,' ',Jnion[i]:nd,' ',Jpion[i]:nd,' ',JD[i]:nd,' ',tijd:nd)
+			ELSE WRITELN(uitv,' ',Vext:nd)
     END;
     CLOSE(uitv);
 END;
 
-PROCEDURE Tidy_Up_File(FileName : STRING);
-{This procedure does the actual work of tidying the parameter files.}
+PROCEDURE Tidy_Up_Parameter_File(parameterFile : STRING; QuitWhenDone : BOOLEAN);
+{This procedure cleans up the parameter file: it makes sure that all the * are aligned, that every parameter has a 
+unit or other description/comment and left-aligns any line that starts with **. It does this by reading the original device
+parameter file line by line and writing corrected lines to a temp file. Once the correct position of the descriptions 
+(starting with *) has been found, it uses the temp file to create the new, tidy parameter file. Lastly, the temp file is
+removed and the program exits.}
 VAR inp, outp : TEXT;
-	temp : ANSISTRING;
     line, dumstr, outline : STRING;
     max_pos, linecount, pos_asterix, i : INTEGER;
 BEGIN
     {open the original parameterFile}
-    ASSIGN(inp, FileName);
+    ASSIGN(inp, parameterFile);
     RESET(inp);
-	temp:=''; {this is an ansistring (so no length limit) where we store the input file and manipulate it later on}
+    {and create a temp output file:}
+    ASSIGN(outp, temp_file);
+    REWRITE(outp);
     
     max_pos:=0;
     linecount:=0;
@@ -2991,8 +3153,7 @@ BEGIN
 			BEGIN
 				WRITELN('A line that contains a parameter should also contain some unit,');
 				WRITELN('description, etc, and always after a *.');
-				WRITELN('In file ',FileName,', the line that starts with "',LeftStr(line, MIN(LENGTH(line),20)),'"');
-				WRITELN('does not obey this rule.');				
+				WRITELN('The line that starts with "',LeftStr(line, MIN(LENGTH(line),20)),'" does not obey this rule.');				
 				WRITELN('This is something you need to fix yourself.');
 				Stop_Prog('See line number '+IntToStr(linecount)+'.', EC_DevParCorrupt);
 			END;
@@ -3002,21 +3163,23 @@ BEGIN
 			outline:=dumstr;
 			max_pos:=MAX(max_pos, pos_asterix);
 		END;
-		
-		temp:=temp + outline + LineEnding; {add line to our temp version of the parameter file}
-		
+		WRITELN(outp, outline);
     END; {while loop reading input file}
     
     CLOSE(inp);
+    CLOSE(outp);
     {now we know where to put the * (max_pos)}
     
-    {start writing into the real parameterFile:}
-    ASSIGN(outp, FileName);
+    {now start reading from the temp file:}
+    ASSIGN(inp, temp_file);
+    RESET(inp);
+    {and start writing into the real parameterFile:}
+    ASSIGN(outp, parameterFile);
     REWRITE(outp);
     
-    WHILE LENGTH(temp) <> 0 DO
+    WHILE NOT EOF(inp) DO
     BEGIN
-		line:=Copy2StringDel(temp, LineEnding); {Deletes and returns all characters in a string till a given string (not included).}
+		READLN(inp, line);
 		IF (LeftStr(line, 2)<>'**') AND (LENGTH(line)<>0) THEN {we should have a line that contains a parameter}
 		BEGIN
 			pos_asterix:=POS('*', line); {now we know there must be an asterix}
@@ -3028,51 +3191,19 @@ BEGIN
 		END
 		ELSE WRITELN(outp, line);
 	
-    END;
+    END; {while loop reading input file}
     
+    CLOSE(inp);
     CLOSE(outp);
-
-	WRITELN('Tidied-up ',FileName,'.');
+    
+    {now delete old parameterFile and replace with temp_file}
+    ERASE(inp); {the file should be assigned with Assign, but not opened with Reset or Rewrite}
+    RENAME(outp, parameterFile); {file must be assigned, but not opened}
+    IF QuitWhenDone 
+		THEN Stop_Prog('Replaced old '+parameterFile+' with a tidy version.', EC_Warning)
+		ELSE WRITELN('Tidied-up ',parameterFile,'.');
 END;
 
-PROCEDURE Tidy_Up_Parameter_Files(parameterFile : STRING; QuitWhenDone : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-{This procedure cleans up the parameter files: the main file and the files with the parameters of each layer}
-{It makes sure that all the * are aligned, that every parameter has a 
-unit or other description/comment and left-aligns any line that starts with **. It does this by reading the original device
-parameter file line by line and writing corrected lines to a temp file. Once the correct position of the descriptions 
-(starting with *) has been found, it uses the temp file to create the new, tidy parameter file. Lastly, the temp file is
-removed and the program exits.}
-VAR i : INTEGER;	
-BEGIN
-	{first, do the main paramter file:}
-	Tidy_Up_File(parameterFile);
-	
-	{next, loop over files that contain the parameters of the layers:}
-	FOR i:=1 TO stv.NLayers DO
-		Tidy_Up_File(par.lyr[i].layerFile);
-		
-	IF QuitWhenDone THEN Stop_Prog('Done cleaning parameter files.', EC_Warning)
-END;
-
-FUNCTION Copy_State(CONSTREF a : TState; CONSTREF par : TInputParameters) : TState;
-{Returns a copy of state a. We need this because of the dynamic arrays in TState.}
-VAR b : TState;
-	i : INTEGER;
-BEGIN
-	b:=a; {first copy everything}
-	
-	{the dynamic arrays in TState need to be copied explicitely to make a real copy. Otherwise, we only copy the pointer!!}
-	WITH b DO
-		FOR i:=0 TO par.NP+1 DO 
-		BEGIN
-			{note: SetLength generates a new bit of memory to store a unique state b}
-			SETLENGTH(f_tb[i], LENGTH(f_tb[i]));
-			SETLENGTH(f_ti[i], LENGTH(f_ti[i]));
-			SETLENGTH(f_ti_numer[i], LENGTH(f_ti_numer[i]));
-			SETLENGTH(f_ti_inv_denom[i], LENGTH(f_ti_inv_denom[i]))
-		END;
-	Copy_State:=b
-END;
 
 BEGIN 
 

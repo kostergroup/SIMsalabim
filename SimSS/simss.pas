@@ -2,7 +2,7 @@ PROGRAM SimSS;
 
 {
 SimSS:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -48,7 +48,7 @@ USES {our own, generic ones:}
      TypesAndConstants,
      InputOutputUtils, 
      NumericalUtils,
-     {our drift-diffusion stuff:}  
+     {our drift-diffusion stuff:}
      DDTypesAndConstants,
      TransferMatrix,
      DDRoutines,
@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '5.14';   {version, 1.00 = 10-03-2004}
+    version = '4.58';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -113,7 +113,7 @@ BEGIN
       1 : i:=Vcount {scan up}
     END;
 
-    CASE par.Vdist of
+    CASE par.Vdistribution of
       1 : Applied_voltage:=par.Vmin + par.Vstep*(i-1);
       2 : Applied_voltage:=LogarithmicV(i-1);
     END;
@@ -128,13 +128,13 @@ VAR i : INTEGER;
     V, J : Row;
 BEGIN
 	{Read V-J data from file:}
-	Read_XY_Table(V, J, par.expJV, 'Vext Jext',  stv.NJV);
+	Read_XY_Table(V, J, par.ExpJV, 'Vext Jext',  stv.NJV);
 	{this overrides NJV calculated from Vmin, Vmax, Vstep, or from direct input}
    
     {now check a number of things:} 
     IF stv.NJV < minExpData THEN Stop_Prog('Not enough experimental data points.', EC_InvalidInput, FALSE);
 
-    {now we can copy the arrays V and J into expJV}
+    {now we can copy the arrays V and J into ExpJV}
     SetLength(JVExp, stv.NJV+1); {the regular voltages start at 1}
     FOR i:=1 TO stv.NJV DO {note, we only use part of the JVList record}
     BEGIN
@@ -152,46 +152,60 @@ BEGIN
 
     {now document what happened and write to log file:}
     WRITELN(log);
-    WRITELN(log, 'Read experiment JV curve from ', par.expJV,'.');
+    WRITELN(log, 'Read experiment JV curve from ', par.ExpJV,'.');
     WRITELN(log, 'This overrides the voltage distribution that is in the parameter file');
     WRITELN(log, 'and any voltage parameters passed via the command line.');
     WRITELN(log, 'Vmin: ',par.Vmin:6:4,' Vmax: ',par.Vmax:6:4);
     WRITELN(log);
-    WRITELN('Read experimental JV curve from ', par.expJV,'.');
+    WRITELN('Read experimental JV curve from ', par.ExpJV,'.');
 END;
 
 PROCEDURE Init_Voltages_and_Tasks(VAR JVSim, JVExp : TJVList; VAR VCount : INTEGER; VAR log : TEXT;
 				VAR stv : TStaticVars; VAR par : TInputParameters);
 {determines which voltages need to be simulated. This is either based on 
-the normal parameters Vdist, Vmin, Vmax, Vstep, Vacc, NJV, or
+the normal parameters Vdistribution, Vmin, Vmax, Vstep, Vacc, NJV, or
 based on experimental input. 
 NOTE: stv and par are passed as VAR parameters as Read_Experimental_JV needs to 
 change them!}
-VAR i : INTEGER;
+VAR i, k : INTEGER;
 BEGIN
-    IF par.useExpData THEN Read_Experimental_JV(JVExp, log, stv, par); {calling this overrides NJV calculated from Vmin,Vmax,Vstep, or from direct input}
+    IF par.UseExpData THEN Read_Experimental_JV(JVExp, log, stv, par); {calling this overrides NJV calculated from Vmin,Vmax,Vstep, or from direct input}
 			
     SetLength(JVSim, stv.NJV+1); {if there is a pre-bias, we need an extra data point, so we make the array one longer than NJV}
-    IF par.preCond THEN {the pre-bias will be stored in point 0}
+    IF par.PreCond THEN {the pre-bias will be stored in point 0}
 	WITH JVSim[0] DO {pre-bias point}
 	BEGIN
 	    Vint:=par.Vpre;
-	    UpdateIons:=TRUE; {yes, ions are moving. We checked in Read_Parameters that if preCond then CIM <>0}
+	    UpdateIons:=TRUE; {yes, ions are moving. We checked in Read_Parameters that if PreCond then CIM <>0}
 	    Store:=FALSE; {however, don't store the pre-bias point}
 	END;
     
-	FOR i:=1 TO stv.NJV DO {the regular voltages start at 1}
+    k:=ORD(NOT par.PreCond); {so if PreCond=true then k=0, we will use this below}
+    {now for the rest of the voltages:}
+    FOR i:=1 TO stv.NJV DO {the regular voltages start at 1}
+    BEGIN
 		WITH JVSim[i] DO
 		BEGIN
-			UpdateIons:=NOT par.fixIons;
-			Store:=TRUE;			
-			IF par.useExpData
+			IF par.UseExpData
 				THEN Vint:=JVExp[i].Vint
-				ELSE Vint:=Applied_voltage(i, stv, par)
+				ELSE Vint:=Applied_voltage(i, stv, par);
+			IF par.ion_red_rate=0 THEN {means ions are fixed}
+            BEGIN
+				UpdateIons:=(i=1) AND (NOT par.PreCond);
+				{so if the ions are fixed, but we're doing the first point (i=1)
+				then update ions unless we already did a preconditioning}
+				Store:=TRUE {by default, store this JV point. If this point does not converge, we will set Store to FALSE}
+			END
+			ELSE BEGIN {so ions are not always fixed}
+				UpdateIons:=((par.CNI<>0) OR (par.CPI<>0)) AND ( (i-k) MOD par.ion_red_rate = 0 );
+				{note the k! whether we update the ions also depends on the pre-conditioning}
+				Store:=((par.CNI=0) AND (par.CPI=0)) OR ( (i-k+1) MOD par.ion_red_rate = 0)
+			END;
 		END;
-
+    END;
+    
     {VCount is used in the main program as the index of the voltages that should be simulated}
-    IF par.preCond {if we need to pre condition, then use index 0}
+    IF par.PreCond {if we need to pre condition, then use index 0}
 		THEN VCount:=0 {Counter of the number of voltages which have been computed}
 		ELSE VCount:=1; {index VCount=0 is reserved for the pre-bias voltage (if any)}
     
@@ -199,15 +213,16 @@ BEGIN
     WRITELN(log);
     WRITELN(log,'The following voltages will be simulated:');
     WRITELN(log,'  i       V    UpdateIons   Store');
-    FOR i:=ORD(NOT par.preCond) TO stv.NJV DO {note: if not preCond we start at i=1}
+    FOR i:=ORD(NOT par.PreCond) TO stv.NJV DO {note: if not PreCond we start at i=1}
 	WITH JVSim[i] DO
 	    WRITELN(log,i:3,'  ',Vint:8:3,'    ',UpdateIons:5,'      ',Store);
     WRITELN(log);
     FLUSH(log);	
 END;
 
-PROCEDURE Init_States(VAR prev, curr, new : TState; Vapp : myReal; VAR stv : TStaticVars; CONSTREF par : TInputParameters); 
-{inits new (time, Va, G_ehp, V, n, p, etc) and sets curr:=new and prev:=curr}
+PROCEDURE Init_States(VAR prev, curr, new : TState; Vapp : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
+{inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new and prev:=curr}
+VAR g : myReal;
 BEGIN
     WITH new DO 
     BEGIN
@@ -215,8 +230,12 @@ BEGIN
 		dti:=0; {dti: inverse of delta t, so if dti=0, the time-step is infinite => steady-state!}
 		SimType:=1; {1 means that this is steady-state, not open-circuit}
 		Vint:=Vapp; {set applied voltage}
-		Update_Generation_Profile(stv.orgGm, Gm, par.G_frac, stv, par); {Set current Gm array to correct value}
-		Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Vint, stv, par); {init. (generalised) potentials and densities}
+		IF par.Use_gen_profile <> 1 THEN
+			g:=par.Gehp*par.Gfrac {set Gehp equal to the value in parameter file.}
+		ELSE
+			g:=par.Gfrac;
+		Update_Generation_Profile(stv.orgGm, Gm, g, stv, par); {Set current Gm array to correct value}
+		Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, Vint, stv, par); {init. (generalised) potentials and densities}
 	END;
 	
 	curr:=new;{just to make sure curr is initialised!}
@@ -274,7 +293,7 @@ BEGIN
 		IntSuccess:=InterExtraPolation(y_dat, x_dat, 0, SCPar.Voc, SCPar.ErrVoc, InterpolationOrder, 0);
 		SCPar.calcOC:=IntSuccess AND (SCPar.ErrVoc < threshold_err*ABS(SCPar.Voc));
 
-		{sometimes (e.g. if untilVoc=1) then it's better to try linear interpolation:}
+		{sometimes (e.g. if until_Voc=1) then it's better to try linear interpolation:}
 		IF (NOT SCPar.calcOC) AND (InterpolationOrder>1) THEN
 		BEGIN {redo with linear interpolation:}
 			IntSuccess:=InterExtraPolation(y_dat, x_dat, 0, SCPar.Voc, SCPar.ErrVoc, 1, 1);
@@ -328,7 +347,7 @@ BEGIN
     str:=AddChar(' ',str,tab1+Length(str));
     {add white space: AddCharR adds character ' ' to str until the length is tabpos:}
     str:=AddCharR(' ',str,tab2);
-    IF par.useExpData THEN
+    IF par.UseExpData THEN
     BEGIN
 		str:=str + 'Experimental';
 		str:=AddCharR(' ',str,tab3); 
@@ -340,7 +359,7 @@ BEGIN
     in the external circuit}
     Find_Solar_Cell_Parameters(JVSim, SCParSim);
 
-    IF par.useExpData 
+    IF par.UseExpData 
 	THEN Find_Solar_Cell_Parameters(JVExp, SCParExp)
     ELSE WITH SCParExp DO 
 		BEGIN {if we are not using exp JV, then we need to set all SCParExp booleans = FALSE}
@@ -462,11 +481,11 @@ BEGIN
    
     WRITELN; 
    
-    {Store the key parameters in the scParsFile}
+    {Store the key parameters in the scPars_file}
     WITH SCParSim DO
 	IF calcOC AND calcSC AND calcFF AND calcMPP THEN
 	BEGIN
-	    ASSIGN(uitv, par.scParsFile);  {create the scParsFile}
+	    ASSIGN(uitv, par.scPars_file);  {create the scPars_file}
 	    REWRITE(uitv);
 	    WRITELN(uitv,'Jsc ErrJsc Voc ErrVoc Vmpp ErrVmpp MPP ErrMPP FF ErrFF');
 	    WRITELN(uitv,Jsc:6:4,' ',ErrJsc:6:4,' ',Voc:6:4,' ',ErrVoc:6:4,' ',Vmpp:6:4,' ',ErrVmpp:6:4,' ',MPP:6:4,' ',ErrMPP:6:4,' ',FF:6:4,' ',ErrFF:6:4);
@@ -477,13 +496,12 @@ END;
 
 
 PROCEDURE Compare_Exp_Sim_JV(JVExp, JVSim : TJVList; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
-VAR fitError, Jmin, Jmax, Vmin, Vmax, trapzIntegral : myReal;
+VAR rms, Jmin, Jmax : myReal;
     i, j, count : INTEGER;
     disgardedPoints, bracketed : BOOLEAN;
-    Jdiff, Vfit : Row;
 BEGIN
     {If there is series resistance we need to interpolate the experimental data to match the voltages of the simulation.}
-    IF (par.R_series > 0) THEN
+    IF (par.Rseries > 0) THEN
     BEGIN
 		j:=1;
 		FOR i:=1 TO stv.NJV DO
@@ -509,82 +527,63 @@ BEGIN
 		END;
     END;
     
-    fitError:=0;
+    rms:=0;
     count:=0;
     Jmin:=MaxSingle;
     Jmax:=-MaxSingle;
-    Vmin:=MaxSingle;
-    Vmax:=-MaxSingle;
     disgardedPoints:=FALSE; {keep track of points that we don't use in log-fitting}
-    trapzIntegral := 0;
-
-    setLength(JDiff,stv.NJV+1);
-    setLength(Vfit,stv.NJV+1);
-	
+    
     FOR i:=1 TO stv.NJV DO
 		{If the simulation did not converge at we can not use it. Similarly if we could not interpolate a point in 
 		the experimental data we can not use this voltage}
-		IF JVSim[i].Use AND JVExp[i].Use THEN BEGIN	
-			CASE par.fitMode OF
-			linear : BEGIN
-					INC(count);
-					Jdiff[count] := ABS(JVSim[i].Jext - JVExp[i].Jext);
-					Vfit[count] := JVSim[i].Vext;
-			END; {case linear}
-			logarithmic : BEGIN
-				IF JVExp[i].Jext*JVSim[i].Jext>=0 {we can only calc fitError if both are <>0 and they have the same sign}
-				THEN BEGIN
-					INC(count);
-					Jdiff[count] := LN(JVSim[i].Jext/JVExp[i].Jext);
-					Vfit[count] := JVSim[i].Vext;
-				END
-				ELSE disgardedPoints:=TRUE
-			END; {case logarithmic}
-		END; {case}
-
-		{Look for the interval [Jmin,Jmax] in both the simulated and experiment data}
-		IF JVExp[i].Jext < Jmin THEN Jmin:=JVExp[i].Jext;
-		IF JVSim[i].Jext < Jmin THEN Jmin:=JVSim[i].Jext;
-		IF JVExp[i].Jext > Jmax THEN Jmax:=JVExp[i].Jext;
-		IF JVSim[i].Jext > Jmax THEN Jmax:=JVSim[i].Jext;
-
-		{Look for the interval [Vmin,Vmax]. Because V is the same for both experimental and simulated data, we only need to look once}
-		IF JVExp[i].Vext < Vmin THEN Vmin:=JVExp[i].Vext;
-		IF JVExp[i].Vext > Vmax THEN Vmax:=JVExp[i].Vext;
+		IF JVSim[i].Use AND JVExp[i].Use
+		THEN 
+		BEGIN
+			{Calculate the sum of squared residuals}
+			CASE par.rms_mode OF
+				linear : BEGIN
+							rms:=rms + SQR(JVExp[i].Jext-JVSim[i].Jext);
+							INC(count);
+						END; {case linear}
+				logarithmic : BEGIN
+								IF JVExp[i].Jext*JVSim[i].Jext>=0 {we can only calc rms if both are <>0 and they have the same sign}
+								THEN BEGIN
+									INC(count);
+									rms:=rms + SQR(LN(JVExp[i].Jext/JVSim[i].Jext))
+								END
+								ELSE disgardedPoints:=TRUE
+							END; {case logarithmic}
+			END; {case}
+			{Look for the interval [Jmin,Jmax] in both the simulated and experiment data}
+			IF JVExp[i].Jext < Jmin THEN Jmin:=JVExp[i].Jext;
+			IF JVSim[i].Jext < Jmin THEN Jmin:=JVSim[i].Jext;
+			IF JVExp[i].Jext > Jmax THEN Jmax:=JVExp[i].Jext;
+			IF JVSim[i].Jext > Jmax THEN Jmax:=JVSim[i].Jext;
 		END;
     
 
-	{Calculate the fit error using the area between the experimental and simulated JV curves}
-	FOR i:=2 TO count DO
-		{Using the trapezoidal rule for integration}
-		trapzIntegral := trapzIntegral + 0.5*(Jdiff[i-1] + Jdiff[i])*ABS(Vfit[i]-Vfit[i-1]);
-		CASE par.fitMode OF
-			linear : BEGIN
-				fitError := trapzIntegral/((Vmax-Vmin)*(Jmax-Jmin)); {Normalise the area between the experimental and simulated JV curves with the maximum area spanned by them.}
-			END; {case linear}
-			logarithmic : BEGIN
-				fitError := trapzIntegral/((Vmax-Vmin)*(LN(ABS(Jmax/Jmin)))); {Normalise the area between the experimental and simulated JV curves with LN of the maximum area spanned by them.}	
-			END; {case logarithmic}
-		END; {case}
-	
-    IF (par.fitThreshold <= count/stv.NJV) AND (Jmax-Jmin>tolReal) THEN {we need at least 1 data point and a measurable interval [Jmin, Jmax]}
+    IF (par.rms_threshold <= count/stv.NJV) AND (Jmax-Jmin>tolReal) THEN {we need at least 1 data point and a measurable interval [Jmin, Jmax]}
     BEGIN
+		{Here we calculate the root mean square error and normalise with respect to the interval [Jmin,Jmax].}
+		CASE par.rms_mode OF
+			linear : rms:=SQRT(rms/count)/(Jmax-Jmin);
+			logarithmic : rms:=SQRT(rms/count)/ABS(LN(ABS(Jmax/Jmin))); {note: Jmax > Jmin, of course, but ABS(Jmin) can be larger than ABS(Jmax) so we need to use ABS(LN(...)) to get a positive rms}
+		END;
 		WRITELN('Comparing simulated and experimental JV curves:');
-		WRITELN('fitError: ',fitError:6:5);
-		IF disgardedPoints THEN Warn_User('Not all JV points were used in computing the fit error.');
+		WRITELN('norm_rms_error: ',rms:6:5);
+		IF disgardedPoints THEN Warn_User('Not all JV points were used in computing the rms-error.');
 		WRITELN;
     END
     ELSE
     BEGIN
-        WRITELN('Could not compute a meaningful fit error.');
+        WRITELN('Could not compute a meaningful rms-error.');
         WRITELN('Possible reasons:');
-        WRITELN('-not enough simulated points converged, check fitThreshold');
+        WRITELN('-not enough simulated points converged, check rms_threshold');
         WRITELN('-the range in experimental currents is not large enough.');
-        IF par.fitMode = logarithmic THEN WRITELN('-too many voltages were sim. and exp. currents have different signs. Try using fitMode = lin.');
+        IF par.rms_mode = logarithmic THEN WRITELN('-too many voltages were sim. and exp. currents have different signs. Try using rms_mode = lin.');
         WRITELN
     END
 END;
-
 
 BEGIN {main program}
 	Print_Welcome_Message(ProgName, version);
@@ -592,23 +591,25 @@ BEGIN {main program}
     {if '-h' or '-H' option is given then display some help and exit:}
     IF hasCLoption('-h') THEN Display_Help_Exit(ProgName);
     Determine_Name_Parameter_File(parameterFile); {either default or user-specified file with all the parameters}
-    IF NOT Correct_Version_Parameter_File(parameterFile, version, TRUE, ProgName) THEN Stop_Prog('Version of SIMsalabim and '+parameterFile+' do not match.', EC_DevParCorrupt);
+    IF hasCLoption('-tidy') THEN Tidy_Up_Parameter_File(parameterFile, TRUE); {tidy up file and exit}
+    IF NOT Correct_Version_Parameter_File(ProgName, parameterFile, version) THEN Stop_Prog('Version of SIMsalabim and '+parameterFile+' do not match.', EC_DevParCorrupt);
 
     {Initialisation:}
     Read_Parameters(parameterFile, MsgStr, par, stv, ProgName); {Read parameters from input file}
     Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
-    Set_Number_Digits(par.limitDigits, SizeOf(myReal)); {limits number of digits in floating point}
+    Set_Number_Digits(par.LimitDigits, SizeOf(myReal)); {limits number of digits in floating point}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
-    IF par.autoTidy THEN Tidy_Up_Parameter_Files(parameterFile, FALSE, stv, par); {clean up file but don't exit!}
+    IF par.AutoTidy THEN Tidy_Up_Parameter_File(parameterFile, FALSE); {clean up file but don't exit!}
 
-    Make_Grid(stv, par); {Initialize the grid}
+    Make_Grid(stv.h, stv.x, stv.i1, stv.i2, par); {Initialize the grid}
     Define_Layers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
-	Init_Trapping(log, stv, par); {Inits all variables needed for trapping and SRH recombination}
-	Init_Voltages_and_Tasks(JVSim, JVExp, VCount, log, stv, par);
+	Init_Trap_Distribution(log, stv, par); {Places all types of traps (bulk and interface) in the device at places determined by define_layers.}
+    Init_nt0_And_pt0(stv, par); {inits nt0b and pt0 arrays needed for SRH recombination}
+    Init_Voltages_and_Tasks(JVSim, JVExp, VCount, log, stv, par);
 
     Init_Generation_Profile(stv, log, par); {init. the stv.orgGm array. This is the SHAPE of the profile}
-	Init_States(prev, curr, new, JVSim[VCount].Vint, stv, par); {inits new (time, Va, G_ehp, V, n, p, etc) and sets curr:=new and prev:=curr}
-    Prepare_tJV_File(uitv, par.JVFile, FALSE, stv);   {create the JV-file}
+	Init_States(prev, curr, new, JVSim[VCount].Vint, stv, par); {inits new (time, Va, Gehp, V, n, p, etc) and sets curr:=new and prev:=curr}
+    Prepare_tJV_File(uitv, par.JV_file, FALSE);   {create the JV-file}
     IF par.StoreVarFile THEN Prepare_Var_File(stv, par, FALSE); {Create a new var_file with appropriate heading if required}
 
     CountAcceptedSolutions:=0; {counts how many voltages converged or were accepted without really converging}
@@ -618,7 +619,7 @@ BEGIN {main program}
     BEGIN
 		new.Vint:=JVSim[VCount].Vint; 
 		new.UpdateIons:=JVSim[VCount].UpdateIons;
-	
+		
 		{try to get a guess for new based on prev and curr:}
 		Extrapolate_Solution(prev, curr, new, CountAcceptedSolutions, stv, par);
 	
@@ -643,7 +644,7 @@ BEGIN {main program}
 			{output:}
 			WRITELN('At Vint=', new.Vint:4:3,' converged in',MainIt:4,' loop(s), Jext=',new.Jext:7:2,' +- ',new.errJ:4:2);
 
-			{we only write the point to the JVFile if Conv_Main and if Store:}
+			{we only write the point to the JV_file if Conv_Main and if Store:}
 			IF JVSim[VCount].Store THEN Write_To_tJV_File(uitv, new, curr, stv, par, FALSE);						
 		END
 		ELSE BEGIN {o dear, now what?}
@@ -655,7 +656,7 @@ BEGIN {main program}
 			WRITELN(log, StatusStr);
 			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
-			CASE par.failureMode OF
+			CASE par.FailureMode OF
 				0 : Stop_Prog('Convergence failed at voltage = ' + FloatToStrF(new.Vint, ffGeneral,5,0)+ '. Maybe try smaller voltage steps?', EC_ConverenceFailedHalt);
 				1 : acceptNewSolution:=TRUE;
 				2 : acceptNewSolution:=(new.dti=0) {is true if steady-state, false otherwise}
@@ -667,32 +668,32 @@ BEGIN {main program}
 		IF acceptNewSolution {OK, new solution is good (even if conv_main might be FALSE)}
 			THEN BEGIN 
 				INC(CountAcceptedSolutions); {increase the counter}
-				prev:=Copy_State(curr, par); {we move the current solution to the previous one}
-				curr:=Copy_State(new, par) {and we keep the newest solution}
+				prev:=curr; {we move the current solution to the previous one}
+				curr:=new {and we keep the newest solution}
 			END
 			ELSE WRITELN(log, 'Skipping (J,V) point at voltage ',new.Vint); 
 		  
 		{should we store the internal variables?}
-		IF par.StoreVarFile THEN {FIRST check if it should be stored as we cannot compute (Vcount MOD outputRatio) if outputRatio=0!}
-			IF (Vcount MOD par.outputRatio = 0) AND acceptNewSolution 
+		IF par.StoreVarFile THEN {FIRST check if it should be stored as we cannot compute (Vcount MOD OutputRatio) if OutputRatio=0!}
+			IF (Vcount MOD par.OutputRatio = 0) AND acceptNewSolution 
 				THEN Write_Variables_To_File(curr, stv, par, FALSE);	
 			
-        quit_Voc:=(JVSim[VCount].Jext>0) AND par.untilVoc AND (par.G_frac * stv.Lgen<>0); {only stop past Voc if there is light!}
+        quit_Voc:=(JVSim[VCount].Jext>0) AND par.until_Voc AND (par.Gehp<>0); {only stop past Voc if there is light!}
 
         VCount:=VCount + 1;
     END; {loop over voltages}
 
-    IF (par.G_frac * stv.Lgen <> 0) AND (stv.V0 <> stv.VL) THEN  {we do have a solar cell}
+    IF (par.Gehp * par.Gfrac <> 0) AND (stv.V0 <> stv.VL) THEN  {we do have a solar cell}
         Calc_and_Output_Solar_Cell_Parameters(JVExp, JVSim, par);
 
-    IF par.useExpData THEN Compare_Exp_Sim_JV(JVExp, JVSim, stv, par);
-    {note: if R_series <> 0 then Vext in JVExp and JVSim will be different so we can't do a direct comparison}
+    IF par.UseExpData THEN Compare_Exp_Sim_JV(JVExp, JVSim, stv, par);
+    {note: if Rseries <> 0 then Vext in JVExp and JVSim will be different so we can't do a direct comparison}
 
-    WRITELN('The JV characteristic is written in ', par.JVFile,'.');
-	IF par.outputRatio>0 THEN WRITELN('Stored internal variables in ', par.varFile,'.');
+    WRITELN('The JV characteristic is written in ', par.JV_file,'.');
+	IF par.OutputRatio>0 THEN WRITELN('Stored internal variables in ', par.Var_file,'.');
 	
 	Finalize_Log_File(log, ''); {writes final comments, date, time, run time and closes log file.}
 	
 	WRITELN('Finished, press enter to exit');
-    IF par.pauseAtEnd THEN READLN {pause at the end of the program}
+    IF par.Pause_at_end = 1 THEN READLN {pause at the end of the program}
 END.
