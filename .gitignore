@@ -11,7 +11,8 @@
 *.o
 
 # Exclude all log files
-log.txt
+log*.txt
+scPars*.txt
 
 # Exclude SIMsalabim output
 *.dat
