@@ -677,7 +677,12 @@ BEGIN {main program}
 			IF (Vcount MOD par.outputRatio = 0) AND acceptNewSolution 
 				THEN Write_Variables_To_File(curr, stv, par, FALSE);	
 			
-        quit_Voc:=(JVSim[VCount].Jext>0) AND par.untilVoc AND (par.G_frac * stv.Lgen<>0); {only stop past Voc if there is light!}
+	IF par.untilVoc = -1 THEN
+		quit_Voc := (JVSim[VCount].Jext < 0) AND (par.G_frac * stv.Lgen <> 0)
+	ELSE IF par.untilVoc = 0 THEN
+		quit_Voc := FALSE
+	ELSE IF par.untilVoc = 1 THEN
+		quit_Voc := (JVSim[VCount].Jext > 0) AND (par.G_frac * stv.Lgen <> 0);
 
         VCount:=VCount + 1;
     END; {loop over voltages}
