@@ -61,7 +61,7 @@ Vstep = 0.025                     * V
 Vacc = 0                          * V, point of accumulation of row of V's, note: Vacc should be
                                   * slightly larger than Vmax or slightly lower than Vmin
 NJV = 100                         * number of JV points in logarithmic distribution
-untilVoc = 0                      * if 1 then SimSS will stop at Voc
+untilVoc = 0                      * SimSS stops after Voc, if -1 this is when the JV curves enters the 3rd quadrant (illuminating from the HTL side), if 1 the 1st quadrant (illuminating from the ETL side).
 
 **User interface********************************************************************
 timeout = -1                      * s, max run time, use negative value for unlimited run time.
