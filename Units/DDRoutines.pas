@@ -610,7 +610,7 @@ BEGIN
 				stv.NJV:=TRUNC((Vmax - Vmin)/Vstep + 1e-10) + 1; {needed for setting length of Jdat and Vdat}
 			{1e-10 is needed to get right value}
 			Get_Integer(inv, msg, 'untilVoc', dumint); {if 1 then SimSS stops at Voc}
-			untilVoc:=(dumint=1);
+			untilVoc:= dumint;
 		END;
 
 {**User interface********************************************************************}
@@ -793,7 +793,7 @@ BEGIN
 		THEN BEGIN
 			IF (G_frac <> 0) AND (stv.V0 <> stv.VL) AND useExpData AND (fitMode=logarithmic) {this is a weird combination, warn user}
 				THEN Warn_User('You are fitting a solar cell with fitMode=log.');
-			IF useExpData AND untilVoc THEN Stop_Prog('You cannot use untilVoc = 1 and useExpData = 1 at the same time.', EC_InvalidInput);
+   			IF useExpData AND (untilVoc <> 0) THEN Stop_Prog('You cannot use untilVoc = 1 and useExpData = 1 at the same time.', EC_InvalidInput);
 			IF useExpData AND preCond THEN Stop_Prog('You cannot use pre-conditioning (preCond) and useExpData = 1 at the same time.', EC_InvalidInput);
 			IF ((fitThreshold<=0) OR (fitThreshold>1)) AND useExpData THEN
 				Stop_Prog('fitThreshold has to be larger than 0 but not larger than 1.', EC_InvalidInput);
