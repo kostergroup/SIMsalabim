@@ -159,10 +159,10 @@ TYPE
 			    {integers:}
 				Use_gen_profile, maxItPois, 
 				NP, currDiffInt, maxItSS, maxItTrans, 
-				failureMode, outputRatio, Vdist, Vscan : INTEGER; 
+				failureMode, outputRatio, Vdist, Vscan, untilVoc : INTEGER; 
 			    {derived booleans:}
 				fixIons, ignoreNegDens, autoTidy, StoreVarFile, limitDigits, 
-				preCond, untilVoc, useExpData, autoStop, pauseAtEnd : BOOLEAN;
+				preCond, useExpData, autoStop, pauseAtEnd : BOOLEAN;
 			    {filenames and other strings:}
 				nkSubstrate, nkTCO, nkBE, spectrum, 
 				genProfile, logFile, tVGFile, 
