@@ -105,7 +105,7 @@ def get_data_from_sim(simulation, test_idx, x='Vext', y='Jext', output_file='jv'
 
 def get_data_from_file(test_idx, x_test, y_test):
     test_data_path = f'test_{test_idx}/test{test_idx}.dat'
-    test_data = pd.read_csv(path(test_data_path), delim_whitespace=True)
+    test_data = pd.read_csv(path(test_data_path), sep=r'\s+')
     test_data = Data(test_data[x_test], test_data[y_test])
     return test_data
 

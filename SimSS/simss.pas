@@ -2,7 +2,7 @@ PROGRAM SimSS;
 
 {
 SimSS:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023, 2024, 2025 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '5.14';   {version, 1.00 = 10-03-2004}
+    version = '5.18';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -596,9 +596,9 @@ BEGIN {main program}
 
     {Initialisation:}
     Read_Parameters(parameterFile, MsgStr, par, stv, ProgName); {Read parameters from input file}
-    Check_Parameters(stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
-    Set_Number_Digits(par.limitDigits, SizeOf(myReal)); {limits number of digits in floating point}
     Prepare_Log_File(log, MsgStr, par, version); {open log file}
+    Check_Parameters(log, stv, par, ProgName); {perform a number of chekcs on the paramters. Note: we need Vt}
+    Set_Number_Digits(par.limitDigits, SizeOf(myReal)); {limits number of digits in floating point}
     IF par.autoTidy THEN Tidy_Up_Parameter_Files(parameterFile, FALSE, stv, par); {clean up file but don't exit!}
 
     Make_Grid(stv, par); {Initialize the grid}

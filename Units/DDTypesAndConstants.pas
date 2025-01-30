@@ -3,7 +3,7 @@ unit DDTypesAndConstants;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
+Copyright (c) 2021, 2022, 2023, 2024, 2025, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '5.14'; {version of this unit}
+    DDTypesAndConstantsVersion = '5.18'; {version of this unit}
     defaultParameterFile = 'simulation_setup.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -64,7 +64,8 @@ CONST
     LowerLimBraun = 0.01; {IN Calc_Dissociation, lower limit of integration in Braun model, should be non-zero}
     UpperLimBraun = 20; {IN Calc_Dissociation, upper limit of integration in Braun model }
     minDeltaLambda = 0.5E-9; {IN: Read_AM_From_File, Read_nk_Material_From_File, minimum spacing between wavelengths in supplied spectrum/n,k files}
-
+    lambdaStep = 1E-9; {wavelength lambda step size for optical profile}
+    xStep = 1E-9; {grid step size (Only for the TCO and BE layers in optical calculations)}
 
 TYPE 
     TProgram = (ZimT, SimSS); {which program are we using?}

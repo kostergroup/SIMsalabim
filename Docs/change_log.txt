@@ -1,3 +1,35 @@
+Version 5.18, 30 Jan 2025, SH, LJAK
+We have done a little work on the transfer matrix routines:
+
+1) moved constants xstep and lambda_step from Transfermatrix unit to DDTypesAndConstants and renamed them for consistency (xStep and lambdaStep).
+2) after reading-in the n&k of a layer, we check if k*thickness/lambda is not too large. Later on in the code, we compute things like exp(k * thickness/lambda), so this exponential function can crash the code if the layers are very thick.
+3) in order to do item 2, we have moved function Max_Value_myReal from DDRoutintes to NumericalUtils.pp.
+
+
+
+Version 5.17, 17 Jan 2025, VLC, LJAK, SH
+We have introduced a new function (DDRoutines/Stop_Prog_Finalize_Log) such that when we check the validity of the input parameters (Check_Paramters), the log file will show any error messages and corresponding excit code. As a result, we now first read the parameters, then create the log file (as we need its name!), and the proceed to check the validty of the input parameters. 
+
+
+Version 5.16, 18 Dec 2024, SH
+Fixed a small bug: When checking the minimum spacing between consecutive wavelenghts in either spectrum or nk-files, the number of wavelenght/values to be checked was not correct. Instead of the number of wavelengths in the files, the number of wavelengths as specified by the user was taken, resulting in incorrect functioning of the check. Also removed an extra entry of 900nm in several nk-files.
+
+
+Version 5.15, 16 Dec 2024, SH, LJAK
+
+We have changed the order of the main loop (Main_Solver): First (before entering the loop), we run the Poisson solver to ensure the potential is in commensurate with the carrier densities. Then, inside the main loop, we FIRST solve the continuity equations, and THEN the Poisson equation. This makes it more stable.
+
+Also, we removed a bug from the linearization of the bulk trap level that enters Poisson:
+
+1) Changed line 1640 in DDRoutines from
+    f_tb_m_level:=par.lyr[j].bulkTrapType*(stv.Ntb[j].cwe - f_tb_m_level) * stv.Ntb[j].Nt[e];	
+to
+    f_tb_m_level:=f_tb_m_level * stv.Ntb[j].Nt[e];
+as this was wrong (see version 4.59).
+
+2) changed n[i+1] to n[i] in line 1638 as this was wrong (see v. 4.59).
+
+
 Version 5.14, 10 July 2024, SH, LJAK
 Fixed a small bug: specifying a name of the first layer via the command line did not function properly.
 

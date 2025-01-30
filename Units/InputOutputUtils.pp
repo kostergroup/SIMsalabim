@@ -3,7 +3,7 @@ unit InputOutputUtils;
 
 {
 SIMsalabim: a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2023, 2024, S. Heester, Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
+Copyright (c) 2020, 2021, 2023, 2024, 2025, S. Heester, Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -304,10 +304,11 @@ function FindFile(key : string) : string;
 {looks for a file with part of its name = key}
 var Info : TSearchRec;
 begin
-     If FindFirst (key, faAnyFile, Info) = 0
-     then FindFile:=Info.Name
-     else FindFile:='';
-     FindClose(Info);
+	if FindFirst (key, faAnyFile, Info) = 0 then
+		FindFile:=Info.Name
+	else 
+		FindFile:='';
+	FindClose(Info)
 end;
 
 FUNCTION ConvertStrToFloat(str : STRING; VAR r : myReal) : BOOLEAN;

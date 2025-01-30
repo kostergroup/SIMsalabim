@@ -3,7 +3,7 @@ unit TransferMatrix;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023, 2024, 2025, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -42,10 +42,9 @@ USES
 	SysUtils,
     Ucomplex;
 
-CONST   TransferMatrixVersion = '5.14'; {version of this unit}
+CONST   TransferMatrixVersion = '5.18'; {version of this unit}
 
-        lambda_step = 1E-9; {lambda step size}
-        xstep = 1E-9; {grid step size (Only for the TCO and BE layers.)}
+
 TYPE 
     TFMatrix = ARRAY[0..1,0..1] OF COMPLEX;
 
@@ -56,10 +55,10 @@ IMPLEMENTATION
 
 VAR  E : ComplexMatrix; {Use a global variable because when implementing as a local variable, program crashes with memory issues}
 
-FUNCTION Array_Size(xmin, xmax, xstep : myReal) : INTEGER;
+FUNCTION Array_Size(xmin, xmax, xStep : myReal) : INTEGER;
 {Calculate the size of an evenly spaced bound array}
 BEGIN
-    Array_Size := Round((xmax - xmin)/xstep);
+    Array_Size := Round((xmax - xmin)/xStep);
 END;
 
 FUNCTION Cumulative_Sum(size : INTEGER; arr : Row) : Row;
@@ -189,17 +188,17 @@ BEGIN
     Layers[i+1] := par.nkBE;
 END;
 
-PROCEDURE Read_nk_Material_From_File(idx, NoOfLambdas: INTEGER; Material : STRING; lambdas : row; VAR nTotal : ComplexMatrix);
+PROCEDURE Read_nk_Material_From_File(idx, NoOfLambdas: INTEGER; Material : STRING; lambdas : row; layerThickness : myReal; VAR nTotal : ComplexMatrix);
 {Read lambda,n,k values from a  file. 
 Interpolate the read values to assign n,k values for each lambda provided. Store the complex variant for each lambda in nTotal as n + ik }
-VAR l,NumValues : INTEGER;
+VAR l, NumValues : INTEGER;
     nInt, kInt, lFile, nFile, kFile : Row;
 BEGIN
     writeln('Reading nk file: ',Material);
     Read_XYZ_Table(lFile, nFile, kFile, Material, 'lambda n k', NumValues);
 
-    {Check the whether the spacing between wavelenths is at least the minimal value as defined in the DDTypesAndConstants unit}
-    FOR l:=1 to NoOfLambdas-1 DO
+    {Check the whether the spacing between wavelengths is at least the minimal value as defined in the DDTypesAndConstants unit}
+    FOR l:=1 to NumValues-1 DO
         BEGIN
             IF (lFile[l]-lFile[l-1]) < 0.999*minDeltaLambda THEN {Use a tolerance of 0.1% to account for floating point variations}
 			    Stop_Prog('Spacing between consecutive wavelengths in the nk-values in file ' + Material + ' is too small, must be >= ' + FloatToStr(minDeltaLambda) + 'm', EC_InvalidInput)
@@ -212,6 +211,8 @@ BEGIN
     BEGIN
         nTotal[idx][l].re := nInt[l]; {Real part}
         nTotal[idx][l].im := kInt[l];  {Imaginary part}
+        IF ABS(kInt[l]*layerThickness/lambdas[l]) > LN(Max_Value_Real) THEN {note: uComplex defines type complex as record of real (not myReal)}
+			Stop_Prog('Combination of extinction coefficient k and thickness of ' + Material + ' implies too strong an absorption.', EC_InvalidInput)   
     END;
 END;
 
@@ -244,11 +245,11 @@ BEGIN
     NoOfXPosTCO := 0;
     IF par.L_TCO > 0 THEN {Check if TCO layer defined}
     BEGIN
-        NoOfXPosTCO := Array_Size(0,par.L_TCO,xstep); {TCO layer}
-        IF NoOfXPosTCO*xstep = par.L_TCO THEN {When the last x position of the TCO layer matches the layer boundary, exclude it because it will be taken into account in the next layer }
+        NoOfXPosTCO := Array_Size(0,par.L_TCO,xStep); {TCO layer}
+        IF NoOfXPosTCO*xStep = par.L_TCO THEN {When the last x position of the TCO layer matches the layer boundary, exclude it because it will be taken into account in the next layer }
             NoOfXPosTCO := NoOfXPosTCO - 1;
     END;
-    NoOfXPosBE := Array_Size(0,par.L_BE,xstep) +1; {Back electrode, include the very last point}
+    NoOfXPosBE := Array_Size(0,par.L_BE,xStep) +1; {Back electrode, include the very last point}
     NoOfXPos := NoOfXPosTCO + (par.NP + 2) + NoOfXPosBE; {Total number of grid points}
     {Create an Array (grid) with x positions. For the TCO and BE layers, create an unifrom grid.  
     Create matching xMat array (same length and indices) which contains the layer idx for the grid point. Idx 0 is reserved for the TCO, even when it has a thickness of 0.}
@@ -259,7 +260,7 @@ BEGIN
     BEGIN
         FOR f:=0 TO NoOfXPosTCO-1 DO
         BEGIN
-            xPos[f] := f*xstep;
+            xPos[f] := f*xStep;
             xMat[f] := 0;
         END;
     END;
@@ -272,7 +273,7 @@ BEGIN
 
     FOR f := 1 TO NoOfXPosBE DO {Back electrode, uniform grid}
     BEGIN
-        xPos[f+NoOfXPosTCO + par.NP +1] := par.L_TCO + stv.Ltot + (f)*xstep;
+        xPos[f+NoOfXPosTCO + par.NP +1] := par.L_TCO + stv.Ltot + (f)*xStep;
         xMat[f+NoOfXPosTCO + par.NP +1] := stv.NLayers +1;
     END;
 END;
@@ -405,11 +406,11 @@ BEGIN
 
     IF par.lambda_min <> par.lambda_max THEN {Range of lambdas defined, create an evenly spaced array}
     BEGIN
-        NoOfLambdas := Array_Size(par.lambda_min, par.lambda_max, lambda_step)+1; {Get the number of elements for lambda/wavelength}
+        NoOfLambdas := Array_Size(par.lambda_min, par.lambda_max, lambdaStep)+1; {Get the number of elements for lambda/wavelength}
         SetLength(lambdas,NoOfLambdas); {Set size of lambdas array}
         FOR k:=0 TO NoOfLambdas-1 DO {Fill the evenly spaced lambdas array}
         BEGIN
-            lambdaInd := par.lambda_min + k*lambda_step;
+            lambdaInd := par.lambda_min + k*lambdaStep;
             lambdaFormat := StrToFloat(Format('%.6e', [lambdaInd])); {Limit the number of decimals to 6 to prevent interpolation issues when processing the nk- and spectrum values}
             lambdas[k] := lambdaFormat;
         END;
@@ -427,10 +428,10 @@ BEGIN
     SetLength(RGlass, NoOfLambdas); {Initialise RGlass array}
 
     {The nk vlaues for the substrate are need for the calculation, but are not treated as a layer. They require a seperate parameter.}
-    Read_nk_Material_From_File(0, NoOfLambdas, par.nkSubstrate, lambdas, nSubstrate); {Sets complex index of refraction(n+ik) for all lambdas in Lambdas Array}
+    Read_nk_Material_From_File(0, NoOfLambdas, par.nkSubstrate, lambdas, Thicknesses[0], nSubstrate); {Sets complex index of refraction(n+ik) for all lambdas in Lambdas Array}
 
     FOR j:=StartIdx TO stv.NLayers+1 DO {Calculate complex refracive index based on the material type/name and material data files}
-        Read_nk_Material_From_File(j, NoOfLambdas, Layers[j], lambdas, nTotal); {Sets complex index of refraction(n+ik) for all lambdas in Lambdas Array}
+        Read_nk_Material_From_File(j, NoOfLambdas, Layers[j], lambdas, Thicknesses[j], nTotal); {Sets complex index of refraction(n+ik) for all lambdas in Lambdas Array}
 
     FOR k:=0 TO NoOfLambdas-1 DO {Calculate Reflection/Transmission Coefficient for every lambda}
         RGlass[k] := cmod(((1-nSubstrate[0,k])/(1+nSubstrate[0,k]))**2);
@@ -449,7 +450,7 @@ BEGIN
     SetLength(AMValue,NoOfLambdas); {Initialise AM values Array}
     Read_AM_From_File(par.spectrum, NoOfLambdas, lambdas, AMValue);  {Read AM File}
 
-    Calc_Generation_Rate(stv, par, NoOfLambdas, NoOfXPos, lambda_step, xMat, lambdas, AMValue, AbsCoef, nTotal, NoOfGenRatePos, genRate); {Calculate generation rate (genRate)}
+    Calc_Generation_Rate(stv, par, NoOfLambdas, NoOfXPos, lambdaStep, xMat, lambdas, AMValue, AbsCoef, nTotal, NoOfGenRatePos, genRate); {Calculate generation rate (genRate)}
     
     stv.orgGm := genRate; {Fits on the existing grid (par.NP + 1)}
 

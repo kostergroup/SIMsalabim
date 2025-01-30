@@ -3,7 +3,7 @@ unit DDRoutines;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023, 2024, 2025 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.14'; {version of this unit}
+CONST DDRoutinesVersion = '5.18'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -57,10 +57,6 @@ PROCEDURE Print_Welcome_Message(ProgName : TProgram; version : STRING);
 
 PROCEDURE Display_Help_Exit(ProgName : TProgram); 
 {displays a short help message and exits}
-
-FUNCTION Max_Value_myReal : EXTENDED;
-{Determines the largest value that can be stored in myReal. The result, thus,
-depends on how myReal was defined. It should be a single, double or extended.}
 
 PROCEDURE Set_Number_Digits(LimOutput : BOOLEAN; BytesInReal : INTEGER);
 {sets the number of digits when printing real numbers (in global var nd), 
@@ -81,7 +77,7 @@ PROCEDURE Finalize_Log_File(VAR log : TEXT; MsgStr : ANSISTRING);
 PROCEDURE Read_Parameters(parameterFile : STRING; VAR msg : ANSISTRING; VAR par : TInputParameters; VAR stv : TStaticVars; ProgName : TProgram);
 {Reads-in all the parameters. Some bits are specific to either ZimT or SimSS}
 
-PROCEDURE Check_Parameters(CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; ProgName : TProgram);
+PROCEDURE Check_Parameters(VAR log : TEXT; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; ProgName : TProgram);
 {performs a number of checks on the parameters. Just to ensure that they are valid, consistent, make sense}
 {Some bits are specific to either ZimT or SimSS}
 
@@ -152,7 +148,7 @@ VAR strprogname : STRING;
 BEGIN
     Str(ProgName, strprogname); {convert variable ProgName to a string}
     WRITELN('Welcome to ',strprogname,' version ',version,'.');
-    WRITELN('Copyright (C) 2020, 2021, 2022, 2023, 2024, S. Heester, Dr T.S. Sherkar,'); 
+    WRITELN('Copyright (C) 2020, 2021, 2022, 2023, 2024, 2025, S. Heester, Dr T.S. Sherkar,'); 
     WRITELN('Dr V.M. Le Corre, Dr M. Koopmans, F. Wobben,');
     WRITELN('and Prof L.J.A. Koster, University of Groningen.');
     WRITELN;
@@ -219,35 +215,6 @@ BEGIN
 	END;
    
     Average := sumy/sumh;
-END;
-
-FUNCTION Max_Value_myReal : EXTENDED;
-{Determines the largest value that can be stored in myReal. The result, thus,
-depends on how myReal was defined. It should be a single, doulbe or extended.}
-VAR dummy : EXTENDED;
-BEGIN
-	dummy:=0;
-
-	{we assume that singles and doubles are available}
-	IF TypeInfo(myReal) = TypeInfo(single) THEN dummy:=MaxSingle;
-	IF TypeInfo(myReal) = TypeInfo(double) THEN dummy:=MaxDouble;
-
-	{however, extended reals might not be available, so we check:}
-{$IFDEF FPC_HAS_TYPE_EXTENDED}
-	IF TypeInfo(myReal) = TypeInfo(extended) THEN dummy:=MaxExtended;
-{$ENDIF}
-
-	{at this point: if dummy is still zero, then myReal was not the right type!}
-
-{$IFDEF FPC_HAS_TYPE_EXTENDED}
-	IF dummy=0 THEN Stop_Prog('Error in function Max_Value_myReal. myReal should be single, double, or extended.', EC_ProgrammingError);
-{$ELSE}
-	{we're assuming that we do have singles and doubles}
-	IF dummy=0 THEN Stop_Prog('Error in function Max_Value_myReal. myReal should be single or double.', EC_ProgrammingError);
-{$ENDIF}	
-	
-	{OK, now we can be sure that myReal is of the right type}
-	Max_Value_myReal:=dummy;
 END;
 
 PROCEDURE Set_Number_Digits(LimOutput : BOOLEAN; BytesInReal : INTEGER);
@@ -352,6 +319,15 @@ BEGIN
 	CLOSE(log)
 END;
 
+PROCEDURE Stop_Prog_Finalize_Log(VAR log : TEXT; msg : STRING; exitCode : INTEGER; wait_for_user : BOOLEAN = FALSE);
+{Prints a message (msg) on screen and in the log file, and then stops the program}
+VAR MsgStr : ANSISTRING;
+BEGIN
+    MsgStr:='Program will be terminated.' + LineEnding + msg + LineEnding;
+	MsgStr:=MsgStr + 'Will exit with exit code ' + IntToStr(exitCode) + LineEnding;
+    Finalize_Log_File(log, MsgStr); {this writes MsgStr and timestamp to log file and closes it}
+    Stop_Prog(msg, exitCode, wait_for_user) {This terminates the program and returns the exit code so the outside world knows there was an error.}
+END;
 
 PROCEDURE Read_Layer_Parameters(VAR layerPar : TLayerParameters; layerNumber : INTEGER; VAR msg : ANSISTRING; VAR stv : TStaticVars);
 {Reads-in parameters of layer layerNumber}
@@ -664,7 +640,7 @@ BEGIN
     msg:=msg + 'Read simulation setup from ' + parameterFile + LineEnding
 END;
 
-PROCEDURE Check_Parameters_Layer(CONSTREF layerPar : TLayerParameters; layerNumber : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
+PROCEDURE Check_Parameters_Layer(VAR log : TEXT; CONSTREF layerPar : TLayerParameters; layerNumber : INTEGER; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {performs a number of checks on the parameters of an individual layer}
 VAR dumStr : STRING;
 BEGIN
@@ -711,7 +687,7 @@ BEGIN
 	END {with statement}
 END;
 
-PROCEDURE Check_Parameters(CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; ProgName : TProgram);
+PROCEDURE Check_Parameters(VAR log : TEXT; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; ProgName : TProgram);
 {performs a number of checks on the parameters. Just to ensure that they are valid, consistent, make sense}
 {Some bits are specific to either ZimT or SimSS}
 VAR ZimT, SimSS	: BOOLEAN;
@@ -724,94 +700,94 @@ BEGIN
   
     {when adding new check, please keep the order in line with the device_parameter file}
     {Check first if stv.Vt has been initialised. This should have happened in Read_Parameters}
-    IF (stv.Vt=0) THEN Stop_Prog('stv.Vt needs to be initialised before calling Check_Parameters.', EC_ProgrammingError);
+    IF (stv.Vt=0) THEN Stop_Prog_Finalize_Log(log, 'stv.Vt needs to be initialised before calling Check_Parameters.', EC_ProgrammingError);
 
 {now we check all parameters in 3 blocks: 1) general, 2) layer specific, 3) at interfaces}
 
 	WITH par DO BEGIN
 {checks on contacts:}
 		{part of this can only be done after checking the TLs!}
-		IF R_series<0 THEN Stop_Prog('R_series cannot be negative.', EC_InvalidInput);
-		IF R_shunt=0 THEN Stop_Prog('R_shunt cannot be zero, use positive (negative) value for finite (infinite) shunt resistance.', EC_InvalidInput);
+		IF R_series<0 THEN Stop_Prog_Finalize_Log(log, 'R_series cannot be negative.', EC_InvalidInput);
+		IF R_shunt=0 THEN Stop_Prog_Finalize_Log(log, 'R_shunt cannot be zero, use positive (negative) value for finite (infinite) shunt resistance.', EC_InvalidInput);
 
 {checks on energy levels:}
-		IF W_L < lyr[1].E_c THEN Stop_Prog('W_L cannot be smaller than E_c of leftmost layer.',EC_InvalidInput);
-		IF W_L > lyr[1].E_v THEN Stop_Prog('W_L cannot be larger than E_v of leftmost layer.', EC_InvalidInput);
-		IF W_R < lyr[stv.NLayers].E_c THEN Stop_Prog('W_R cannot be smaller than E_c of rightmost layer.', EC_InvalidInput);
-		IF W_R > lyr[stv.NLayers].E_v THEN Stop_Prog('W_R cannot be larger than E_v of rightmost layer.', EC_InvalidInput);
+		IF W_L < lyr[1].E_c THEN Stop_Prog_Finalize_Log(log, 'W_L cannot be smaller than E_c of leftmost layer.',EC_InvalidInput);
+		IF W_L > lyr[1].E_v THEN Stop_Prog_Finalize_Log(log, 'W_L cannot be larger than E_v of leftmost layer.', EC_InvalidInput);
+		IF W_R < lyr[stv.NLayers].E_c THEN Stop_Prog_Finalize_Log(log, 'W_R cannot be smaller than E_c of rightmost layer.', EC_InvalidInput);
+		IF W_R > lyr[stv.NLayers].E_v THEN Stop_Prog_Finalize_Log(log, 'W_R cannot be larger than E_v of rightmost layer.', EC_InvalidInput);
 		
 {checks on optics, generation and recombination parameters}
 		IF Use_gen_profile = 1 THEN BEGIN
-			IF L_TCO < 0 THEN Stop_Prog('L_TCO cannot be negative.', EC_InvalidInput);
-			IF L_BE <= 0 THEN Stop_Prog('L_BE must be positive.', EC_InvalidInput);
-			IF lambda_min > lambda_max THEN Stop_Prog('lambda_min cannot be larger than lambda_max.', EC_InvalidInput);
-			IF lambda_min <= 0 THEN Stop_Prog('lambda_min must be positive.', EC_InvalidInput); 
+			IF L_TCO < 0 THEN Stop_Prog_Finalize_Log(log, 'L_TCO cannot be negative.', EC_InvalidInput);
+			IF L_BE <= 0 THEN Stop_Prog_Finalize_Log(log, 'L_BE must be positive.', EC_InvalidInput);
+			IF lambda_min > lambda_max THEN Stop_Prog_Finalize_Log(log, 'lambda_min cannot be larger than lambda_max.', EC_InvalidInput);
+			IF lambda_min <= 0 THEN Stop_Prog_Finalize_Log(log, 'lambda_min must be positive.', EC_InvalidInput); 
 			{note, now we are sure that lambda_max is also positive!}		
 		END;
 
 {checks on numerical parameters:}
-		IF (NP<=15) OR (NP>Max_NP) THEN Stop_Prog('Invalid number of grid points (NP) selected, must be >=15 and <='+IntToStr(Max_NP)+'.', EC_InvalidInput);
-		IF MinGridPointsPerLayer * stv.NLayers > NP THEN Stop_Prog('Not enough grid points (NP) to put the minimum number of grid points per layer.', EC_InvalidInput);
-		IF (currDiffInt <> 1) AND (currDiffInt <> 2) THEN Stop_Prog('currDiffInt can only be 1 or 2.', EC_InvalidInput);
-		IF maxDelV<=0 THEN Stop_Prog('maxDelV should be positive.', EC_InvalidInput);
-		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog('maxDelV*Vt should be (much) larger than tolPois.', EC_InvalidInput);
-		IF tolDens <= 0 THEN Stop_Prog('tolDens must be larger than zero.', EC_InvalidInput);
-		IF couplePC < 0 THEN Stop_Prog('couplePC must be non-negative.', EC_InvalidInput);
+		IF (NP<=15) OR (NP>Max_NP) THEN Stop_Prog_Finalize_Log(log, 'Invalid number of grid points (NP) selected, must be >=15 and <='+IntToStr(Max_NP)+'.', EC_InvalidInput);
+		IF MinGridPointsPerLayer * stv.NLayers > NP THEN Stop_Prog_Finalize_Log(log, 'Not enough grid points (NP) to put the minimum number of grid points per layer.', EC_InvalidInput);
+		IF (currDiffInt <> 1) AND (currDiffInt <> 2) THEN Stop_Prog_Finalize_Log(log, 'currDiffInt can only be 1 or 2.', EC_InvalidInput);
+		IF maxDelV<=0 THEN Stop_Prog_Finalize_Log(log, 'maxDelV should be positive.', EC_InvalidInput);
+		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog_Finalize_Log(log, 'maxDelV*Vt should be (much) larger than tolPois.', EC_InvalidInput);
+		IF tolDens <= 0 THEN Stop_Prog_Finalize_Log(log, 'tolDens must be larger than zero.', EC_InvalidInput);
+		IF couplePC < 0 THEN Stop_Prog_Finalize_Log(log, 'couplePC must be non-negative.', EC_InvalidInput);
 		{check if values of minAcc and maxAcc makes any sense:}
-		IF maxAcc >= 2 THEN Stop_Prog('maxAcc must be smaller than 2.', EC_InvalidInput);  
-		IF minAcc <= 0 THEN Stop_Prog('minAcc must be positive.', EC_InvalidInput);  
-		IF minAcc > maxAcc THEN Stop_Prog('minAcc cannot be larger than maxAcc.', EC_InvalidInput);  
-		IF NOT (failureMode IN [0,1,2]) THEN Stop_Prog('Invalid failureMode selected.', EC_InvalidInput);
+		IF maxAcc >= 2 THEN Stop_Prog_Finalize_Log(log, 'maxAcc must be smaller than 2.', EC_InvalidInput);  
+		IF minAcc <= 0 THEN Stop_Prog_Finalize_Log(log, 'minAcc must be positive.', EC_InvalidInput);  
+		IF minAcc > maxAcc THEN Stop_Prog_Finalize_Log(log, 'minAcc cannot be larger than maxAcc.', EC_InvalidInput);  
+		IF NOT (failureMode IN [0,1,2]) THEN Stop_Prog_Finalize_Log(log, 'Invalid failureMode selected.', EC_InvalidInput);
 
 {checks on voltages, SimSS only:}
 		IF SimSS THEN
 		BEGIN
-			IF NOT (Vdist IN [1,2]) THEN Stop_Prog('Invalid voltage distribution selected.', EC_InvalidInput);
-			IF ABS(Vscan) <> 1 THEN Stop_Prog('Vscan must be either -1 or 1.', EC_InvalidInput);
+			IF NOT (Vdist IN [1,2]) THEN Stop_Prog_Finalize_Log(log, 'Invalid voltage distribution selected.', EC_InvalidInput);
+			IF ABS(Vscan) <> 1 THEN Stop_Prog_Finalize_Log(log, 'Vscan must be either -1 or 1.', EC_InvalidInput);
 			{check if Vmin and Vmax are not too small or large:}
-			IF Vmin*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog('Vmin is too small.', EC_InvalidInput);
-			IF Vmax*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('Vmax is too large.', EC_InvalidInput);
-			IF Vmin > Vmax THEN Stop_Prog('Vmin should not be greater than Vmax.', EC_InvalidInput);
+			IF Vmin*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog_Finalize_Log(log, 'Vmin is too small.', EC_InvalidInput);
+			IF Vmax*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog_Finalize_Log(log, 'Vmax is too large.', EC_InvalidInput);
+			IF Vmin > Vmax THEN Stop_Prog_Finalize_Log(log, 'Vmin should not be greater than Vmax.', EC_InvalidInput);
 			{now check for redundancy of pre-bias:}
 			IF preCond THEN
 			BEGIN
 				IF R_series>0 THEN Warn_User('Pre-bias voltage does not take R_series into account, so Vpre=Vint.');
-				IF ABS(Vpre)*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('|Vpre| is too large.', EC_InvalidInput);
-				IF (Vscan=1) AND (Vpre=Vmin) THEN Stop_Prog('Pre-bias voltage is equal to Vmin, makes no sense.', EC_InvalidInput);
-				IF (Vscan=-1) AND (Vpre=Vmax) THEN Stop_Prog('Pre-bias voltage is equal to Vmax, makes no sense.', EC_InvalidInput);
+				IF ABS(Vpre)*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog_Finalize_Log(log, '|Vpre| is too large.', EC_InvalidInput);
+				IF (Vscan=1) AND (Vpre=Vmin) THEN Stop_Prog_Finalize_Log(log, 'Pre-bias voltage is equal to Vmin, makes no sense.', EC_InvalidInput);
+				IF (Vscan=-1) AND (Vpre=Vmax) THEN Stop_Prog_Finalize_Log(log, 'Pre-bias voltage is equal to Vmax, makes no sense.', EC_InvalidInput);
 			END;
 			IF (Vacc >= Vmin) AND (Vacc <= Vmax) AND (Vdist = 2) THEN {Vacc is not valid} 
-				Stop_Prog('Invalid Vacc selected, must be outside [Vmin, Vmax].', EC_InvalidInput);
-			IF (Vdist=1) AND (Vstep <= 0) THEN Stop_Prog('Vstep should be positive.', EC_InvalidInput);	
+				Stop_Prog_Finalize_Log(log, 'Invalid Vacc selected, must be outside [Vmin, Vmax].', EC_InvalidInput);
+			IF (Vdist=1) AND (Vstep <= 0) THEN Stop_Prog_Finalize_Log(log, 'Vstep should be positive.', EC_InvalidInput);	
 			IF (ABS(Vmin-Vmax) < 1e-10) AND (Vdist=2) {to avoid infinite loop of Va}
-			THEN Stop_Prog('Do not use Vdist=2 when Vmin = Vmax.', EC_InvalidInput);	
+			THEN Stop_Prog_Finalize_Log(log, 'Do not use Vdist=2 when Vmin = Vmax.', EC_InvalidInput);	
 		END;
 
 {checks on user-interface:}
-		IF timeout = 0 THEN Stop_Prog('Invalid timeout: either positive number in seconds or negative for unlimited run time.', EC_InvalidInput);
+		IF timeout = 0 THEN Stop_Prog_Finalize_Log(log, 'Invalid timeout: either positive number in seconds or negative for unlimited run time.', EC_InvalidInput);
 		IF SimSS 
 		THEN BEGIN
 			IF (G_frac <> 0) AND (stv.V0 <> stv.VL) AND useExpData AND (fitMode=logarithmic) {this is a weird combination, warn user}
 				THEN Warn_User('You are fitting a solar cell with fitMode=log.');
-			IF useExpData AND untilVoc THEN Stop_Prog('You cannot use untilVoc = 1 and useExpData = 1 at the same time.', EC_InvalidInput);
-			IF useExpData AND preCond THEN Stop_Prog('You cannot use pre-conditioning (preCond) and useExpData = 1 at the same time.', EC_InvalidInput);
+			IF useExpData AND untilVoc THEN Stop_Prog_Finalize_Log(log, 'You cannot use untilVoc = 1 and useExpData = 1 at the same time.', EC_InvalidInput);
+			IF useExpData AND preCond THEN Stop_Prog_Finalize_Log(log, 'You cannot use pre-conditioning (preCond) and useExpData = 1 at the same time.', EC_InvalidInput);
 			IF ((fitThreshold<=0) OR (fitThreshold>1)) AND useExpData THEN
-				Stop_Prog('fitThreshold has to be larger than 0 but not larger than 1.', EC_InvalidInput);
+				Stop_Prog_Finalize_Log(log, 'fitThreshold has to be larger than 0 but not larger than 1.', EC_InvalidInput);
 		END;		
-		IF SimSS AND (outputRatio < 0) THEN Stop_Prog('outputRatio should be 0 (no output) or positive.', EC_InvalidInput); {if zero, then simply no var file output}
-		IF ZimT AND (outputRatio <= 0) THEN Stop_Prog('outputRatio should be positive.', EC_InvalidInput); {In ZimT it cannot be zero as we NEED to write output as it also limits the output to screen.}
+		IF SimSS AND (outputRatio < 0) THEN Stop_Prog_Finalize_Log(log, 'outputRatio should be 0 (no output) or positive.', EC_InvalidInput); {if zero, then simply no var file output}
+		IF ZimT AND (outputRatio <= 0) THEN Stop_Prog_Finalize_Log(log, 'outputRatio should be positive.', EC_InvalidInput); {In ZimT it cannot be zero as we NEED to write output as it also limits the output to screen.}
     END;
     
 {now check the individual layers:}
 	FOR i:=1 TO stv.NLayers DO
-		Check_Parameters_Layer(par.lyr[i], i, stv, par);    
+		Check_Parameters_Layer(log, par.lyr[i], i, stv, par);    
     
 {now we check what happens at the interfaces:}    
     FOR i:=1 TO stv.NLayers-1 DO 
     WITH par DO BEGIN
-		IF lyr[i].E_c > lyr[i+1].E_v THEN Stop_Prog('Invalid band alignment between layers '+IntToStr(i)+' and '+IntToStr(i+1)+'.', EC_InvalidInput);
-		IF lyr[i].E_v < lyr[i+1].E_c THEN  Stop_Prog('Invalid band alignment between layers '+IntToStr(i)+' and '+IntToStr(i+1)+'.', EC_InvalidInput);
-		IF (lyr[i].N_t_int > 0) AND NOT (ABS(lyr[i].intTrapType) IN [0, 1]) THEN Stop_Prog('Invalid right interface trap type.', EC_InvalidInput);
+		IF lyr[i].E_c > lyr[i+1].E_v THEN Stop_Prog_Finalize_Log(log, 'Invalid band alignment between layers '+IntToStr(i)+' and '+IntToStr(i+1)+'.', EC_InvalidInput);
+		IF lyr[i].E_v < lyr[i+1].E_c THEN  Stop_Prog_Finalize_Log(log, 'Invalid band alignment between layers '+IntToStr(i)+' and '+IntToStr(i+1)+'.', EC_InvalidInput);
+		IF (lyr[i].N_t_int > 0) AND NOT (ABS(lyr[i].intTrapType) IN [0, 1]) THEN Stop_Prog_Finalize_Log(log, 'Invalid right interface trap type.', EC_InvalidInput);
 		{the trap energies (if any) are checked in proc Init_Trap_Distribution}
     END;
  
@@ -1635,9 +1611,9 @@ BEGIN
 				BEGIN	
 					f_tb_numer:=par.lyr[j].C_n_bulk*n[i] + par.lyr[j].C_p_bulk * stv.Ntb[j].pt0[e];
 					f_tb_inv_denom:=1 / (par.lyr[j].C_n_bulk*(n[i]+stv.Ntb[j].nt0[e]) + par.lyr[j].C_p_bulk*(p[i] + stv.Ntb[j].pt0[e]));
-					f_tb_m_level:=par.lyr[j].C_n_bulk * n[i+1] * f_tb_inv_denom;
+					f_tb_m_level:=par.lyr[j].C_n_bulk * n[i] * f_tb_inv_denom;
 					f_tb_m_level:=f_tb_m_level - (par.lyr[j].C_n_bulk * n[i] - par.lyr[j].C_p_bulk * p[i]) * f_tb_numer * SQR(f_tb_inv_denom);
-					f_tb_m_level:=par.lyr[j].bulkTrapType*(stv.Ntb[j].cwe - f_tb_m_level) * stv.Ntb[j].Nt[e];					
+					f_tb_m_level:=f_tb_m_level * stv.Ntb[j].Nt[e];									
 					lin.f_tb_m[i]:=lin.f_tb_m[i] + f_tb_m_level {add the f_tb_m of this level to the overal sum}
 				END
 END;
@@ -2706,6 +2682,14 @@ BEGIN
 
 	coupleIonsPoisson:=AnyMovingIons; {signfies whether ion density can be modified by Poisson solver}
 
+	{Before we enter the main loop, we'll first solve for the potential:}
+	WITH new DO
+	BEGIN
+		{note: Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
+		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
+		Update_Gen_Pot(V, Vgn, Vgp, stv, par) {update generalised potentials}
+	END;
+
 	REPEAT WITH new DO
 	BEGIN
 		INC(it);
@@ -2720,9 +2704,6 @@ BEGIN
 		oldnion:=nion;
 		oldpion:=pion;
 
-		{note: Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
-		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
-		Update_Gen_Pot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 		{note: pass (new) p to Cont_Eq_Elec nor (new) n to Cont_Eq_Holes. This is needed so we can also do t=0!}
 		Cont_Eq_Elec(n, curr.n, Vgn, Jn, p, mun, gen, Lang, diss_prob, curr.f_tb, curr.f_ti, Rn, stv, par, dti); {calc. new elec. density}
 		Cont_Eq_Holes(p, curr.p, Vgp, Jp, n, mup, gen, Lang, diss_prob, curr.f_tb, curr.f_ti, Rp, stv, par, dti); {calc. new hole density}
@@ -2757,6 +2738,10 @@ BEGIN
 				pion[i]:=oldpion[i] + delpion[i]
 			END
 		END;
+
+		{note: Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
+		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
+		Update_Gen_Pot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 
 		{now check if the charge densities (n,p,nion,pion) have converged:}
 		convDensities:=Deterimine_Convergence_Densities(deln, delp, delnion, delpion, n, p, nion, pion, UpdateIons, accDens, ConvMsg, stv, par);

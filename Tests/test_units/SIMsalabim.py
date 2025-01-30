@@ -119,7 +119,7 @@ class SIMsalabim():
                 with open(file_path) as out_fil:
                     dic_entry = file[1:].split('File')[0].lower()
 
-                    data = pd.read_csv(out_fil, delim_whitespace=True)
+                    data = pd.read_csv(out_fil, sep=r'\s+')
                     if data.empty:
                         data = None
                     self.output_dic[dic_entry] = data

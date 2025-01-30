@@ -121,7 +121,7 @@ Please note that at the time of recording SimSS was called SIMsalabim, so the pr
 
 
 ## Running SimSS or ZimT
-- all parameters are specified in separate file (by default: device_parameters.txt) (in ZimT an additional time-voltage-generation (tVG) file is present to indicate what time, generation, and voltage at every simulation step).
+- all parameters are specified in separate file (by default: simulation_setup.txt) (in ZimT an additional time-voltage-generation (tVG) file is present to indicate what time, generation, and voltage at every simulation step).
 - on Linux run SimSS/ZimT by entering in the terminal from the folder where the compiled program is located and run using
 <pre><code>
 ./simss
@@ -149,7 +149,7 @@ Example: change of surface recombination of electrons at the left electrode (S_n
 <pre><code>
 ./simss -l2.mu_n 1e-4
 </code></pre>
-- multiple output files will be generated (see device_parameters) and log file.
+- multiple output files will be generated (see simulation_setup.txt) and log file.
 
 4) Other remarks
 - in general, input files and the log file have extension .txt, whereas output files that can be used for plotting (J-V curves, for example) have extension .dat.
@@ -184,6 +184,14 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 ## Scientific publications based on the SIMsalabim project
 
 List of publications (not complete):
+
+- J.M. Haffner-Schirmer, V.M. Le Corre, K. Forberich, H.J. Egelhaaf, T. Osterrieder, J. Wortmann, C. Liu, P. Weitz, T. Heumüller, A.J. Bornschlegl, J. Wachsmuth, A. Distler, M. Wagner, Z. Peng, L. Lüer, and C.J. Brabec, A High Throughput Platform to Minimize Voltage and Fill Factor Losses, Adv. Energy Mater. 2403479 (2025).
+
+- M. Majewski, S. Qiu, O. Ronsin, L. Lüer, V.M. Le Corre, T. Du, C.J. Brabec, H.J. Egelhaaf, and J. Harting, Simulation of perovskite thin layer crystallization with varying evaporation rates, Mater. Horiz. 12, 555 (2025).
+
+- Z.Peng, A. Vincze, F. Streller, V.M. Le Corre, K. Zhang, C. Li, J. Tian, C. Liu, J. Luo, Y. Zhao, A. Späth, R.H. Fink, T. Heumueller, A. Osvet, N. Li, M. Stolterfoht, L. Lüer,  and C.J. Brabec, Revealing Degradation Mechanisms in 3D/2D Perovskite Solar Cells under Photothermal Accelerated Ageing, Energy Environ. Sci. 17, 8313 (2024).
+
+- V.M. Le Corre, Space-Charge-Limited Current Measurements: A Problematic Technique for Metal Halide Perovskites, J. Phys. Chem. Lett. 15, 10001 (2024).
 
 - B. Sun, B. Gerber, S. Shoaee, and D. Neher, An Analytical Model for Describing Transient Photocurrents in Bias-Assisted Charge Extraction for Low-Mobility Organic Solar Cells, Sol. RRL, 2400211 (2024).
 

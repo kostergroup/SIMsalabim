@@ -2,7 +2,7 @@ unit NumericalUtils;
 
 {
 SIMsalabim: a 1D drift-diffusion simulator 
-Copyright (c) 2020, 2021, 2022, 2023, 2024, S. Heester, Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
+Copyright (c) 2020, 2021, 2022, 2023, 2024, 2025, S. Heester, Dr T.S. Sherkar, V.M. Le Corre, Dr M. Koopmans,
 F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -37,6 +37,14 @@ uses TypesAndConstants,
 	 Math, {power}
 	 SysUtils, {for reading the command line}
 	 StrUtils; {for DelSpace}
+
+FUNCTION Max_Value_myReal : EXTENDED;
+{Determines the largest value that can be stored in myReal. The result, thus,
+depends on how myReal was defined. It should be a single, double or extended.}
+
+FUNCTION Max_Value_Real : EXTENDED;
+{Determines the largest value that can be stored in real (note: real, not myReal!). The result, thus,
+depends on how real was defined. It should be a single, doulbe or extended.}
 
 FUNCTION RombergIntegration(f : MathFunc; a, b, TolRomb : myReal; MaxIt : INTEGER; wait_if_faulty : BOOLEAN) : myReal;
 {Romberg integration of function f from a to b. Rom[1,1] and Rom[2,1] are trapezoidal
@@ -101,6 +109,52 @@ FUNCTION Bessel(x : myReal) : myReal;
 
 
 implementation
+
+FUNCTION Max_Value_myReal : EXTENDED;
+{Determines the largest value that can be stored in myReal. The result, thus,
+depends on how myReal was defined. It should be a single, doulbe or extended.}
+VAR dummy : EXTENDED;
+BEGIN
+	dummy:=0;
+
+	{we assume that singles and doubles are available}
+	IF TypeInfo(myReal) = TypeInfo(single) THEN dummy:=MaxSingle;
+	IF TypeInfo(myReal) = TypeInfo(double) THEN dummy:=MaxDouble;
+
+	{however, extended reals might not be available, so we check:}
+{$IFDEF FPC_HAS_TYPE_EXTENDED}
+	IF TypeInfo(myReal) = TypeInfo(extended) THEN dummy:=MaxExtended;
+{$ENDIF}
+
+	{at this point: if dummy is still zero, then myReal was not the right type!}
+
+{$IFDEF FPC_HAS_TYPE_EXTENDED}
+	IF dummy=0 THEN Stop_Prog('Error in function Max_Value_myReal. myReal should be single, double, or extended.', EC_ProgrammingError);
+{$ELSE}
+	{we're assuming that we do have singles and doubles}
+	IF dummy=0 THEN Stop_Prog('Error in function Max_Value_myReal. myReal should be single or double.', EC_ProgrammingError);
+{$ENDIF}	
+	
+	{OK, now we can be sure that myReal is of the right type}
+	Max_Value_myReal:=dummy;
+END;
+
+FUNCTION Max_Value_Real : EXTENDED;
+{Determines the largest value that can be stored in real (note: real, not myReal!). The result, thus,
+depends on how real was defined. It should be a single, doulbe or extended.}
+BEGIN
+	CASE SizeOf(real) OF {real can be single, double, or extended depending on the platform}
+		4 : Max_Value_Real:=MaxSingle;
+		8 : Max_Value_Real:=MaxDouble;
+{extended reals might not be available, so we check:}
+{$IFDEF FPC_HAS_TYPE_EXTENDED}
+		10: Max_Value_Real:=MaxExtended
+{$ENDIF}
+	ELSE
+		Stop_Prog('Error in function Max_Value_Real. real should be single, double, or extended.', EC_ProgrammingError)	
+	END
+END;
+
 
 function RandomGaussian : myReal;
 {Generates a Gaussianly distributed random number, with mean = 0, SD = 1}
