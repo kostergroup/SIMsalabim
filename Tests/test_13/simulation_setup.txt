@@ -1,7 +1,7 @@
 ** SimSS Simulation Setup:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 5.18
+** version: 5.19
 
 **General***************************************************************************
 T = 295                            * K, absolute temperature

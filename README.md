@@ -185,6 +185,9 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
+- X. Rodríguez-Martínez, C. Tormann, M. Sanz-Lleó, B. Dörling, M. Gibert-Roca, A. Harillo-Baños, A. Abat Amelenan Torimtubun,
+E. Pascual-San-José, J.P. Jurado, L. López-Mir, M. Kemerink, and M. Campoy-Quiles, What Makes Thickness-Tolerant Organic Solar Cells?, Adv. Energy Mater. 2405735 (2025).
+
 - J.M. Haffner-Schirmer, V.M. Le Corre, K. Forberich, H.J. Egelhaaf, T. Osterrieder, J. Wortmann, C. Liu, P. Weitz, T. Heumüller, A.J. Bornschlegl, J. Wachsmuth, A. Distler, M. Wagner, Z. Peng, L. Lüer, and C.J. Brabec, A High Throughput Platform to Minimize Voltage and Fill Factor Losses, Adv. Energy Mater. 2403479 (2025).
 
 - M. Majewski, S. Qiu, O. Ronsin, L. Lüer, V.M. Le Corre, T. Du, C.J. Brabec, H.J. Egelhaaf, and J. Harting, Simulation of perovskite thin layer crystallization with varying evaporation rates, Mater. Horiz. 12, 555 (2025).

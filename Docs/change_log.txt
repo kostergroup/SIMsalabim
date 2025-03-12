@@ -1,3 +1,8 @@
+Version 5.19, 12 March 2025, LJAK
+
+I have included the quasi-Fermi level splitting (QFLS) in the JVFile (SimSS) or tjFile (ZimT): This shows the QFLS (in eV) in each layer, averaged over the layer.
+
+
 Version 5.18, 30 Jan 2025, SH, LJAK
 We have done a little work on the transfer matrix routines:
 

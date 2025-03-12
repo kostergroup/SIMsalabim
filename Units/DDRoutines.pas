@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.18'; {version of this unit}
+CONST DDRoutinesVersion = '5.19'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -2793,6 +2793,9 @@ BEGIN
 	IF transient THEN WRITE(uitv,' t');
 	WRITE(uitv,' Vext Jext errJ Jint ');
 	
+	{write the quasi-Fermi level splitting in each layer:}
+	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'QLFSL',IntToStr(j),' ');
+	
 	{next we show a break down of the photo- and recombination currents for each layer/interface:}
 	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JphotoL',IntToStr(j),' ');
 	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JdirL',IntToStr(j),' ');
@@ -2817,6 +2820,7 @@ PROCEDURE Write_To_tJV_File(VAR uitv : TEXT; CONSTREF CurrState, PrevState : Tst
 This proc writes the (time), voltage, currents, recombination currents to a file that contains the JV-curve}
 VAR JminLeft, JminRight : myReal;
 	j, NP : INTEGER;
+	QFLS : vector;
 
 	{first: 2 short functions that will aid in compact notation:}
 	FUNCTION Ave(Vec : vector; onGrid : BOOLEAN = FALSE) : myReal;
@@ -2843,6 +2847,11 @@ BEGIN
         
         WRITE(uitv,Vext:nd,' ',Jext:nd,' ',errJ:nd,' ',Jint:nd,' ');
         
+        {compute the quasi-Fermi level splitting QFLS in each point, and then average over each layer:}
+        FOR j:=0 TO par.NP+1 DO
+			QFLS[j]:=stv.Vt*LN((n[j]*p[j])/SQR(stv.ni[j])); {this is the QFLS in each grid point}
+		FOR j:=1 TO stv.NLayers DO WRITE(uitv, Average(QFLS, stv.h, stv.i0[j],stv.i1[j], TRUE):nd,' '); {QFLS averaged per layer}
+       
         {now we look at the photo- and recombination currents in each layer/interface:}
         {first: photo current and direct recombination:}
         FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(gen,stv.i0[j],stv.i1[j]):nd,' ');
