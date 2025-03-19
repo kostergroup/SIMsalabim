@@ -2794,7 +2794,7 @@ BEGIN
 	WRITE(uitv,' Vext Jext errJ Jint ');
 	
 	{write the quasi-Fermi level splitting in each layer:}
-	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'QLFSL',IntToStr(j),' ');
+	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'QFLSL',IntToStr(j),' ');
 	
 	{next we show a break down of the photo- and recombination currents for each layer/interface:}
 	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JphotoL',IntToStr(j),' ');
