@@ -26,7 +26,7 @@ email: l.j.a.koster@rug.nl
 surface mail: 
 L.J.A. Koster
 Zernike Institute for Advanced Materials
-Nijenborgh 3, 9747 AG Groningen, the Netherlands
+Nijenborgh 4, 9747 AG Groningen, the Netherlands
 }
 
 {$MODE OBJFPC} {force OBJFPC mode}

@@ -26,7 +26,7 @@ email:l.j.a.koster@rug.nl
 surface mail: 
 L.J.A. Koster
 Zernike Institute for Advanced Materials
-Nijenborgh 3, 9747 AG Groningen, the Netherlands
+Nijenborgh 4, 9747 AG Groningen, the Netherlands
 }
 
 {$MODE OBJFPC} {force OBJFPC mode}
@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.20'; {version of this unit}
+CONST DDRoutinesVersion = '5.21'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -515,9 +515,10 @@ BEGIN
 			Read_Layer_Parameters(lyr[i], i, msg, stv); 
 
 {**Contacts**************************************************************************}
-		Get_String(inv, msg, 'W_L', dumstr); {eV, work function left electrode (= cathode), or 'sfb'}
+		Get_Integer(inv, msg, 'leftElec', leftElec); {left electrode is the cathode (-1) or the anode (1)}
+		Get_String(inv, msg, 'W_L', dumstr); {eV, work function left electrode, or 'sfb'}
 		IF NOT ObtainWorkFunction(W_L, dumstr, lyr[1], stv) THEN Stop_Prog('Could not convert value of W_L to a numerical value.', EC_InvalidInput);	
-		Get_String(inv, msg, 'W_R', dumstr); {eV, work function right electrode (= anode), or 'sfb'}
+		Get_String(inv, msg, 'W_R', dumstr); {eV, work function right electrode, or 'sfb'}
 		IF NOT ObtainWorkFunction(W_R, dumstr, lyr[stv.NLayers], stv) THEN Stop_Prog('Could not convert value of W_R to a numerical value.', EC_InvalidInput);
 
 		stv.V0:=0.5*(-W_L + W_R);
@@ -706,6 +707,7 @@ BEGIN
 
 	WITH par DO BEGIN
 {checks on contacts:}
+		IF ABS(leftElec) <> 1 THEN Stop_Prog_Finalize_Log(log, 'leftElec must be either 1 (=anode) or -1 (=cathode).', EC_InvalidInput);
 		{part of this can only be done after checking the TLs!}
 		IF R_series<0 THEN Stop_Prog_Finalize_Log(log, 'R_series cannot be negative.', EC_InvalidInput);
 		IF R_shunt=0 THEN Stop_Prog_Finalize_Log(log, 'R_shunt cannot be zero, use positive (negative) value for finite (infinite) shunt resistance.', EC_InvalidInput);
@@ -1080,7 +1082,8 @@ VAR i, j : INTEGER;
 	locEF : myReal;
 BEGIN
     FOR i:=0 TO par.NP+1 DO {guess new V in interior of device} {linear interpolation of V}
-	    V[i]:=stv.V0 - Va/2 + stv.x[i]*(stv.VL-stv.V0+Va)/stv.Ltot;
+	    V[i]:=stv.V0 + 0.5*par.leftElec*Va + stv.x[i]*(stv.VL-stv.V0-par.leftElec*Va)/stv.Ltot;
+
 	Update_Gen_Pot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 
     FOR i:=0 TO par.NP+1 DO {guess n, p in interior of device}
@@ -2407,6 +2410,7 @@ VAR i : INTEGER;
 BEGIN
 	FOR i:=0 TO par.NP DO
 		JD[i]:=stv.eps[i] * (V[i+1]-V[i]-VPrevTime[i+1]+VPrevTime[i]) * dti / (stv.Ltot*stv.h[i]);
+
 	JD[par.NP+1]:=JD[par.NP]; {doesn't have a physical meaning though}
 END;
 
@@ -2431,7 +2435,7 @@ BEGIN
 	FOR i:=istart+1 TO ifinish DO
 		IF (i = stv.i1[stv.lid[i]]) THEN {we're crossing an interface}
 			J[i]:=J[i-1] + sn*0.5*q*stv.Ltot*stv.h[i]*(Rint[i] + Rint[i+1]);
-	
+
 	{last point as this is in the output (varFile)}
 	J[par.NP+1]:=J[par.NP]; {doesn't have a physical meaning: J[NP+1] is current between NP+1 and NP+2}
 END;
@@ -2550,7 +2554,17 @@ BEGIN
 		IF (dti<>0)
 			THEN Calc_Displacement_Curr(JD, V, curr.V, dti, stv, par) {calc. displacement current}
 			ELSE FILLCHAR(JD, SIZEOF(JD), 0); {if dti=0 => steady-state, so zero.}
-		
+
+		IF par.leftElec = 1 THEN {the left electrode is the anode, so we need to swap the sign of all currents:}
+			FOR i:=0 TO par.NP+1 DO
+			BEGIN
+				Jn[i]:=-Jn[i];
+				Jp[i]:=-Jp[i];
+				Jnion[i]:=-Jnion[i];
+				Jpion[i]:=-Jpion[i];
+				JD[i]:=-JD[i];
+			END;
+			
 		{now compute the total summed current:}
 		FOR i:=0 TO par.NP+1 DO
 			Jsum[i]:=Jn[i] + Jp[i] + Jnion[i] + Jpion[i] + JD[i];
@@ -2666,8 +2680,8 @@ VAR i, MaxIt : INTEGER;
 	accDens : myReal;
 BEGIN
 	{apply new bias to electrodes:}
-	new.V[0]:=stv.V0 - 0.5 *new.Vint;
-	new.V[par.NP+1]:=stv.VL + 0.5 *new.Vint;
+	new.V[0]:=stv.V0 + par.leftElec * 0.5 *new.Vint;
+	new.V[par.NP+1]:=stv.VL - par.leftElec * 0.5 *new.Vint;
 	Update_Gen_Pot(new.V, new.Vgn, new.Vgp, stv, par); {init. generalised potentials}
 	it:=0;
 
@@ -2794,7 +2808,7 @@ BEGIN
 	WRITE(uitv,' Vext Jext errJ Jint ');
 	
 	{write the quasi-Fermi level splitting in each layer:}
-	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'QFLSL',IntToStr(j),' ');
+	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'QLFSL',IntToStr(j),' ');
 	
 	{next we show a break down of the photo- and recombination currents for each layer/interface:}
 	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JphotoL',IntToStr(j),' ');

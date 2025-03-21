@@ -1,7 +1,7 @@
 ** ZimT Simulation Setup:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 5.20
+** version: 5.21
 
 **General***************************************************************************
 T = 300                           * K, absolute temperature
@@ -19,8 +19,9 @@ l9 = L1_parameters.txt            * parameter file for layer 9
 l10 = L1_parameters.txt           * parameter file for layer 10
 
 **Contacts**************************************************************************
-W_L = 3.6                         * eV, work function left electrode (= cathode), or 'sfb'
-W_R = 4.4                         * eV, work function right electrode (= cathode), or 'sfb'
+leftElec = -1                     * left electrode is the cathode (-1) or the anode (1)
+W_L = 3.6                         * eV, work function left electrode, or 'sfb'
+W_R = 4.4                         * eV, work function right electrode, or 'sfb'
 S_n_L = -1E-7                     * m/s, surface recombination of electrons at the left electrode
 S_p_L = -1E-7                     * m/s, surface recombination of holes at the left electrode
 S_n_R = -1E-7                     * m/s, surface recombination of electrons at the right electrode

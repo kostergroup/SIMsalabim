@@ -26,7 +26,7 @@ email:l.j.a.koster@rug.nl
 surface mail: 
 L.J.A. Koster
 Zernike Institute for Advanced Materials
-Nijenborgh 3, 9747 AG Groningen, the Netherlands
+Nijenborgh 4, 9747 AG Groningen, the Netherlands
 }
 
 {$MODE OBJFPC} {force OBJFPC mode}
@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '5.20'; {version of this unit}
+    DDTypesAndConstantsVersion = '5.21'; {version of this unit}
     defaultParameterFile = 'simulation_setup.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -117,8 +117,8 @@ TYPE
 
     TStaticVars = RECORD {stores all parameters that are calculated from input, but don't change during the simulation}
 		    NcLoc, ni, eps, h, x, nid, pid, E_CB, E_VB, orgGm, mu_n_ion, mu_p_ion : vector;
-		    lid : ShortIntVector;
-		    i0, i1 : intArray;
+		    lid : ShortIntVector; {lid: Layer ID, so this stores the number (ID) of the layer corresponding to a grid point}
+		    i0, i1 : intArray; {stores that first (i0) and last (i1) grid point of a layer}
 		    Ntb, Nti : ARRAY OF TTrapDistLayer; {array over Layers}
 		    Ltot, Lgen, epsi, V0, VL, Vt, Vti : myReal;
 		    NLayers, NJV : INTEGER;
@@ -158,7 +158,7 @@ TYPE
 				tolDens, couplePC, minAcc, maxAcc, grad, tolVint,
 				Vpre, Vmin, Vmax, Vstep, Vacc, timeout, fitThreshold : myReal;
 			    {integers:}
-				Use_gen_profile, maxItPois, 
+				leftElec, Use_gen_profile, maxItPois, 
 				NP, currDiffInt, maxItSS, maxItTrans, 
 				failureMode, outputRatio, Vdist, Vscan : INTEGER; 
 			    {derived booleans:}

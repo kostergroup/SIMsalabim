@@ -1,7 +1,18 @@
+Version 5.21, 21 March 2025, LJAK
+
+I have introduced a new parameter (in contacts, leftElec) to make it possible to indicate which electrode is supposed to be the anode and which is the cathode. By convention (in semiconductor simulation software), the left electrode is the cathode and this has been the default. However, sometimes one wants to flip the device layout and the cathode is on the right. This also impacts the sign of the current, as it flows in the opposite direction in the device. However, we have chosen the sign of the current such that injected (e.g. dark) current is positive if the applied voltage is positive, regardless of the choice of cathode and anode.
+
+Implementation:
+-new input variable (TInputParameters), leftElec (should be either -1 or 1).
+-we check to ensure that leftElec is either -1 or 1 in Check_Parameters
+-In Init_Pot_Dens_Ions_Traps and Main_Solver we apply the voltage, so this is where we need to use leftElec
+-In Calc_All_Currents, we swap the sign of all current densities if the left electrode is the anode. 
+
 Version 5.20, 21 March 2025, VLC
 
 VLC added a new PROCEDURE to ZimT called 'Find_Vint_Brent'. This procedure uses Brent's method to find the Vint when R_series > 0 or to find Vint when the 'oc' options is used in the tVGFile. This method converges much faster than the previous method (bisection) and is equally robust.
  
+
 Version 5.19, 12 March 2025, LJAK
 
 I have included the quasi-Fermi level splitting (QFLS) in the JVFile (SimSS) or tjFile (ZimT): This shows the QFLS (in eV) in each layer, averaged over the layer.
