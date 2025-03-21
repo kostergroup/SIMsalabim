@@ -26,7 +26,7 @@ email:l.j.a.koster@rug.nl
 surface mail: 
 L.J.A. Koster
 Zernike Institute for Advanced Materials
-Nijenborgh 4, 9747 AG Groningen, the Netherlands
+Nijenborgh 3, 9747 AG Groningen, the Netherlands
 }
 
 {$MODE OBJFPC} {force OBJFPC mode}
@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.19'; {version of this unit}
+CONST DDRoutinesVersion = '5.20'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 

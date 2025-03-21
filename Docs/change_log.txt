@@ -1,3 +1,7 @@
+Version 5.20, 21 March 2025, VLC
+
+VLC added a new PROCEDURE to ZimT called 'Find_Vint_Brent'. This procedure uses Brent's method to find the Vint when R_series > 0 or to find Vint when the 'oc' options is used in the tVGFile. This method converges much faster than the previous method (bisection) and is equally robust.
+ 
 Version 5.19, 12 March 2025, LJAK
 
 I have included the quasi-Fermi level splitting (QFLS) in the JVFile (SimSS) or tjFile (ZimT): This shows the QFLS (in eV) in each layer, averaged over the layer.

@@ -27,7 +27,7 @@ email:l.j.a.koster@rug.nl
 surface mail: 
 L.J.A. Koster
 Zernike Institute for Advanced Materials
-Nijenborgh 4, 9747 AG Groningen, the Netherlands
+Nijenborgh 3, 9747 AG Groningen, the Netherlands
 }
 
 
@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '5.19';  
+    version = '5.20';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -74,7 +74,7 @@ CONST
 
 VAR parameterFile : ShortString;
 
-	MainIt, ItVint, MaxItVint, CountAcceptedSolutions, CounttVGPoints, CountStatic : INTEGER;
+	MainIt, CountAcceptedSolutions, CounttVGPoints, CountStatic : INTEGER;
 
 	prev, curr, new : TState; {store the previous point in time, the current one and the new}
 	{prev: solved, stored, done, 2 time steps ago
@@ -85,7 +85,7 @@ VAR parameterFile : ShortString;
 
 	par : TInputParameters; {all input parameters}
 
-	ResVint, ResVmn, Vmn, Vmx : myReal;
+	ResVmn, ResVmx, Vmn, Vmx : myReal;
 
     inv, uitv, log : TEXT; {the input and output files}
    
@@ -207,18 +207,15 @@ BEGIN
 END;
 
 
-PROCEDURE Bracket_device_voltage(VAR Vmin, Vmax, Vguess, ResJmin : myReal; VAR curr, new : TState;
+PROCEDURE Bracket_device_voltage(VAR Vmin, Vmax, Vguess, ResJmin, ResJmax : myReal; VAR curr, new : TState;
 								 CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {This procedure finds bracketing voltages around Vint, based on a guess (Vguess). Vmin and Vmax bracket Vint, unless unsuccessful}
 {See Numerical recipes section 9.1 on Bracketing and Bisection}
 CONST ntry = 50; {max. number of iterations}
 	  factor = 1.6; {multiplication factor for enlarging interval}
-
 VAR
-	ResJmax : myReal;
 	it : INTEGER;
 	conv, success : BOOLEAN;
-
 BEGIN
 	{start with a guess for Vmin,max around Vguess}
 	Vmin:=Vguess - 20*par.tolVint;
@@ -245,6 +242,136 @@ BEGIN
 	END;
 
 	IF NOT success THEN Stop_Prog('Could not find bracketing values for Vint at time ' + FloatToStrF(new.tijd, ffGeneral,10,0), EC_NumericalFailure);
+END;
+
+PROCEDURE Find_Vint_Brent(a, b, fa, fb: myReal; VAR curr, new: TState; VAR conv: BOOLEAN; 
+                         CONSTREF stv: TStaticVars; CONSTREF par: TInputParameters);
+{Uses Brent's algorithm to find the value of Vint that makes Residual_Current_Voltage = 0}
+VAR
+    c, d, e, p, q, r, s, tol, m: myReal;
+    fc: myReal;
+    ItVint, MaxItVint: INTEGER;
+    converged: BOOLEAN;
+    EPS: myReal; {machine floating-point precision, now a variable based on myReal type}
+BEGIN
+	{Set the maximum number of iterations based on what would be needed for bisection}
+	IF (b - a) <= 0 THEN Stop_Prog('Invalid range for Brent''s method', EC_NumericalFailure);
+	MaxItVint:=ROUND(LN((b-a)/par.tolVint)/LN(2)); {max. number of required bisection steps}
+
+    {Set EPS based on the size of myReal type}
+    CASE SizeOf(myReal) OF
+        4: EPS := 1.19E-7;  {SINGLE precision ~ 2^-23}
+        8: EPS := 2.22E-16; {DOUBLE precision ~ 2^-52}
+        10: EPS := 1.08E-19; {EXTENDED precision ~ 2^-63}
+        ELSE EPS := 3.0E-8; {fallback value in case of unexpected type size}
+    END;
+        
+    {Check if the root is bracketed}
+    IF fa * fb > 0 THEN Stop_Prog('Root must be bracketed for Brent''s method', EC_NumericalFailure);
+    c := a; fc := fa;
+    
+    {If f(b) is closer to zero than f(a), swap a and b}
+    IF ABS(fa) < ABS(fb) THEN
+    BEGIN
+        a := b; b := c; c := a;
+        fa := fb; fb := fc; fc := fa;
+    END;
+    
+    d := 0; e := 0; {Initialize these variables}
+    ItVint := 0;
+    converged := FALSE;
+    
+    REPEAT
+        INC(ItVint);
+        
+        {Make sure c remains the endpoint with function value having opposite sign from f(b)}
+        IF fb * fc > 0 THEN
+        BEGIN
+            c := a; fc := fa;
+            d := b - a; e := d;
+        END;
+        
+        {Ensure |f(c)| >= |f(b)|}
+        IF ABS(fc) < ABS(fb) THEN
+        BEGIN
+            a := b; b := c; c := a;
+            fa := fb; fb := fc; fc := fa;
+        END;
+        
+        {Convergence check}
+        tol := 2.0 * EPS * ABS(b) + 0.5 * par.tolVint;
+        m := 0.5 * (c - b);
+        
+        {Check if we've converged or found exact root}
+        converged := (ABS(m) <= tol) OR (ABS(fb) < EPS);
+        IF NOT converged THEN
+        BEGIN
+            {Decide whether to use bisection or interpolation}
+            IF (ABS(e) >= tol) AND (ABS(fa) > ABS(fb)) THEN
+            BEGIN
+                {Try inverse quadratic interpolation}
+                s := fb / fa;
+                
+                IF a = c THEN
+                BEGIN
+                    {Linear interpolation (secant method)}
+                    p := 2.0 * m * s;
+                    q := 1.0 - s;
+                END
+                ELSE
+                BEGIN
+                    {Inverse quadratic interpolation}
+                    q := fa / fc;
+                    r := fb / fc;
+                    p := s * (2.0 * m * q * (q - r) - (b - a) * (r - 1.0));
+                    q := (q - 1.0) * (r - 1.0) * (s - 1.0);
+                END;
+                
+                {Check bounds}
+                IF p > 0 THEN q := -q;
+                p := ABS(p);
+                
+                {Accept interpolation if it's reasonable}
+                IF (2.0 * p < MIN(3.0 * m * q - ABS(tol * q), ABS(e * q))) THEN
+                BEGIN
+                    e := d; d := p / q;
+                END
+                ELSE
+                BEGIN
+                    {Fall back to bisection}
+                    d := m; e := d;
+                END;
+            END
+            ELSE
+            BEGIN
+                {Use bisection}
+                d := m; e := d;
+            END;
+            
+            {Save previous values}
+            a := b; fa := fb;
+            
+            {Update b to be our new guess}
+            IF ABS(d) > tol THEN
+                b := b + d
+            ELSE
+            BEGIN
+                {Ensure we move at least tol in the direction of the root}
+                IF m > 0 THEN b := b + tol
+                ELSE b := b - tol;
+            END;
+            
+            {Calculate function value at new position}
+            fb := Residual_Current_Voltage(b, curr, new, conv, stv, par);
+        END;
+    UNTIL converged OR (ItVint >= MaxItVint);
+    
+    {Set the result}
+    new.Vint := b;
+    
+    {If we exited due to maximum iterations, show warning}
+    IF ItVint >= MaxItVint THEN
+        WRITELN('Warning: Brent''s method reached maximum iterations without converging.');
 END;
 
 BEGIN {main program}
@@ -298,18 +425,10 @@ BEGIN {main program}
 		THEN Main_Solver(curr, new, MainIt, conv, StatusStr, stv, par) {easy: Vint = Vext, Vext is in input tVGFile}
 		ELSE BEGIN {SimType > 1: Voc or R_series <> 0: in both cases, we don't know Vint}
 			{first find Vmn and Vmx, voltages that bracket the device voltage new.Vint}
-			Bracket_device_voltage(Vmn, Vmx, curr.Vint, ResVmn, curr, new, stv, par);
-			{then use bisection to find Vint}
-			MaxItVint:=ROUND(LN((Vmx-Vmn)/par.tolVint)/LN(2)); {max. number of required bisection steps}
-			FOR ItVint:=0 TO MaxItVint DO {bisection loop}
-			BEGIN
-				new.Vint:=0.5*(Vmx + Vmn); {new guess}
-				ResVint:=Residual_Current_Voltage(new.Vint, curr, new, conv, stv, par);
-				{note, this time in ResCurr we use ResetVnp=false, as we want to keep the new values of V,n,p,nion,pion and Vgn, Vgp}
-				IF ResVint*ResVmn < 0 THEN Vmx:=new.Vint ELSE Vmn:=new.Vint; {do bisection}
-			END;
-
-			new.Vint:=0.5*(Vmn+Vmx);
+			Bracket_device_voltage(Vmn, Vmx, curr.Vint, ResVmn, ResVmx, curr, new, stv, par);
+			
+			{Then use Brent's algorithm to find Vint precisely}
+			Find_Vint_Brent(Vmn, Vmx, ResVmn, ResVmx, curr, new, conv, stv, par);
 		END; {SimType > 1}
 
 		IF conv THEN BEGIN
