@@ -458,6 +458,28 @@ else:
 
 clean_test_dir(SimSS, test_idx)
 
+# Run test 14
+test_idx = '14'
+setup_workdir_test(ZimT, test_idx)
+
+res_sim = get_dataframe_from_sim(ZimT, test_idx, output_file='tj')
+
+if res_sim is not None:
+
+    # Check if the electron and hole recombination currents are equal
+    passed = (abs(res_sim['JbulkElecL2'] - res_sim['JbulkHolesL2']).loc[0] < 1e-5) and (abs(res_sim['JintElecL1L2'] - res_sim['JintHolesL1L2']).loc[0] < 1e-10)
+
+    if passed:
+        columns = [col for col in res_sim.columns if col.startswith(('Jdir', 'JbulkElec', 'JintElec', 'Jmin', 'JShunt', 'Jnion', 'Jpion', 'JD'))]      
+        passed = abs(res_sim['Jext'] + (res_sim['JphotoL2'] - res_sim[columns].sum(axis=1))).iloc[0] < 0.1
+
+    test_results.append({'passed': passed, 'test nr': test_idx})
+    print(f'Test {test_idx} finished')
+else:
+    test_results.append({'passed': None, 'test nr': test_idx})
+
+clean_test_dir(ZimT, test_idx)
+
 # Remove the SIMsalabim folders from the current directory
 clean_cwd()
 

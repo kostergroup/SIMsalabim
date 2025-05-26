@@ -103,6 +103,16 @@ def get_data_from_sim(simulation, test_idx, x='Vext', y='Jext', output_file='jv'
     
     return sim_data
 
+def get_dataframe_from_sim(simulation, test_idx, output_file='jv'):
+    result = simulation.run()
+    if result.returncode != 0 & result.returncode != 95:
+        print(f'Test {test_idx} failed to execute. SIMsalabim retuned with error code {result.returncode}')
+        return None
+    
+    data = simulation.return_out_dic()[output_file]
+
+    return data
+    
 def get_data_from_file(test_idx, x_test, y_test):
     test_data_path = f'test_{test_idx}/test{test_idx}.dat'
     test_data = pd.read_csv(path(test_data_path), sep=r'\s+')

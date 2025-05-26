@@ -2874,12 +2874,12 @@ BEGIN
         IF transient THEN BEGIN
          	FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(Rn.bulk,stv.i0[j],stv.i1[j]):nd,' ');       
          	FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(Rp.bulk,stv.i0[j],stv.i1[j]):nd,' ');  
-         	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 0.5*q*stv.Ltot*stv.h[stv.i1[j]]*(Rn.int[stv.i1[j]] + Rn.int[stv.i1[j]+1]):nd,' ') ;      	     
-         	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 0.5*q*stv.Ltot*stv.h[stv.i1[j]]*(Rp.int[stv.i1[j]] + Rp.int[stv.i1[j]+1]):nd,' ')       	     
+         	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, q*stv.Ltot*stv.h[stv.i1[j]]*(Rn.int[stv.i1[j]] + Rn.int[stv.i1[j]+1]):nd,' ') ;      	     
+         	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, q*stv.Ltot*stv.h[stv.i1[j]]*(Rp.int[stv.i1[j]] + Rp.int[stv.i1[j]+1]):nd,' ')       	     
         END
         ELSE BEGIN
         	FOR j:=1 TO stv.NLayers DO WRITE(uitv, EquiCurr(Rn.bulk,stv.i0[j],stv.i1[j]):nd,' ');
-        	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 0.5*q*stv.Ltot*stv.h[stv.i1[j]]*(Rp.int[stv.i1[j]] + Rp.int[stv.i1[j]+1]):nd,' ')
+        	FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 0.5*q*stv.Ltot*stv.h[stv.i1[j]]*(Rn.int[stv.i1[j]] + Rn.int[stv.i1[j]+1] + Rp.int[stv.i1[j]] + Rp.int[stv.i1[j]+1]):nd,' ')
         END;
 	
 		WRITE(uitv,JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);

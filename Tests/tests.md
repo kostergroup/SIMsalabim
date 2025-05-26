@@ -63,6 +63,8 @@ This tests ZimT's ability to simulate detrapping of charges from interface traps
 ## Test 13: Generation profile using the TransferMatrix method
 This tests the creation of a generation profile using the TransferMatrix method based on the layers in the device structure, which are characterized by width and n,k properties of the layer material. The resulting generation profile is compared to a generation profile for the same device calculated using the script from the work of G.F. Burkhard, E.T. Hoke and M.D. McGehee, Adv. Mater. **22**, 3293 (2010).
 
+## Test 14: Output of recombination currents
+The tjFile/JVFile shows a breakdown of the generation and recombination currents in the different layers. In steady-state, the recombination currents of electrons and holes should be the same. Also, the sum of the photogenerated current and the recombination currents should equal the total internal current, unless there is dark injection and conduction.
 
 
 

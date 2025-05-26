@@ -1,3 +1,9 @@
+Version 5.22, 21 May 2025, LJAK, SH
+Removed a bug from the JVFile/tjFile: The listed interfacial current densities (JintL1L2, JintL2L3, etc) were off by a factor of two. These are calculated in DDRoutines/Write_To_tJV_File. Here, they were missing a factor of two, so essentially only taking the average of the recombination current at either side of the interface, rather than taking the sum of the both contributions (astride the interface). 
+
+We also introduced a new test (test 14) to verify that 1) in steady-state the electron and hole recombination currents are the same, and 2) that the total current Jext and Jint are equal to the sume of generation and recombination currents.
+
+
 Version 5.21, 21 March 2025, LJAK
 
 I have introduced a new parameter (in contacts, leftElec) to make it possible to indicate which electrode is supposed to be the anode and which is the cathode. By convention (in semiconductor simulation software), the left electrode is the cathode and this has been the default. However, sometimes one wants to flip the device layout and the cathode is on the right. This also impacts the sign of the current, as it flows in the opposite direction in the device. However, we have chosen the sign of the current such that injected (e.g. dark) current is positive if the applied voltage is positive, regardless of the choice of cathode and anode.
