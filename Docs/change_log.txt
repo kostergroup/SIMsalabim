@@ -1,3 +1,6 @@
+Version 5.23, 12 June 2025, LJAK
+ZimT only: I have added G_frac to the tjFile. Note: only ZimT (so transient simulations), as in SimSS we don't use this variable TState, field G_frac, so that would result in a zero, regardless of the input G_frac in the parameter file (and TInputParameters).
+
 Version 5.22, 21 May 2025, LJAK, SH
 Removed a bug from the JVFile/tjFile: The listed interfacial current densities (JintL1L2, JintL2L3, etc) were off by a factor of two. These are calculated in DDRoutines/Write_To_tJV_File. Here, they were missing a factor of two, so essentially only taking the average of the recombination current at either side of the interface, rather than taking the sum of the both contributions (astride the interface). 
 

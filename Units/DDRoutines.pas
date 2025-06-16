@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.22'; {version of this unit}
+CONST DDRoutinesVersion = '5.23'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -2806,7 +2806,8 @@ BEGIN
     {write header, in the simulation we'll simply output the variables, but not change this header:}
 	IF transient THEN WRITE(uitv,' t');
 	WRITE(uitv,' Vext Jext errJ Jint ');
-	
+	IF transient THEN WRITE(uitv,' G_frac ');
+	 
 	{write the quasi-Fermi level splitting in each layer:}
 	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'QLFSL',IntToStr(j),' ');
 	
@@ -2860,7 +2861,8 @@ BEGIN
 		IF n[NP+1]<p[NP+1] THEN JminRight:=Jn[NP+1] ELSE JminRight:=Jp[NP+1];   
         
         WRITE(uitv,Vext:nd,' ',Jext:nd,' ',errJ:nd,' ',Jint:nd,' ');
-        
+		IF transient THEN WRITE(uitv, G_frac:nd,' ');
+		
         {compute the quasi-Fermi level splitting QFLS in each point, and then average over each layer:}
         FOR j:=0 TO par.NP+1 DO
 			QFLS[j]:=stv.Vt*LN((n[j]*p[j])/SQR(stv.ni[j])); {this is the QFLS in each grid point}
