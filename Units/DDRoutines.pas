@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.23'; {version of this unit}
+CONST DDRoutinesVersion = '5.24'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -1827,22 +1827,18 @@ END;
 
 PROCEDURE Calc_Langevin_Factor(VAR Lan : vector; mob_n, mob_p : vector; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Calculates the Langevin recombination strength. Lan[i] is defined on the
-regular grid, i.e., Lan[i]=Lan at x=xi. Note that mobilities are defined on the
-interleaved mesh!}
+regular grid, i.e., Lan[i]=Lan at x=xi. Although the mobilities are defined on the
+interleaved mesh, we take the mobility at x=xi as well. This avoids averaging over grid points in 
+adjacent layers.}
 VAR i, j : INTEGER;
-    rec_mob : myReal;
 BEGIN
 	{we loop over the layers:}
 	FOR j:=1 TO stv.NLayers DO
 		WITH par.lyr[j] DO 
 		BEGIN
 			IF useLangevin THEN {use Langevin formula to calculate bimolecular, direct, band-to-band recombination rate}
-			FOR i:=MAX(1, stv.i0[j]) TO stv.i1[j] DO {why the MAX? we cannot have i=1, that's why}
-			BEGIN
-				rec_mob:=0.5 * (mob_n[i-1] + mob_n[i]+ mob_p[i-1] + mob_p[i] );
-				{we take mob(x=xi)=(mob(x=xi-1/2)+mob(x=xi+1/2))/2}
-				Lan[i]:=preLangevin * q * rec_mob/stv.eps[i]
-			END
+			FOR i:=stv.i0[j] TO stv.i1[j] DO 
+				Lan[i]:=preLangevin * q * (mob_n[i] + mob_p[i]) / stv.eps[i]
 			ELSE
 				FOR i:=stv.i0[j] TO stv.i1[j] DO
 					Lan[i]:=k_direct			
