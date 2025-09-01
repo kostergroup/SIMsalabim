@@ -1,3 +1,5 @@
+<img src="./Docs/Logos/SIMsalabim_logo_cut_trans.png" alt="SIMsalabim logo" width="100px">
+
 # SIMsalabim Project
 
 SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, solar cells, diodes, organics, perovskites). It consists of two programs that share most of their code: SimSS (simulates steady-state), and ZimT (zimulates transients).
@@ -185,8 +187,9 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
-- X. Rodríguez-Martínez, C. Tormann, M. Sanz-Lleó, B. Dörling, M. Gibert-Roca, A. Harillo-Baños, A. Abat Amelenan Torimtubun,
-E. Pascual-San-José, J.P. Jurado, L. López-Mir, M. Kemerink, and M. Campoy-Quiles, What Makes Thickness-Tolerant Organic Solar Cells?, Adv. Energy Mater. 2405735 (2025).
+- V. Arango-Marín, J. Wortmann, T. Osterrieder, P. Weitz, J.S. Rocha-Ortiz, M. Wu, X. Zhou, F. Eller, T. Heumüller, J.A. Hauch, C. Liu, V.M. Le Corre, E. Spiecker, E.M. Herzig, G. Lu, L. Lüer, and C.J. Brabec, Fine-Tuning Donor Material Deposition with Ultrasonic Aerosol Jet Printing to Balance Efficiency and Stability in Inverted Organic Photovoltaic Devices, ACS Appl. Mater. Interfaces 17, 46149 (2025).
+
+- X. Rodríguez-Martínez, C. Tormann, M. Sanz-Lleó, B. Dörling, M. Gibert-Roca, A. Harillo-Baños, A. Abat Amelenan Torimtubun, E. Pascual-San-José, J.P. Jurado, L. López-Mir, M. Kemerink, and M. Campoy-Quiles, What Makes Thickness-Tolerant Organic Solar Cells?, Adv. Energy Mater. 2405735 (2025).
 
 - J.M. Haffner-Schirmer, V.M. Le Corre, K. Forberich, H.J. Egelhaaf, T. Osterrieder, J. Wortmann, C. Liu, P. Weitz, T. Heumüller, A.J. Bornschlegl, J. Wachsmuth, A. Distler, M. Wagner, Z. Peng, L. Lüer, and C.J. Brabec, A High Throughput Platform to Minimize Voltage and Fill Factor Losses, Adv. Energy Mater. 2403479 (2025).
 
