@@ -187,6 +187,10 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
+- T. Mariyappan, H.A. Dewi, J. Chakar, J.-B. Puel, D. De Luca, R. Ahmad, Y. Tang, M. Degani, G. Grancini, Y. Bonnassieux, S.G. Mhaisalkar, and A. Bruno, Enhancing Wide-Bandgap Perovskite Solar Cells with Synergistic Surface and Bulk Passivation, ACS Energy Lett. 10, 5304 (2025).
+
+- P. Sukpoonprom, WD.J. Tremlett, Z. Qiao, C. Chattakoonpaisarn,E. Hong, B. Hu, K. Forberich,J. Han, J. Wang,S. Ittisanronnachai, L. Li, F. Vanin, P. Pattanasattayavong, Z. Zhu, A. Bakulin, C.J. Brabec, D. Baran, N.J. Long, and N. Gasparini, Complex formation of ferrocene derivatives with electron transport layers enables improved performance and photostability in organic solar cells, Joule 9, 102107 (2025).
+
 - V. Arango-Marín, J. Wortmann, T. Osterrieder, P. Weitz, J.S. Rocha-Ortiz, M. Wu, X. Zhou, F. Eller, T. Heumüller, J.A. Hauch, C. Liu, V.M. Le Corre, E. Spiecker, E.M. Herzig, G. Lu, L. Lüer, and C.J. Brabec, Fine-Tuning Donor Material Deposition with Ultrasonic Aerosol Jet Printing to Balance Efficiency and Stability in Inverted Organic Photovoltaic Devices, ACS Appl. Mater. Interfaces 17, 46149 (2025).
 
 - X. Rodríguez-Martínez, C. Tormann, M. Sanz-Lleó, B. Dörling, M. Gibert-Roca, A. Harillo-Baños, A. Abat Amelenan Torimtubun, E. Pascual-San-José, J.P. Jurado, L. López-Mir, M. Kemerink, and M. Campoy-Quiles, What Makes Thickness-Tolerant Organic Solar Cells?, Adv. Energy Mater. 2405735 (2025).

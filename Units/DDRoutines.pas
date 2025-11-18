@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.24'; {version of this unit}
+CONST DDRoutinesVersion = '5.25'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -2805,7 +2805,7 @@ BEGIN
 	IF transient THEN WRITE(uitv,' G_frac ');
 	 
 	{write the quasi-Fermi level splitting in each layer:}
-	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'QLFSL',IntToStr(j),' ');
+	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'QFLSL',IntToStr(j),' ');
 	
 	{next we show a break down of the photo- and recombination currents for each layer/interface:}
 	FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JphotoL',IntToStr(j),' ');

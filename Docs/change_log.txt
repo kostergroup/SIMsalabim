@@ -1,3 +1,8 @@
+Version 5.25, 18 Nov 2025, LJAK
+Removed a typo in the output: In version 5.19, we introduced the quasi-Fermi level splitting (QFLS) in the JVFile (SimSS) or tjFile (ZimT). Alas, we made a typo on the label: QLFS instead of QFLS.
+
+
+
 Version 5.24, 20 June 2025, LJAK
 Slight modification of the way we compute the recombination rate constant (only relevant if useLangevin = 1): If the direction recombination rate constant is calculated from the mobility (useLangevin = 1), then we used to first compute the recombination mobility by taking the average over 2 grid points. The rationale being, that the recombination rate constant is on-grid, but mobility (like current) is not (mobility is only defined between 2 grid points!). However, if there are internal interfaces, that becomes somewhat problematic as that would imply averaging over 2 grid points that can belong to different layers. So, I have chosen to go with the lesser of two evils and to simply take the mobility on-grid.
 
