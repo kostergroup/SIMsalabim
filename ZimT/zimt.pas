@@ -4,7 +4,7 @@
 
 {
 ZimT:a transient 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024, 2025, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023, 2024, 2025, 2026, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '5.25';  
+    version = '5.27';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}

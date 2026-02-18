@@ -2,7 +2,7 @@ PROGRAM SimSS;
 
 {
 SimSS:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024, 2025 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023, 2024, 2025, 2026, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -25,7 +25,7 @@ email:l.j.a.koster@rug.nl
 surface mail: 
 L.J.A. Koster
 Zernike Institute for Advanced Materials
-Nijenborgh 4, 9747 AG Groningen, the Netherlands
+Nijenborgh 3, 9747 AG Groningen, the Netherlands
 }
 
 
@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '5.25';   {version, 1.00 = 10-03-2004}
+    version = '5.27';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -535,7 +535,7 @@ BEGIN
 				IF JVExp[i].Jext*JVSim[i].Jext>=0 {we can only calc fitError if both are <>0 and they have the same sign}
 				THEN BEGIN
 					INC(count);
-					Jdiff[count] := LN(JVSim[i].Jext/JVExp[i].Jext);
+					Jdiff[count] := ABS(LN(JVSim[i].Jext/JVExp[i].Jext));
 					Vfit[count] := JVSim[i].Vext;
 				END
 				ELSE disgardedPoints:=TRUE

@@ -6,13 +6,14 @@ SIMsalabim: A 1D drift-diffusion simulator for semiconductor devices (LEDs, sola
 
 ## Table of Contents
 1. [Introduction](#introduction)
-2. [Quickstart guide](#quickstart-guide)
-3. [Instructional videos](#instructional-videos)
-4. [Running SIMsalabim](#running-simss-or-zimt)
-5. [How to cite](#how-to-cite)
-6. [Copyright and license](#copyright-and-license)
-7. [How to contribute](#how-to-contribute)
-8. [Scientific publications based on SIMsalabim](#scientific-publications-based-on-the-simsalabim-project)
+2. [Updating to latest version](#updating)
+3. [Quickstart guide](#quickstart-guide)
+4. [Instructional videos](#instructional-videos)
+5. [Running SIMsalabim](#running-simss-or-zimt)
+6. [How to cite](#how-to-cite)
+7. [Copyright and license](#copyright-and-license)
+8. [How to contribute](#how-to-contribute)
+9. [Scientific publications based on SIMsalabim](#scientific-publications-based-on-the-simsalabim-project)
 
 ## Introduction
 
@@ -27,6 +28,23 @@ The project folder is structured as follows:
 - ZimT: the transient equivalent of SimSS
 
 SIMsalabim is also available with a user interface at [www.simsalabim-online.com](http://simsalabim-online.com).
+
+## Updating to latest version
+We **strongly recommend** you always update to the **latest available version** as updates typically include bug fixes, improved stability, and/or features. Updating to another version requires that the input files be changed. 
+To facilitate this, we provide an updater in the Tools folder (see Updater). The Updater takes the parameter files of version 4.19 or newer and generates the input files for the latest version. By default, the parameter files for 4.xx versions are called device_parameters.txt, while those of version 5.xx are called simulation_setup.txt. To use it, simply ensure that the Updater and the input files are in the same folder. Then,
+run (on Linux)
+```
+./Updater simulation_setup.txt
+``` 
+or 
+```
+Updater.exe simulation_setup.txt
+```
+on Windows. The Updater will prompt you to ensure it has all the necessary information to update the parameter files such that they work with the latest version. When using the Updater on a 4.xx parameter file, the Updater will rename the file as simulation_setup.txt. The Updater has a couple of options for advanced users or scripting. In order to access those, simply run the Updater with the ```-h``` option. 
+
+
+
+
 
 ## Quickstart guide
 There are two ways to get SimSS or ZimT running on your machine:
@@ -186,6 +204,10 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 ## Scientific publications based on the SIMsalabim project
 
 List of publications (not complete):
+
+- I. Kafedjiska , V.M. Le Corre, H. Köbler, I. Levine , R. Schlatmann, and I. Lauermann, Investigation of interfacial charge-carrier dynamics, degradation, and recombination mechanisms in single-junction perovskite solar cells with NiOx and SAM hole-transporting layers via steady-state drift-diffusion model simulations, Sustain. Energy Fuels (accepted).
+
+- J. Chakar, U. Erdil, A. Burgaud, M. Remec, A. Abate, C. Ulbrich, R. Schlatmann, Y. Bonnassieux, M. Khenkin, and J.-B. Puel, Bridging Accelerated Indoor Aging and Outdoor Stability of Perovskite Solar Cells Using a Bayesian Modeling Framework, Solar RRL e202500716 (2025).
 
 - T. Mariyappan, H.A. Dewi, J. Chakar, J.-B. Puel, D. De Luca, R. Ahmad, Y. Tang, M. Degani, G. Grancini, Y. Bonnassieux, S.G. Mhaisalkar, and A. Bruno, Enhancing Wide-Bandgap Perovskite Solar Cells with Synergistic Surface and Bulk Passivation, ACS Energy Lett. 10, 5304 (2025).
 

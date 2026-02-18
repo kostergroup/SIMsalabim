@@ -3,7 +3,7 @@ unit TransferMatrix;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024, 2025, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023, 2024, 2025, 2026, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -25,7 +25,7 @@ email: l.j.a.koster@rug.nl
 surface mail: 
 L.J.A. Koster
 Zernike Institute for Advanced Materials
-Nijenborgh 4, 9747 AG Groningen, the Netherlands
+Nijenborgh 3, 9747 AG Groningen, the Netherlands
 }
 
 {$MODE OBJFPC} 
@@ -42,7 +42,7 @@ USES
 	SysUtils,
     Ucomplex;
 
-CONST   TransferMatrixVersion = '5.25'; {version of this unit}
+CONST   TransferMatrixVersion = '5.27'; {version of this unit}
 
 
 TYPE 

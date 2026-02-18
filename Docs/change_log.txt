@@ -1,3 +1,43 @@
+Version 5.27, 13-17 Feb 2026, LJAK
+
+Reintroduced a way to specify which variable(s) are monitored for convergence. I removed something like this in version 3.88 (Conv_Var, now spelled convVar to remain consistent with our naming of variables as outlined in the developer guidelines.).
+
+The parameter convVar is specified in the simulation_setup file (numerical parameters) can take the following values:
+- 1: focus is on the densities (so as in versions prior to this one), accuracy is set by tolDens.  Especially useful if needing highly accurate values of the carrier and ion densities throughout the layer. If the relative change in the densities is smaller then tolDens (and the Poisson solver converged), then SIMsalabim concludes it has converged. 
+- 2: focus is on the current (Jint to be precise). Especially useful if the aim is to get accurate JV curves, or any type of experiment where one is mostly interested in the current in the device or quantities that are based on this. The accuracy of the current is determined by parameters tolCurr and tolCurrAbs (which is a constant in DDTypesAndConstants). If the relative error of the current density is smaller than tolCurr then convergence has been reached.
+- 3: a combination of 1 and 2: EITHER the densities OR the current must have converged. As always, the Poisson loop must have converged as well.
+- 4: other combination of 1 and 2: BOTH the densities AND the current must have converged (in addition to the Poisson loop).
+
+To implement this, I have:
+1) I have re-introduced an absolute (so A/m2) tolerance to the current density (Jint). This is constant tolCurrAbs in DDTypesAndConstants and it is set to q A/m2. The idea being that q represents a tolerance of a single electron jumping back and forth per second and per m2. If the absolute error (errJ) is equal or smaller than this value, then the current has converged. This is mostly useful if the simulation is ran at 0V without light: ideally the current is zero and simsalabim typically finds a very small value (1E-30 A/m2 for example). Basing convergence (of the current, so convVar = 2 or 4) on the relative error and tolCurr makes no sense in this case.
+2) I have streamlined the messages that are stored in the log file in case a point does not converge.
+3) In Determine_Convergence_Densities, we now divide the totRelChange by the acceleration parameter before writing it to the log file. So, the value in the log file can be directly compared with the tolerance tolDens.
+4) Most importantly, I have introduced a function Determine_Convergence_Current. This simply checks if the error (the range of Jint across the device) is small enough. The main solver then calls both routines to assess the convergence of the densities and of the current. Based on convVar it then assesses overall convergence. The Poisson solver should have converged even if the current and densities have converged.
+
+A note on the evaluation of boolean expressions in FPC that matters in Main_Solver. FPC by default does shortcut evaluation of boolean expressions. That means that for convVar = 3 or 4 the second routine is never called if the result is already known. In such a case, we won't see the comments on the current in the log file in case of no convergence, as this is the second routine we call (first the densities). We check the densities first as that is faster: computing the current itself is relatively slow! Of course the behaviour can be changed by setting {$boolEval ON}, but this is slower if one does not use convVar=3 or 4.
+		
+
+Small stuff:
+-fixed a typo: Deterimine_Convergence_Densities is now called Determine_Convergence_Densities.
+-added Vint to the tj and JV output files (as per VLC's request).
+
+
+
+Version 5.26, 30 Jan 2026, LJAK
+
+Two changes in 1 update:
+
+1) bug fix in SimSS, in fitting to experimental data, the logarithmic error could be negative (see line 538 in simss).
+
+2) In the Poisson solver, we only updated the electron & hole densities and the ionic densities in steady-state. For the ions, we also had a check to enforce that we don't use this part in the final loops of the main solver. This was incorrect. This bit of code actually needs to be used all the time. We introduced this in version 4.35 and removed it (in transient) in 4.45.
+This is a consequence of how we set up the Poisson equation: essentially, we write it in terms of quasi-fermi levels. Then, the carrier densities will depend on the solution of the potential as that sets the Fermi level. To ensure that the n,p,nion,pion are in line with the potential we solve in the Poisson solver, these densities need updating. So removing this bit of the code is wrong. This also means, we remove the coupleIonsPoisson variable and no longer check for the change in the densities of the ions.
+
+For the future, a few thoughts about this:
+1) perhaps move the re-scaling of the ion densities to the Poisson solver, inside the loop. Or better still: find a way to manipulate the ion densities while maintaining the overall density.
+2) For the trap filling: the same applies as we have those on the main diagonal of the Poisson solver, but those we don't re-scale. It would probably make SIMsalabim more stable if we also manipulated those levels, but that would require a different scaling as we rely on Fermi-Dirac statistics.
+
+
+
 Version 5.25, 18 Nov 2025, LJAK
 Removed a typo in the output: In version 5.19, we introduced the quasi-Fermi level splitting (QFLS) in the JVFile (SimSS) or tjFile (ZimT). Alas, we made a typo on the label: QLFS instead of QFLS.
 

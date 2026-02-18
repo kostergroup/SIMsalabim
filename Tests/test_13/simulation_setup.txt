@@ -1,7 +1,7 @@
 ** SimSS Simulation Setup:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 5.25
+** version: 5.27
 
 **General***************************************************************************
 T = 295                            * K, absolute temperature
@@ -42,11 +42,14 @@ maxDelV = 10                       * maximum change (in Vt) of the potential per
 maxItPois = 1000                   * max. number it. Poisson loop
 maxItSS = 1000                     * max. number it. main loop
 currDiffInt = 2                    * Calc. current from differential (1) or integral (2) expression
+tolCurr = 1E-3                    * relative tolerance on current density
 tolDens = 1E-8                     * relative tolerance of density solver
 couplePC = 4                       * >= 0, coupling between Poisson equation and continuity equations
 minAcc = 0.05                      * >0, min. acceleration parameter
 maxAcc = 0.95                      * <2, max. acceleration parameter
 ignoreNegDens = 1                  * whether(1) or not(<>1) to ignore negative densities
+convVar = 1                       * integer 1-4, selects which variable to monitor for convergence
+                                  * 1: densities, 2: current, 3: densities OR current, 4: densities AND current
 failureMode = 0                    * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
 grad = 1                           * determines shape of exp. grid, increase grad for smaller h[1]
 

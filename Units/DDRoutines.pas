@@ -3,7 +3,7 @@ unit DDRoutines;
 
 {
 SIMsalabim:a 1D drift-diffusion simulator 
-Copyright (c) 2021, 2022, 2023, 2024, 2025 S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
+Copyright (c) 2021, 2022, 2023, 2024, 2025, 2026, S. Heester, Dr T.S. Sherkar, Dr V.M. Le Corre, 
 Dr M. Koopmans, F. Wobben, and Prof. Dr. L.J.A. Koster, University of Groningen
 This source file is part of the SIMsalabim project.
 
@@ -26,7 +26,7 @@ email:l.j.a.koster@rug.nl
 surface mail: 
 L.J.A. Koster
 Zernike Institute for Advanced Materials
-Nijenborgh 4, 9747 AG Groningen, the Netherlands
+Nijenborgh 3, 9747 AG Groningen, the Netherlands
 }
 
 {$MODE OBJFPC} {force OBJFPC mode}
@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.25'; {version of this unit}
+CONST DDRoutinesVersion = '5.27'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -148,7 +148,7 @@ VAR strprogname : STRING;
 BEGIN
     Str(ProgName, strprogname); {convert variable ProgName to a string}
     WRITELN('Welcome to ',strprogname,' version ',version,'.');
-    WRITELN('Copyright (C) 2020, 2021, 2022, 2023, 2024, 2025, S. Heester, Dr T.S. Sherkar,'); 
+    WRITELN('Copyright (C) 2020–2026, S. Heester, Dr T.S. Sherkar,'); 
     WRITELN('Dr V.M. Le Corre, Dr M. Koopmans, F. Wobben,');
     WRITELN('and Prof L.J.A. Koster, University of Groningen.');
     WRITELN;
@@ -283,7 +283,7 @@ BEGIN
         {POS returns the index of Substr in S, if S contains Substr. In case Substr isn't found, 0 is returned.}
     END;
     CLOSE(inp);
-    Correct_Version_Parameter_File:=found_version AND (NOT CheckProgName OR found_progname);
+    Correct_Version_Parameter_File:=found_version AND (NOT CheckProgName OR found_progname)
 END;
 
 PROCEDURE Prepare_Log_File(VAR log : TEXT; MsgStr : ANSISTRING; CONSTREF par : TInputParameters; version : STRING);
@@ -557,12 +557,14 @@ BEGIN
 		Get_Integer(inv, msg, 'maxItSS', maxItSS); {max. number it. steady-state loops}
 		IF ZimT THEN Get_Integer(inv, msg, 'maxItTrans', maxItTrans); {max. number it. transient solver}
 		Get_Integer(inv, msg, 'currDiffInt', currDiffInt); {Calc. current from differential (1) or integral (2) expression}
+		Get_Float(inv, msg, 'tolCurr', tolCurr); {relative tolerance on current density}
 		Get_Float(inv, msg, 'tolDens', tolDens); {relative tolerance of density solver}
 		Get_Float(inv, msg, 'couplePC', couplePC); {>= 0, coupling between Poisson equation and continuity equations}
 		Get_Float(inv, msg, 'minAcc', minAcc); {>0, min. acceleration parameter}
 		Get_Float(inv, msg, 'maxAcc', maxAcc); {<2, max. acceleration parameter}
 		Get_Integer(inv, msg, 'ignoreNegDens', dumint);
 		ignoreNegDens:= dumint=1; {whether(1) or not(<>1) to ignore negative densities}
+		Get_Integer(inv, msg, 'convVar', convVar); {integer 1-4, selects which variable to monitor for convergence. 1: densities, 2: current, 3: densities OR current, 4: densities AND current}
 		Get_Integer(inv, msg, 'failureMode', failureMode); {how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip}
 		Get_Float(inv, msg, 'grad', grad); {gradient of grid, increase grad for smaller h[1]}
 		IF ZimT THEN Get_Float(inv, msg, 'tolVint', tolVint); {V, tolerance in internal voltage (Vint)}
@@ -733,12 +735,14 @@ BEGIN
 		IF (currDiffInt <> 1) AND (currDiffInt <> 2) THEN Stop_Prog_Finalize_Log(log, 'currDiffInt can only be 1 or 2.', EC_InvalidInput);
 		IF maxDelV<=0 THEN Stop_Prog_Finalize_Log(log, 'maxDelV should be positive.', EC_InvalidInput);
 		IF maxDelV*stv.Vt <= tolPois THEN Stop_Prog_Finalize_Log(log, 'maxDelV*Vt should be (much) larger than tolPois.', EC_InvalidInput);
+		IF tolCurr <= 0 THEN Stop_Prog_Finalize_Log(log, 'tolCurr must be larger than zero.', EC_InvalidInput);
 		IF tolDens <= 0 THEN Stop_Prog_Finalize_Log(log, 'tolDens must be larger than zero.', EC_InvalidInput);
 		IF couplePC < 0 THEN Stop_Prog_Finalize_Log(log, 'couplePC must be non-negative.', EC_InvalidInput);
 		{check if values of minAcc and maxAcc makes any sense:}
 		IF maxAcc >= 2 THEN Stop_Prog_Finalize_Log(log, 'maxAcc must be smaller than 2.', EC_InvalidInput);  
 		IF minAcc <= 0 THEN Stop_Prog_Finalize_Log(log, 'minAcc must be positive.', EC_InvalidInput);  
 		IF minAcc > maxAcc THEN Stop_Prog_Finalize_Log(log, 'minAcc cannot be larger than maxAcc.', EC_InvalidInput);  
+		IF NOT (convVar IN [1,2,3,4]) THEN Stop_Prog_Finalize_Log(log, 'Invalid convVar selected.', EC_InvalidInput);
 		IF NOT (failureMode IN [0,1,2]) THEN Stop_Prog_Finalize_Log(log, 'Invalid failureMode selected.', EC_InvalidInput);
 
 {checks on voltages, SimSS only:}
@@ -1684,15 +1688,14 @@ BEGIN
 END;
 
 PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion	: vector; VAR f_tb, f_ti, f_ti_numer, f_ti_inv_denom : TTrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF Old_f_tb, Old_f_ti : TTrapArray;
-						VAR conv, coupleIonsPoisson	: BOOLEAN; VAR PoissMsg : STRING; dti : myReal;
+						VAR conv : BOOLEAN; VAR PoissMsg : STRING; dti : myReal;
 						CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Solves the Poisson equation, can be used in steady-state and transient simulations}
 {Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
-VAR it, i, j : INTEGER;
-	sumPre, sumPost, NormDelV : myReal;
+VAR it, i : INTEGER;
+	NormDelV : myReal;
     delV, rhs, lower, upper, main : vector;
     fac_m, fac_u, fac_l, fac2, fac3, val, lnr : myReal;
-    IonsOK : BOOLEAN;
 	lin : TLinFt; {this type (a record) stores the linearisation of the trapping terms.}
 BEGIN
     FOR i:=1 TO par.NP DO delV[i]:=1; {init delV}
@@ -1700,18 +1703,7 @@ BEGIN
     delV[par.NP+1]:=0;
     it:=0;
     conv:=FALSE;
-	PoissMsg:='Poisson solver status:' + LineEnding; {message string}
 	lnr:=LN(1 + par.couplePC);
-
-	{if needed, check the total number of ions in volume}
-	IF coupleIonsPoisson THEN 
-    BEGIN
-		sumPre:=0;
-		FOR j:=1 TO stv.NLayers DO {loop over layers}
-			IF (par.lyr[j].negIons OR par.lyr[j].posIons) AND coupleIonsPoisson THEN {if ions are moving in this layer, then}
-				FOR i:=stv.i0[j] TO stv.i1[j] DO {sum over ion concentrations over all grid points in this layer}
-					sumPre:=sumPre + nion[i] + pion[i]
-	END;
 
     WHILE (NOT conv) AND (it < par.maxItPois) DO
     BEGIN
@@ -1743,17 +1735,13 @@ BEGIN
         BEGIN
 			delV[i]:=SIGN(delV[i])*MIN(par.maxDelV*stv.Vt, ABS(delV[i])); {limit delV to a pre-set max}
             V[i]:=V[i] + delV[i];  {and add delV to V}
-			IF dti=0 THEN BEGIN
-				{Couple the Poisson to the cont. eqs. and makes convergence a lot easier!}
-				val:=SIGN(delV[i]) * MIN(lnr, ABS(delV[i])*stv.Vti);
-				fac2:=EXP(val);
-				fac3:=1/fac2;
-				n[i]:=n[i]*fac2; {now update the densities: we have to do this}
-				p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
-				{we also apply this to the ions. If IonsInTLs = 0 then we can still do this even though it's redundant for i<i1 and i>i2}
-				IF par.lyr[stv.lid[i]].negIons AND coupleIonsPoisson THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
-				IF par.lyr[stv.lid[i]].posIons AND coupleIonsPoisson THEN pion[i]:=pion[i]*fac3
-			END
+			val:=SIGN(delV[i]) * MIN(lnr, ABS(delV[i])*stv.Vti);
+			fac2:=EXP(val);
+			fac3:=1/fac2;
+			n[i]:=n[i]*fac2; {now update the densities: we have to do this}
+			p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
+			IF par.lyr[stv.lid[i]].negIons THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
+			IF par.lyr[stv.lid[i]].posIons THEN pion[i]:=pion[i]*fac3
 		END; {for loop}
 
         it:=it+1;
@@ -1762,24 +1750,8 @@ BEGIN
 
     END;
 	
-	PoissMsg:=PoissMsg +'- delV ='+FloatToStrF(NormDelV, ffGeneral,5,0) + LineEnding;
-  
-    {OK, now see if we haven't changed the ions too much, so again we sum their concentrations}
-    IF coupleIonsPoisson THEN 
-    BEGIN 
-		sumPost:=0;
-		FOR j:=1 TO stv.NLayers DO {loop over layers}
-			IF (par.lyr[j].negIons OR par.lyr[j].posIons) THEN {if ions are moving in this layer, then}
-				FOR i:=stv.i0[j] TO stv.i1[j] DO {sum over ion concentrations over all grid points in this layer}
-					sumPost:=sumPost + nion[i] + pion[i];
-
-		{note: by now, sumPost cannot be zero as there are ions}
-		IonsOK:=(ABS(sumPre-sumPost)/sumPost) < par.tolPois;
-		conv:=conv AND IonsOK;
-		PoissMsg:=PoissMsg + '- movement of ions acceptable: ' + myBoolStr(IonsOK) + LineEnding;
-	END;
-
-	PoissMsg:=PoissMsg + '- Poisson solver converged: ' + myBoolStr(conv)
+	PoissMsg:='Poisson solver converged: ' + myBoolStr(conv) + LineEnding; {message string}
+	PoissMsg:=PoissMsg + 'delV = '+FloatToStrF(NormDelV, ffGeneral,5,0) + LineEnding
 
 END;
 
@@ -2637,7 +2609,7 @@ BEGIN
 
 END;
 
-FUNCTION Deterimine_Convergence_Densities(CONSTREF deln, delp, delnion, delpion, n, p, nion, pion : vector; 
+FUNCTION Determine_Convergence_Densities(CONSTREF deln, delp, delnion, delpion, n, p, nion, pion : vector; 
 							UpdateIons : BOOLEAN; accDens : myReal; VAR ConvMsg : STRING; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : BOOLEAN;
 {Determines whether the densities have converged}
 VAR totRelChange : myReal;
@@ -2660,17 +2632,39 @@ BEGIN
 				totRelChange:=totRelChange + Norm_Eucl(delpion, stv.i0[j], stv.i1[j]) / Norm_Eucl(pion, stv.i0[j], stv.i1[j])
 		END;
 
-	ConvMsg:='- relative change of densities: ' + FloatToStrF(totRelChange, ffExponent,5,0) + LineEnding; {our message string}
+	{now we correct for the acceleration parameter that (artificially) may have reduced the change:}
+	totRelChange:=totRelChange/accDens;
 
-	{so, converged if change is small enough, we take the acceleration into accout as well:}
-	Deterimine_Convergence_Densities:=totRelChange <= accDens*par.tolDens
+	ConvMsg:=ConvMsg + 'Densities have converged: ' + myBoolStr(totRelChange <= par.tolDens) + LineEnding;
+	ConvMsg:=ConvMsg + 'Relative change of densities: ' + FloatToStrF(totRelChange, ffExponent,5,0) + LineEnding; {our message string}
+	
+	{so, converged if change is small enough:}
+	Determine_Convergence_Densities:=totRelChange <= par.tolDens
 END;
+
+FUNCTION Determine_Convergence_Current(VAR ConvMsg : STRING; VAR new : TState; CONSTREF curr : TState; 
+										CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : BOOLEAN;
+{Determine if current in the main loop has converged.}
+VAR convCurr : BOOLEAN;
+BEGIN
+	{first compute the currents:}
+	Calc_All_Currents(new, curr, stv, par); {calcs vectors Jn, Jp, Jnion, Jpion, JD and overall current Jint plus its rms error} 
+
+	{current converges is either the relative error (=range) is <= tolCurr, or if the absolute error is <= tolCurrAbs (which is small!, see DDTypesAndConstants}
+	convCurr:=(new.errJ <= ABS(par.tolCurr*new.Jint)) OR (new.errJ <= tolCurrAbs);
+
+	ConvMsg:=ConvMsg + 'Current converged: '+ myBoolStr(convCurr) + LineEnding;
+	ConvMsg:=ConvMsg + 'Relative error on the current Jint: ' + FloatToStrF(ABS(new.errJ/new.Jint), ffExponent,5,0) + LineEnding;	
+
+	Determine_Convergence_Current:=convCurr
+END;
+
 
 PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLEAN; VAR StatusStr : ANSISTRING; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
 {can be used in steady-state and transient cases}
 VAR i, MaxIt : INTEGER;
-	check_Poisson, coupleIonsPoisson, convDensities, AnyMovingIons : BOOLEAN;
+	check_Poisson, convMain, AnyMovingIons : BOOLEAN;
 	oldn, oldp, oldnion, oldpion, deln, delp, delnion, delpion : vector; {we need this to monitor the iteration loops}
 	PoissMsg, ConvMsg : STRING;
 	accDens : myReal;
@@ -2684,25 +2678,28 @@ BEGIN
 	IF new.dti=0 {max number of iterations depends on whether we're in steady-state(dti=0) or not}
 		THEN MaxIt:=par.maxItSS 
 		ELSE MaxIt:=par.maxItTrans;
-
+	
 	{are there ANY moving ions in any of the layers?}
 	AnyMovingIons:=FALSE;
 	FOR i:=1 TO stv.NLayers DO
 		AnyMovingIons:=AnyMovingIons OR par.lyr[i].negIons OR par.lyr[i].posIons;
 
-	coupleIonsPoisson:=AnyMovingIons; {signfies whether ion density can be modified by Poisson solver}
-
 	{Before we enter the main loop, we'll first solve for the potential:}
 	WITH new DO
 	BEGIN
 		{note: Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
-		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
+		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, PoissMsg, dti, stv, par); 
 		Update_Gen_Pot(V, Vgn, Vgp, stv, par) {update generalised potentials}
 	END;
 
 	REPEAT WITH new DO
 	BEGIN
 		INC(it);
+		
+		{empty the message strings:}
+		PoissMsg:='';
+		ConvMsg:='';
+		
 		{perform 1 iteration, calc mobilities, densities, etc:}
 		Calc_Elec_Mob(mun, V, n, stv, par); {calc. the new mobilities}
 		Calc_Hole_Mob(mup, V, p, stv, par);
@@ -2750,22 +2747,22 @@ BEGIN
 		END;
 
 		{note: Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
-		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, coupleIonsPoisson, PoissMsg, dti, stv, par); 
+		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, PoissMsg, dti, stv, par); 
 		Update_Gen_Pot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 
-		{now check if the charge densities (n,p,nion,pion) have converged:}
-		convDensities:=Deterimine_Convergence_Densities(deln, delp, delnion, delpion, n, p, nion, pion, UpdateIons, accDens, ConvMsg, stv, par);
-
-		{if there are ions: Until the first time that convDensities, we have coupled the Poisson solver
-		 and the ion solver by allowing the Poisson solver to modify the ions densities on the fly.
-		 Now we see if the convergence is also OK if we forbid the Poisson solver to change the ion densities.}
-		IF convDensities AND AnyMovingIons AND coupleIonsPoisson THEN
-		BEGIN {force main solver to keep iterating, but now don't touch ions in Poisson solver}
-			coupleIonsPoisson:=FALSE; {no longer update ions inside Poisson solver}
-			convDensities:=FALSE {reset convDensities to make sure we'll keep iterating}
-		END;	
+		{now check for convergence:}
+		ConvMsg:='';
+		CASE par.convVar OF {the overall convergence (conv) depends on what we deem important: densities, currents, both?}
+			1 : convMain:=Determine_Convergence_Densities(deln, delp, delnion, delpion, n, p, nion, pion, UpdateIons, accDens, ConvMsg, stv, par);
+			2 : convMain:=Determine_Convergence_Current(ConvMsg, new, curr, stv, par);
+			3 : convMain:=Determine_Convergence_Densities(deln, delp, delnion, delpion, n, p, nion, pion, UpdateIons, accDens, ConvMsg, stv, par) OR Determine_Convergence_Current(ConvMsg, new, curr, stv, par);
+			4 : convMain:=Determine_Convergence_Densities(deln, delp, delnion, delpion, n, p, nion, pion, UpdateIons, accDens, ConvMsg, stv, par) AND Determine_Convergence_Current(ConvMsg, new, curr, stv, par)
+		END;
+		{Please note: fpc by default does shortcut evaluation of boolean expressions. That means that in case 3 or 4 the second routine is never called if the result is already known. 
+		In such a case, we won't see the comments on the current in the log file in case of no convergence.
+		We check the densities first as that is faster: computing the current itself is relatively slow!}
 		
-		conv:=convDensities AND check_Poisson; {so convergence=true if index is positive}
+		conv:= check_Poisson AND convMain; {for overall convergence, we always require the Poisson solver converged!}
 	
 		{now check if time is up!}
 		IF (par.timeOut > 0) AND (SecondSpan(NOW, TimeStart) > par.timeOut) THEN 
@@ -2787,9 +2784,8 @@ BEGIN
 	{now construct string to report on our progress:}
 	StatusStr:='Overall convergence: '+myBoolStr(conv) + LineEnding;
 	StatusStr:=StatusStr + 'Iterations perfomed: '+IntToStr(it) + LineEnding;
-	StatusStr:=StatusStr + PoissMsg + LineEnding;
-	StatusStr:=StatusStr + ConvMsg;
-
+	StatusStr:=StatusStr + PoissMsg;
+	StatusStr:=StatusStr + ConvMsg
 END;
 
 PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN; CONSTREF stv : TStaticVars); 
@@ -2801,7 +2797,7 @@ BEGIN
 	REWRITE(uitv); {rewrite old file (if any) or create new one}
     {write header, in the simulation we'll simply output the variables, but not change this header:}
 	IF transient THEN WRITE(uitv,' t');
-	WRITE(uitv,' Vext Jext errJ Jint ');
+	WRITE(uitv,' Vext Jext errJ Vint Jint ');
 	IF transient THEN WRITE(uitv,' G_frac ');
 	 
 	{write the quasi-Fermi level splitting in each layer:}
@@ -2856,7 +2852,7 @@ BEGIN
 		IF n[0]<p[0] THEN JminLeft:=Jn[0] ELSE JminLeft:=Jp[0];
 		IF n[NP+1]<p[NP+1] THEN JminRight:=Jn[NP+1] ELSE JminRight:=Jp[NP+1];   
         
-        WRITE(uitv,Vext:nd,' ',Jext:nd,' ',errJ:nd,' ',Jint:nd,' ');
+        WRITE(uitv,Vext:nd,' ',Jext:nd,' ',errJ:nd,' ',Vint:nd,' ',Jint:nd,' ');
 		IF transient THEN WRITE(uitv, G_frac:nd,' ');
 		
         {compute the quasi-Fermi level splitting QFLS in each point, and then average over each layer:}

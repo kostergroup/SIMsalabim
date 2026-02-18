@@ -1,7 +1,7 @@
 ** SIMsalabim Layer parameters:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 5.25
+** version: 5.27
 
 **General**************************************************************************
 L = 25E-9                      * m, device length/thickness
