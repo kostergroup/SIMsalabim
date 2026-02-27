@@ -42,7 +42,7 @@ USES
 	SysUtils,
     Ucomplex;
 
-CONST   TransferMatrixVersion = '5.27'; {version of this unit}
+CONST   TransferMatrixVersion = '5.28'; {version of this unit}
 
 
 TYPE 

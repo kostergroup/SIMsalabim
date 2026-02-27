@@ -1,3 +1,10 @@
+Version 5.28, 27 Feb 2026, LJAK
+
+Removed a small bug from ZimT: In ZimT's routine Read_tVG, we check to ensure that the time steps are correct. There are two possibilities: 1) we go forward in time (so time step > 0); 2) we either remain in steady-state (t=0 and time step = 0) or we go back to steady-state (t=0, time step is negative). Constant time that is not zero is not allowed. However: we did not check to exclude t<>0 with zero time step and treated that as steady-state.
+
+
+
+
 Version 5.27, 13-17 Feb 2026, LJAK
 
 Reintroduced a way to specify which variable(s) are monitored for convergence. I removed something like this in version 3.88 (Conv_Var, now spelled convVar to remain consistent with our naming of variables as outlined in the developer guidelines.).

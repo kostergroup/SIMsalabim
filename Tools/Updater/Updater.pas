@@ -49,7 +49,7 @@ uses {our own, generic ones:}
 	 SysUtils, StrUtils, Math;
 
 const minVersion = 419;
-	  maxVersion = 526;
+	  maxVersion = 527;
 	
 	  {define shorthand for DirectorySeparator (OS-dependent):}  
 	  slash = DirectorySeparator;  
@@ -5941,6 +5941,135 @@ begin
 	end
 end;
 
+procedure UpdateTo528(ProgName : string; var version : integer; SetupFile : string);
+{updates the setup file (SetupFile) and layer files (LayerFile) by 1 version number}
+var inp, outp : text;
+	line, newVersionString, LayerFile : string;
+	dum1, dum2 : string;
+	buffer, path : ansistring;
+	CopyLine : boolean;
+	LayerCounter, LayerVersion : integer;
+	
+	procedure UpdateLayerFile528(path, LayerFile : string); 
+	{only works on a single layer file}
+	var inp, outp : text;
+		buffer : ansistring;
+		line, dumstr : string;
+		posVersion, posVersionNumber : integer;
+
+	begin
+		if FileExists(path + LayerFile) then 
+			assign(inp, path + LayerFile)
+		else
+			Stop_Prog('Could not find file '+LayerFile, 3, not force);
+		reset(inp);
+		
+		{read entire file:}
+		buffer:='';
+		while not eof(inp) do begin
+			readln(inp, line);
+			buffer:=buffer + line + LineEnding
+		end;
+		close(inp);
+		
+		{change version number:}
+		dumstr:=FormatFloat('0.00', 0.01*version);
+		posVersion:=pos('version:', LowerCase(buffer));
+		posVersionNumber:=pos(dumstr, buffer);
+		if (posVersion <> 0) and (posVersion < posVersionNumber) then
+			begin {now we simply cut and replace the bit of buffer with the version number:}
+				Delete(buffer, posVersionNumber, length(dumstr));
+				dumstr:=FormatFloat('0.00', 0.01*(version+1));
+				Insert(dumstr, buffer, posVersionNumber)
+			end
+		else
+			Stop_Prog('Could not find correct version number in file '+LayerFile, 3, not force);
+
+{other code that modifies LayerFile goes here:}
+	
+{end of code that modifies parameters in LayerFile}
+		
+		{write new layer file:}	
+		assign(outp, path + LayerFile);
+		rewrite(outp);
+		write(outp, buffer);
+		close(outp)	
+	end;
+	
+begin
+	if version=527 then {we only update 1 version number!}
+	begin
+		path:=ExtractFilePath(SetupFile); {we need the path to get to the right LayerFile!}
+		
+		assign(inp, SetupFile);
+		reset(inp);
+		
+		buffer:=''; {this will be our output, empty at first}
+		newVersionString:=FormatFloat('0.00', 0.01 * (version+1)); {this converts the version to the next one, so version=420 will yield '4.21'}
+		LayerCounter:=0;
+		
+		while not eof(inp) do
+		begin
+			readln(inp, line); {read a line from the file}
+			{if we find the version number, then we simply replace the version number}
+			{otherwise, we simply copy}
+			CopyLine:=true;
+			if pos('version:', LowerCase(line)) <> 0 then
+			begin
+				CopyLine:=false;
+				buffer:=buffer + '** version: '+newVersionString + LineEnding
+			end;
+			
+{in case we need to add/remove parameters, the code goes here:}
+
+	
+{till here}
+	
+			{now treat the layer(s)}
+			dum1:='l'+IntToStr(LayerCounter+1)+'=';
+			dum2:=LowerCase(DelSpace(line)); {remove all whitespace}
+			if LeftStr(dum2, length(dum1)) = dum1 then {found layer number (LayerCounter+1)}
+			begin
+				{now try to extract name of layer file:}
+				try
+					dum1:=ExtractWord(2, line, ['=', '*']); {the file name sits between = and a *}
+					inc(LayerCounter);
+					LayerFile:=Trim(dum1)
+				except
+					Stop_Prog('Error reading name of layer '+IntToStr(LayerCounter)+' in file '+SetupFile+'.', 3, not force)
+				end;
+				
+				{and update layer file:}
+				GetProgNameVersion(dum1, LayerVersion, path + LayerFile); 
+				if LayerVersion = version then {only update the layer file if we need to!}
+					UpdateLayerFile528(path, LayerFile); 
+					
+				CopyLine:=true
+			end;	
+		
+			if CopyLine then
+				buffer:=buffer + line + LineEnding {otherwise, simply copy}	
+		end;
+		
+		close(inp);
+		{now write the file:}
+		assign(outp, SetupFile);
+		rewrite(outp);
+		write(outp, buffer);
+		close(outp);
+		
+		inc(version);
+		writeln('Updated to version ', newVersionString);
+		if not force then 
+		begin
+			writeln('This version introduces two important variables: convVar and tolCurr.');
+			writeln('Please check the manual to see how to use them to your advantage!');
+			writeln('Press enter to continue...');
+			readln
+		end
+	end
+end;
+
 begin
 	{init and say hello}
 	if hasCLoption('-h') then DisplayHelpExit;
@@ -6045,6 +6174,7 @@ begin
 	UpdateTo525(ProgName, version, SetupFile);
 	UpdateTo526(ProgName, version, SetupFile);
 	UpdateTo527(ProgName, version, SetupFile);
+	UpdateTo528(ProgName, version, SetupFile);
 	
 	writeln;
 	writeln('Done!');
