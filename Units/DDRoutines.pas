@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.28'; {version of this unit}
+CONST DDRoutinesVersion = '5.30'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -667,8 +667,7 @@ BEGIN
 {checks on ions:}
 		IF (N_anion <0) OR (N_cation<0) THEN Stop_Prog(dumStr+'Ionic concentrations cannot be negative.', EC_InvalidInput);
 		IF (mu_anion<0) OR (mu_cation<0) THEN Stop_Prog(dumStr+'Ion mobilities cannot be negative.', EC_InvalidInput);
-		IF ((N_anion>0) OR (N_cation>0)) AND NOT ionsMayEnter THEN Stop_Prog('If a layer contains ions, then ionsMayEnter (of that layer) must be 1.', EC_InvalidInput);
-		IF ionsMayEnter AND (mu_anion*mu_cation = 0) THEN Stop_Prog('If ionsMayEnter = 1, then the ion mobilities cannot be 0.', EC_InvalidInput);
+		IF ((mu_anion*N_anion>0) OR (mu_cation*N_cation>0)) AND NOT ionsMayEnter THEN Stop_Prog('If a layer contains mobile ions, then ionsMayEnter (of that layer) must be 1.', EC_InvalidInput);
 		
 {checks on generation and recombination parameters}
 		IF G_ehp < 0 THEN Stop_Prog('G_ehp cannot be negative.', EC_InvalidInput);
@@ -766,7 +765,8 @@ BEGIN
 				Stop_Prog_Finalize_Log(log, 'Invalid Vacc selected, must be outside [Vmin, Vmax].', EC_InvalidInput);
 			IF (Vdist=1) AND (Vstep <= 0) THEN Stop_Prog_Finalize_Log(log, 'Vstep should be positive.', EC_InvalidInput);	
 			IF (ABS(Vmin-Vmax) < 1e-10) AND (Vdist=2) {to avoid infinite loop of Va}
-			THEN Stop_Prog_Finalize_Log(log, 'Do not use Vdist=2 when Vmin = Vmax.', EC_InvalidInput);	
+				THEN Stop_Prog_Finalize_Log(log, 'Do not use Vdist=2 when Vmin = Vmax.', EC_InvalidInput);	
+			IF untilVoc AND (leftElec * Vscan > 0) THEN Stop_Prog_Finalize_Log(log, 'If untilVoc = 1, then we must have that leftElec x Vscan is negative.', EC_InvalidInput)
 		END;
 
 {checks on user-interface:}
@@ -919,7 +919,7 @@ PROCEDURE Init_Ionic_Region(VAR IonRegion : TIonicRegions; sn : ShortInt; CONSTR
 This proc determines which layers from a region of adjacent layers where ions (pos or neg = sn) can move}
 VAR start, finish, j, NumRegions : INTEGER;
 	FoundStart, FoundEnd : BOOLEAN;
-	TotIons : myReal;
+	TotIons, concIons, mobIons : myReal;
 BEGIN
 	IF ABS(sn)<>1 THEN Stop_Prog('Init_Ionic_Region called with invalid sn (= sign of ions, +-1).',EC_ProgrammingError);
 	start:=0;
@@ -932,14 +932,22 @@ BEGIN
 	FOR j:=1 TO stv.NLayers DO {loop over the layers}
 	BEGIN
 		
+		{determine mobility and concentration of the ions in this layer, depending on sn:}
+		IF sn = 1 THEN 
+		BEGIN {sn positive, so we have cations}
+			mobIons:=par.lyr[j].mu_cation;
+			concIons:=par.lyr[j].N_cation
+		END
+		ELSE BEGIN {we have anions:}
+			mobIons:=par.lyr[j].mu_anion;
+			concIons:=par.lyr[j].N_anion			
+		END;
+		
 		{first: can there be ions in this layer?}
-		IF par.lyr[j].ionsMayEnter THEN 
+		IF par.lyr[j].ionsMayEnter OR ((mobIons=0) AND (concIons>0))THEN 
 		BEGIN {there may be ions in this layer}
 			finish:=stv.i1[j];
-			IF sn = 1 THEN
-				TotIons:=TotIons + par.lyr[j].L * par.lyr[j].N_cation
-			ELSE
-				TotIons:=TotIons + par.lyr[j].L * par.lyr[j].N_anion;
+			TotIons:=TotIons + par.lyr[j].L * concIons;
 	
 			IF NOT FoundStart THEN		
 			BEGIN {we have found a NEW region with ions!}
@@ -958,7 +966,7 @@ BEGIN
 		IF j=stv.NLayers THEN
 			FoundEnd:=TRUE
 		ELSE
-			FoundEnd:=NOT par.lyr[j+1].ionsMayEnter;
+			FoundEnd:=(NOT par.lyr[j+1].ionsMayEnter) OR (mobIons = 0); {if the mobility is zero, then the ionic region is only 1 layer!}
 			
 		{we have found a full new region if we have the start, end, and some ions:}
 		IF FoundStart AND FoundEnd AND (TotIons<>0) THEN
@@ -969,12 +977,14 @@ BEGIN
 			BEGIN
 				istart:=start;
 				ifinish:=finish;
-				AvC:=TotIons/(stv.x[ifinish] - stv.x[istart])
-			END
-		END;
+				AvC:=TotIons/(stv.x[ifinish] - stv.x[istart]);
+				mobile:=mobIons>0
+			END;
+			TotIons:=0 {reset the number of ions}
+		END
 
-	END; {loop over layers}
-	
+	END {loop over layers}
+
 END;
 
 PROCEDURE Init_Generation_Profile(VAR stv : TStaticVars; VAR log : TEXT; CONSTREF par : TInputParameters);
@@ -1104,18 +1114,18 @@ BEGIN
     {identify regions (can be multiple adjacent layers) that contain either pos or neg ions:}
 	Init_Ionic_Region(stv.NegIonRegion, -1, stv, par);
 	Init_Ionic_Region(stv.PosIonRegion, 1, stv, par);
-	
+
 	{now we know the ionic regions, we must indicate (per LAYER) if a layer contains pos/neg ions. Those ions can come from adjacent layers!}
 	{first: negative ions:}
 	FOR j:=0 TO LENGTH(stv.NegIonRegion)-1 DO 
 		FOR i:=stv.lid[stv.NegIonRegion[j].istart] TO stv.lid[stv.NegIonRegion[j].ifinish] DO	
-			{neg/posIons only true if layer is 1) part of an Ionic Region, and 2) the average concentration > 0}
-			par.lyr[i].negIons:=stv.NegIonRegion[j].AvC>0;
+			{neg/posIons only true if layer is 1) part of an Ionic Region, 2) the average concentration > 0, 3) they move}
+			par.lyr[i].negMobileIons:=(stv.NegIonRegion[j].AvC>0) AND (stv.NegIonRegion[j].mobile);
 	{and postive ones:}
 	FOR j:=0 TO LENGTH(stv.PosIonRegion)-1 DO 
 		FOR i:=stv.lid[stv.PosIonRegion[j].istart] TO stv.lid[stv.PosIonRegion[j].ifinish] DO	
-			{neg/posIons only true if layer is 1) part of an Ionic Region, and 2) the average concentration > 0}
-			par.lyr[i].posIons:=stv.PosIonRegion[j].AvC>0;
+			{neg/posIons only true if layer is 1) part of an Ionic Region, 2) the average concentration > 0, 3) they move}
+			par.lyr[i].posMobileIons:=(stv.PosIonRegion[j].AvC>0) AND (stv.PosIonRegion[j].mobile);
 	
 	{now give the arrays noin/pion and mu_n/p_ion the right (starting) values:}
 	FOR i:=0 TO par.NP+1 DO
@@ -1125,7 +1135,7 @@ BEGIN
 		stv.mu_n_ion[i]:=par.lyr[stv.lid[i]].mu_anion;
 		stv.mu_p_ion[i]:=par.lyr[stv.lid[i]].mu_cation
 	END;
-	
+
 	Init_Trap_Filling_Arrays(f_tb, f_ti, f_ti_numer, f_ti_inv_denom, stv, par); {inits their lengths and sets all elements to zero}
 
 END;
@@ -1297,24 +1307,25 @@ BEGIN
 	{we loop over all regions where that contain ions, so this can be multiple layers!}
 	FOR j:=0 TO LENGTH(IonRegion)-1 DO 
 		WITH IonRegion[j] DO
-		BEGIN
-			ion[istart]:=AvC;
-			FOR i:=istart+1 TO ifinish DO
+			IF mobile THEN {we only need to solve the ion concentration if they move!}
 			BEGIN
-				IF sn=1 THEN
-					fac:=B(stv.Vti*(V[i]-V[i-1])) / B(stv.Vti*(V[i-1]-V[i])) 
-				ELSE
-					fac:=B(stv.Vti*(V[i-1]-V[i])) / B(stv.Vti*(V[i]-V[i-1]));
-				{we use the expressions for the ion currents to make sure that they are zero. This yields
-				the profile of neg/pos ions.}
-				IF AvC>0 THEN ion[i]:=ion[i-1]*fac ELSE ion[i]:=0
-			END;
+				ion[istart]:=AvC;
+				FOR i:=istart+1 TO ifinish DO
+				BEGIN
+					IF sn=1 THEN
+						fac:=B(stv.Vti*(V[i]-V[i-1])) / B(stv.Vti*(V[i-1]-V[i])) 
+					ELSE
+						fac:=B(stv.Vti*(V[i-1]-V[i])) / B(stv.Vti*(V[i]-V[i-1]));
+					{we use the expressions for the ion currents to make sure that they are zero. This yields
+					the profile of neg/pos ions.}
+					IF AvC>0 THEN ion[i]:=ion[i-1]*fac ELSE ion[i]:=0
+				END;
 			
-			{nomalize concentrations}
-			IF AvC>0 THEN Rescale_Ion_Density(ion, istart, ifinish, IonRegion[j].AvC, stv, par);
-	
-		END {with stv.IonRegion[j]}
-	
+				{nomalize concentrations}
+				IF AvC>0 THEN Rescale_Ion_Density(ion, istart, ifinish, IonRegion[j].AvC, stv, par);
+		
+			END {if mobile}
+
 END;
 
 PROCEDURE Solve_Neg_Ions(VAR nion : vector; nionPrevTime, V : vector; dti : myReal; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
@@ -1326,73 +1337,75 @@ BEGIN
 	{we loop over the regions that can contain ions. A region can be multiple adjacent layers.
 	Per such region, we solve the drift-diffusion equation and compute the ionic distribution.}
 	
-	FOR j:=0 TO LENGTH(stv.NegIonRegion)-1 DO BEGIN {loop over all regions that can contain ions:}
-		istart:=stv.NegIonRegion[j].istart;
-		ifinish:=stv.NegIonRegion[j].ifinish;
-		
-		{first: we do the left interface: either at the contact or at some adjacent layer}
-		IF istart<>0 THEN
-		WITH stv DO 
-		BEGIN {there's a layer left of this region that is impenetrable to ions}
-			i:=istart; {i is just shorthand notation for istart}
-			rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(stv.Ltot)*h[i]*(h[i]+h[i-1]);
-			lo[i]:=0;
-			m[i]:=-Vt*mu_n_ion[i]*B(Vti*(V[i]-V[i+1])) -0.5*dti*SQR(Ltot)*h[i]*(h[i]+h[i-1]);
-			u[i]:=Vt*mu_n_ion[i]*B(Vti*(V[i+1]-V[i]));   
-		END
-		ELSE BEGIN {ions can move towards the contacts, nion[0]<>0:}
-			{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
-			lo[0]:=0;
-			m[0]:=1;
-			u[0]:=-B(stv.Vti*(V[1]-V[0])) / B(stv.Vti*(V[0]-V[1]));
-			rhs[0]:=0 
-		END;
-	
-		{now we do the right interface. Again: either at the contact or an adjacent layer}
-		IF ifinish <> par.NP+1 THEN
-		WITH stv DO
-		BEGIN  {ions cannot move towards the contacts}
-			i:=ifinish;  {i is just shorthand notation for ifinish}
-			rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
-			lo[i]:=Vt*mu_n_ion[i-1]*B(Vti*(V[i-1]-V[i]));
-			m[i]:=-Vt*mu_n_ion[i-1]*B(Vti*(V[i]-V[i-1]))-0.5*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
-			u[i]:=0
-		END 
-		ELSE BEGIN {ions can move towards the contacts, nion[NP+1]<>0:}
-			lo[ifinish]:=-B(stv.Vti*(V[par.NP]-V[par.NP+1])) / B(stv.Vti*(V[par.NP+1]-V[par.NP]));
-			m[ifinish]:=1;
-			u[ifinish]:=0;
-			rhs[ifinish]:=0
-		END;
-
-		{now set the interior part:}
-		FOR i:=istart+1 TO ifinish-1 DO  {continuity eq. in matrix vorm, equivalent to that of n and p, but without generation and recombination}
-		WITH stv DO
+	FOR j:=0 TO LENGTH(stv.NegIonRegion)-1 DO {loop over all regions that can contain ions:}
+		IF stv.NegIonRegion[j].mobile THEN {only solve ions if they can move!}
 		BEGIN
-			rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
-			lo[i]:=h[i]*Vt*mu_n_ion[i-1]*B(Vti*(V[i-1]-V[i]));
-			m[i]:=-(h[i-1]*Vt*mu_n_ion[i]*B(Vti*(V[i]-V[i+1])) +
-				h[i]*Vt*mu_n_ion[i-1]*B(Vti*(V[i]-V[i-1])))
-				-0.5*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
-			u[i]:=h[i-1]*Vt*mu_n_ion[i]*B(Vti*(V[i+1]-V[i]));          
-		END;
-
-		{Solve nion from istart to ifinish:}
-		Tridiag(nion, lo, m, u, rhs, istart, ifinish);
-	
-		{now check if nion is still well behaved, i.e. positive, and has the correct overall value}
-		FOR i:=istart TO ifinish DO
-			IF (nion[i]<0) THEN 
-			BEGIN
-				IF par.ignoreNegDens 
-					THEN nion[i]:=-nion[i] 
-					ELSE Stop_Prog('Negative concentration of negative ions encountered!', EC_NumericalFailure)
-			END;
+			istart:=stv.NegIonRegion[j].istart;
+			ifinish:=stv.NegIonRegion[j].ifinish;
 		
-		{make sure the number of ions is preserved, i.e. correct:}
-		Rescale_Ion_Density(nion, istart, ifinish, stv.NegIonRegion[j].AvC, stv, par)
+			{first: we do the left interface: either at the contact or at some adjacent layer}
+			IF istart<>0 THEN
+			WITH stv DO 
+			BEGIN {there's a layer left of this region that is impenetrable to ions}
+				i:=istart; {i is just shorthand notation for istart}
+				rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(stv.Ltot)*h[i]*(h[i]+h[i-1]);
+				lo[i]:=0;
+				m[i]:=-Vt*mu_n_ion[i]*B(Vti*(V[i]-V[i+1])) -0.5*dti*SQR(Ltot)*h[i]*(h[i]+h[i-1]);
+				u[i]:=Vt*mu_n_ion[i]*B(Vti*(V[i+1]-V[i]));   
+			END
+			ELSE BEGIN {ions can move towards the contacts, nion[0]<>0:}
+				{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
+				lo[0]:=0;
+				m[0]:=1;
+				u[0]:=-B(stv.Vti*(V[1]-V[0])) / B(stv.Vti*(V[0]-V[1]));
+				rhs[0]:=0 
+			END;
 	
-	END; {loop over all regions that can contain ions}
+			{now we do the right interface. Again: either at the contact or an adjacent layer}
+			IF ifinish <> par.NP+1 THEN
+			WITH stv DO
+			BEGIN  {ions cannot move towards the contacts}
+				i:=ifinish;  {i is just shorthand notation for ifinish}
+				rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
+				lo[i]:=Vt*mu_n_ion[i-1]*B(Vti*(V[i-1]-V[i]));
+				m[i]:=-Vt*mu_n_ion[i-1]*B(Vti*(V[i]-V[i-1]))-0.5*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
+				u[i]:=0
+			END 
+			ELSE BEGIN {ions can move towards the contacts, nion[NP+1]<>0:}
+				lo[ifinish]:=-B(stv.Vti*(V[par.NP]-V[par.NP+1])) / B(stv.Vti*(V[par.NP+1]-V[par.NP]));
+				m[ifinish]:=1;
+				u[ifinish]:=0;
+				rhs[ifinish]:=0
+			END;
+
+			{now set the interior part:}
+			FOR i:=istart+1 TO ifinish-1 DO  {continuity eq. in matrix vorm, equivalent to that of n and p, but without generation and recombination}
+			WITH stv DO
+			BEGIN
+				rhs[i]:=-0.5 * nionPrevTime[i]*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
+				lo[i]:=h[i]*Vt*mu_n_ion[i-1]*B(Vti*(V[i-1]-V[i]));
+				m[i]:=-(h[i-1]*Vt*mu_n_ion[i]*B(Vti*(V[i]-V[i+1])) +
+					h[i]*Vt*mu_n_ion[i-1]*B(Vti*(V[i]-V[i-1])))
+					-0.5*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
+				u[i]:=h[i-1]*Vt*mu_n_ion[i]*B(Vti*(V[i+1]-V[i]));          
+			END;
+
+			{Solve nion from istart to ifinish:}
+			Tridiag(nion, lo, m, u, rhs, istart, ifinish);
+	
+			{now check if nion is still well behaved, i.e. positive, and has the correct overall value}
+			FOR i:=istart TO ifinish DO
+				IF (nion[i]<0) THEN 
+				BEGIN
+					IF par.ignoreNegDens 
+						THEN nion[i]:=-nion[i] 
+						ELSE Stop_Prog('Negative concentration of negative ions encountered!', EC_NumericalFailure)
+				END;
+		
+			{make sure the number of ions is preserved, i.e. correct:}
+			Rescale_Ion_Density(nion, istart, ifinish, stv.NegIonRegion[j].AvC, stv, par)
+	
+		END 
 	
 END;
 
@@ -1405,73 +1418,75 @@ BEGIN
 	{we loop over the regions that can contain ions. A region can be multiple adjacent layers.
 	Per such region, we solve the drift-diffusion equation and compute the ionic distribution.}
 	
-	FOR j:=0 TO LENGTH(stv.PosIonRegion)-1 DO BEGIN {loop over all regions that can contain ions:}
-		istart:=stv.PosIonRegion[j].istart;
-		ifinish:=stv.PosIonRegion[j].ifinish;
+	FOR j:=0 TO LENGTH(stv.PosIonRegion)-1 DO {loop over all regions that can contain ions:}
+		IF stv.PosIonRegion[j].mobile THEN {only solve ions if they can move!}
+		BEGIN 
+			istart:=stv.PosIonRegion[j].istart;
+			ifinish:=stv.PosIonRegion[j].ifinish;
 		
-		{first: we do the left interface: either at the contact or at some adjacent layer}
-		IF istart<>0 THEN
-		WITH stv DO 
-		BEGIN {there's a layer left of this region that is impenetrable to ions}
-			i:=istart; {i is just shorthand notation for istart}
-			rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(stv.Ltot)*h[i]*(h[i]+h[i-1]);
-			lo[i]:=0;
-			m[i]:=-Vt*mu_p_ion[i]*B(Vti*(V[i+1]-V[i])) -0.5*dti*SQR(Ltot)*h[i]*(h[i]+h[i-1]);
-			u[i]:=Vt*mu_p_ion[i]*B(Vti*(V[i]-V[i+1]));   
-		END
-		ELSE BEGIN {ions can move towards the contacts, pion[0]<>0:}
-			{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
-			lo[0]:=0;
-			m[0]:=1;
-			u[0]:=-B(stv.Vti*(V[0]-V[1])) / B(stv.Vti*(V[1]-V[0]));
-			rhs[0]:=0 
-		END;
-	
-		{now we do the right interface. Again: either at the contact or an adjacent layer}
-		IF ifinish <> par.NP+1 THEN
-		WITH stv DO
-		BEGIN  {ions cannot move towards the contacts}
-			i:=ifinish;  {i is just shorthand notation for ifinish}
-			rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
-			lo[i]:=Vt*mu_p_ion[i-1]*B(Vti*(V[i]-V[i-1]));
-			m[i]:=-Vt*mu_p_ion[i-1]*B(Vti*(V[i-1]-V[i]))-0.5*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
-			u[i]:=0
-		END 
-		ELSE BEGIN {ions can move towards the contacts, pion[NP+1]<>0:}
-			lo[ifinish]:=-B(stv.Vti*(V[par.NP+1]-V[par.NP])) / B(stv.Vti*(V[par.NP]-V[par.NP+1]));
-			m[ifinish]:=1;
-			u[ifinish]:=0;
-			rhs[ifinish]:=0
-		END;
-
-		{now set the interior part:}
-		FOR i:=istart+1 TO ifinish-1 DO  {continuity eq. in matrix vorm, equivalent to that of n and p, but without generation and recombination}
-		WITH stv DO
-		BEGIN
-			rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
-			lo[i]:=h[i]*Vt*mu_p_ion[i-1]*B(Vti*(V[i]-V[i-1]));
-			m[i]:=-(h[i-1]*Vt*mu_p_ion[i]*B(Vti*(V[i+1]-V[i])) +
-				h[i]*Vt*mu_p_ion[i-1]*B(Vti*(V[i-1]-V[i])))
-				-0.5*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
-			u[i]:=h[i-1]*Vt*mu_p_ion[i]*B(Vti*(V[i]-V[i+1]));          
-		END;
-
-		{Solve pion from istart to ifinish:}
-		Tridiag(pion, lo, m, u, rhs, istart, ifinish);
-	
-		{now check if nion is still well behaved, i.e. positive, and has the correct overall value}
-		FOR i:=istart TO ifinish DO
-			IF (pion[i]<0) THEN 
-			BEGIN
-				IF par.ignoreNegDens 
-					THEN pion[i]:=-pion[i] 
-					ELSE Stop_Prog('Negative concentration of positive ions encountered!', EC_NumericalFailure)
+			{first: we do the left interface: either at the contact or at some adjacent layer}
+			IF istart<>0 THEN
+			WITH stv DO 
+			BEGIN {there's a layer left of this region that is impenetrable to ions}
+				i:=istart; {i is just shorthand notation for istart}
+				rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(stv.Ltot)*h[i]*(h[i]+h[i-1]);
+				lo[i]:=0;
+				m[i]:=-Vt*mu_p_ion[i]*B(Vti*(V[i+1]-V[i])) -0.5*dti*SQR(Ltot)*h[i]*(h[i]+h[i-1]);
+				u[i]:=Vt*mu_p_ion[i]*B(Vti*(V[i]-V[i+1]));   
+			END
+			ELSE BEGIN {ions can move towards the contacts, pion[0]<>0:}
+				{we need to ensure that the ionic currents into/out of the contacts be zero, so let's do that first:}
+				lo[0]:=0;
+				m[0]:=1;
+				u[0]:=-B(stv.Vti*(V[0]-V[1])) / B(stv.Vti*(V[1]-V[0]));
+				rhs[0]:=0 
 			END;
-		
-		{make sure the number of ions is preserved, i.e. correct:}
-		Rescale_Ion_Density(pion, istart, ifinish, stv.PosIonRegion[j].AvC, stv, par)
 	
-	END; {loop over all regions that can contain ions}
+			{now we do the right interface. Again: either at the contact or an adjacent layer}
+			IF ifinish <> par.NP+1 THEN
+			WITH stv DO
+			BEGIN  {ions cannot move towards the contacts}
+				i:=ifinish;  {i is just shorthand notation for ifinish}
+				rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
+				lo[i]:=Vt*mu_p_ion[i-1]*B(Vti*(V[i]-V[i-1]));
+				m[i]:=-Vt*mu_p_ion[i-1]*B(Vti*(V[i-1]-V[i]))-0.5*dti*SQR(Ltot)*h[i-1]*(h[i]+h[i-1]);
+				u[i]:=0
+			END 
+			ELSE BEGIN {ions can move towards the contacts, pion[NP+1]<>0:}
+				lo[ifinish]:=-B(stv.Vti*(V[par.NP+1]-V[par.NP])) / B(stv.Vti*(V[par.NP]-V[par.NP+1]));
+				m[ifinish]:=1;
+				u[ifinish]:=0;
+				rhs[ifinish]:=0
+			END;
+
+			{now set the interior part:}
+			FOR i:=istart+1 TO ifinish-1 DO  {continuity eq. in matrix vorm, equivalent to that of n and p, but without generation and recombination}
+			WITH stv DO
+			BEGIN
+				rhs[i]:=-0.5 * pionPrevTime[i]*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
+				lo[i]:=h[i]*Vt*mu_p_ion[i-1]*B(Vti*(V[i]-V[i-1]));
+				m[i]:=-(h[i-1]*Vt*mu_p_ion[i]*B(Vti*(V[i+1]-V[i])) +
+					h[i]*Vt*mu_p_ion[i-1]*B(Vti*(V[i-1]-V[i])))
+					-0.5*dti*SQR(Ltot)*h[i]*h[i-1]*(h[i]+h[i-1]);
+				u[i]:=h[i-1]*Vt*mu_p_ion[i]*B(Vti*(V[i]-V[i+1]));          
+			END;
+
+			{Solve pion from istart to ifinish:}
+			Tridiag(pion, lo, m, u, rhs, istart, ifinish);
+	
+			{now check if nion is still well behaved, i.e. positive, and has the correct overall value}
+			FOR i:=istart TO ifinish DO
+				IF (pion[i]<0) THEN 
+				BEGIN
+					IF par.ignoreNegDens 
+						THEN pion[i]:=-pion[i] 
+						ELSE Stop_Prog('Negative concentration of positive ions encountered!', EC_NumericalFailure)
+				END;
+		
+			{make sure the number of ions is preserved, i.e. correct:}
+			Rescale_Ion_Density(pion, istart, ifinish, stv.PosIonRegion[j].AvC, stv, par)
+	
+		END
 	
 END;
 
@@ -1740,8 +1755,9 @@ BEGIN
 			fac3:=1/fac2;
 			n[i]:=n[i]*fac2; {now update the densities: we have to do this}
 			p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
-			IF par.lyr[stv.lid[i]].negIons THEN nion[i]:=nion[i]*fac2; {and also apply this to the ions}
-			IF par.lyr[stv.lid[i]].posIons THEN pion[i]:=pion[i]*fac3
+			{and also apply this to the ions, but only if they are mobile:}
+			IF par.lyr[stv.lid[i]].negMobileIons THEN nion[i]:=nion[i]*fac2; 
+			IF par.lyr[stv.lid[i]].posMobileIons THEN pion[i]:=pion[i]*fac3
 		END; {for loop}
 
         it:=it+1;
@@ -2501,7 +2517,7 @@ BEGIN
 			{first, the negative ions}
 			FOR i:=0 TO LENGTH(stv.NegIonRegion)-1 DO
 				WITH stv.NegIonRegion[i] DO
-					IF AvC > 0 THEN
+					IF (AvC > 0) AND mobile THEN
 						CASE par.currDiffInt OF
 							1 : Calc_Curr_Diff(-1, istart, ifinish-1, Jnion, V, nion, stv.mu_n_ion, RecDum.int, stv, par);		
 							2 : Calc_Curr_Int(-1, istart, ifinish-1, dti, Jnion, V, nion, curr.nion, stv.mu_n_ion, GenDum, RecDum, stv, par);
@@ -2510,7 +2526,7 @@ BEGIN
 			{next: positive ions}
 			FOR i:=0 TO LENGTH(stv.PosIonRegion)-1 DO
 				WITH stv.PosIonRegion[i] DO
-					IF AvC > 0 THEN
+					IF (AvC > 0) AND mobile THEN
 						CASE par.currDiffInt OF
 							1 : Calc_Curr_Diff(1, istart, ifinish-1, Jpion, V, pion, stv.mu_p_ion, RecDum.int, stv, par);		
 							2 : Calc_Curr_Int(1, istart, ifinish-1, dti, Jpion, V, pion, curr.pion, stv.mu_p_ion, GenDum, RecDum, stv, par);
@@ -2579,8 +2595,8 @@ BEGIN
 
 				{now IF there are moving ions:}
 				IF new.UpdateIons THEN BEGIN
-					IF par.lyr[stv.lid[i]].negIons THEN	new.nion[i]:=MAX(0, curr.nion[i] + rV*(curr.nion[i]-prev.nion[i])); {these need to be non-negative}
-					IF par.lyr[stv.lid[i]].posIons THEN new.pion[i]:=MAX(0, curr.pion[i] + rV*(curr.pion[i]-prev.pion[i]))
+					IF par.lyr[stv.lid[i]].negMobileIons THEN	new.nion[i]:=MAX(0, curr.nion[i] + rV*(curr.nion[i]-prev.nion[i])); {these need to be non-negative}
+					IF par.lyr[stv.lid[i]].posMobileIons THEN new.pion[i]:=MAX(0, curr.pion[i] + rV*(curr.pion[i]-prev.pion[i]))
 				END; {ions}
 			
 			END {for loop interior grid points}
@@ -2598,8 +2614,8 @@ BEGIN
 			
 				{now IF there are moving ions:}
 				IF new.UpdateIons THEN BEGIN
-					IF par.lyr[stv.lid[i]].negIons AND (prev.nion[i]<>0) THEN new.nion[i]:=curr.nion[i]*power(abs(curr.nion[i]/prev.nion[i]), rt); {these need to be non-negative}
-					IF par.lyr[stv.lid[i]].posIons AND (prev.nion[i]<>0) THEN new.pion[i]:=curr.pion[i]*power(abs(curr.pion[i]/prev.pion[i]), rt)
+					IF par.lyr[stv.lid[i]].negMobileIons AND (prev.nion[i]<>0) THEN new.nion[i]:=curr.nion[i]*power(abs(curr.nion[i]/prev.nion[i]), rt); {these need to be non-negative}
+					IF par.lyr[stv.lid[i]].posMobileIons AND (prev.nion[i]<>0) THEN new.pion[i]:=curr.pion[i]*power(abs(curr.pion[i]/prev.pion[i]), rt)
 				END; {ions}
 		
 			END {for loop interior grid points}
@@ -2626,9 +2642,9 @@ BEGIN
 		FOR j:=1 TO stv.NLayers DO 
 		BEGIN
 			{we simply loop over all layers, check if there are ions (NormIons<>0). If so, then we add the relative change to totRelChange}
-			IF par.lyr[j].negIons THEN
+			IF par.lyr[j].negMobileIons THEN
 				totRelChange:=totRelChange + Norm_Eucl(delnion, stv.i0[j], stv.i1[j]) / Norm_Eucl(nion, stv.i0[j], stv.i1[j]);
-			IF par.lyr[j].posIons THEN
+			IF par.lyr[j].posMobileIons THEN
 				totRelChange:=totRelChange + Norm_Eucl(delpion, stv.i0[j], stv.i1[j]) / Norm_Eucl(pion, stv.i0[j], stv.i1[j])
 		END;
 
@@ -2682,7 +2698,7 @@ BEGIN
 	{are there ANY moving ions in any of the layers?}
 	AnyMovingIons:=FALSE;
 	FOR i:=1 TO stv.NLayers DO
-		AnyMovingIons:=AnyMovingIons OR par.lyr[i].negIons OR par.lyr[i].posIons;
+		AnyMovingIons:=AnyMovingIons OR par.lyr[i].negMobileIons OR par.lyr[i].posMobileIons;
 
 	{Before we enter the main loop, we'll first solve for the potential:}
 	WITH new DO

@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '5.28'; {version of this unit}
+    DDTypesAndConstantsVersion = '5.30'; {version of this unit}
     defaultParameterFile = 'simulation_setup.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -114,6 +114,7 @@ TYPE
 	TIonicRegions = ARRAY OF RECORD 
 						istart, ifinish : INTEGER;
 						AvC : myReal;
+						mobile : BOOLEAN;
 					END;
 
     TStaticVars = RECORD {stores all parameters that are calculated from input, but don't change during the simulation}
@@ -142,7 +143,7 @@ TYPE
 				mobnDep, mobpDep, intTrapType,
 				Use_gen_profile, thermLengDist, bulkTrapType : INTEGER; 
 			    {derived booleans:}
-				layerGen, fieldDepG, negIons, posIons, 
+				layerGen, fieldDepG, negMobileIons, posMobileIons, 
 				ionsMayEnter, useLangevin,
 				bulkTrapFromFile, intTrapFromFile : BOOLEAN;
 			    {filenames and other strings:}

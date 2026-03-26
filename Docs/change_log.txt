@@ -1,3 +1,19 @@
+Version 5.30, 26 March 2026, LJAK
+
+I have implemented the possibility of having ions that do not move. For example, if there are cations that are mobile but the corresponding vacancy is not, then this would mean that mu_cation > 0 and mu_anion = 0. Those anions (the vacancies) will then remain uniformly distributed. This type of behaviour was possible in an older version, but was removed in the move to version 5 (or possibly before v5, not sure). 
+
+-Renamed TLayerParameters.neg(pos)Ions as neg(pos)MobileIons as these fields really indicated (this was also true in previous versions) if there are MOBILE negative or positive ions. This matters, are there are quite a few cases where we only need/can do something if the ions are able to move, such as the scaling in the Poisson solver, extrapolation of the solution, calculating the current, etc.
+-TIonicRegions added field mobile (boolean) to indicate if a region contains mobile or immobile ions.
+-Check_Parameters_Layers: modified the checks on ions. Most notably, if a layer contains MOBILE ions, ionsMayEnter must be true (1). If the ions are immobile, then this parameter is irrelevant. 
+-The ionic solvers now only solve the ion distribution in an ionic region if its field mobile = true.
+-In Calc_All_Currents we now check if the ions in an ionic region are mobile. Otherwise, we don't compute the current.
+
+
+
+Version 5.29, 20 March 2026, LJAK
+In version 5.21, we introduced the possibility to take the left electrode either as the cathode (=default) or the anode. We had omitted, however, to adjust the behaviour of untilVoc. If untilVoc = 1, then SimSS will stop sweeping the voltage once the external current (Jext) is positive. However, if the left electrode is taken as the anode, then 1) the Jsc will be positive, 2) the scanning should proceed in the opposite direction (Vscan = -1). This new version now checks that in the case of untilVoc = 1, the parameters leftElec and Vscan are set correctly, and quit_Voc (in SimSS) is determined such that the sign of the current is correct. 
+
+
 Version 5.28, 27 Feb 2026, LJAK
 
 Removed a small bug from ZimT: In ZimT's routine Read_tVG, we check to ensure that the time steps are correct. There are two possibilities: 1) we go forward in time (so time step > 0); 2) we either remain in steady-state (t=0 and time step = 0) or we go back to steady-state (t=0, time step is negative). Constant time that is not zero is not allowed. However: we did not check to exclude t<>0 with zero time step and treated that as steady-state.

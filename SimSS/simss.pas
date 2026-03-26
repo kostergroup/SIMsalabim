@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '5.28';   {version, 1.00 = 10-03-2004}
+    version = '5.30';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -677,7 +677,7 @@ BEGIN {main program}
 			IF (Vcount MOD par.outputRatio = 0) AND acceptNewSolution 
 				THEN Write_Variables_To_File(curr, stv, par, FALSE);	
 			
-        quit_Voc:=(JVSim[VCount].Jext>0) AND par.untilVoc AND (par.G_frac * stv.Lgen<>0); {only stop past Voc if there is light!}
+        quit_Voc:=(JVSim[VCount].Jext * par.leftElec < 0) AND par.untilVoc AND (par.G_frac * stv.Lgen<>0); {only stop past Voc if there is light!}
 
         VCount:=VCount + 1;
     END; {loop over voltages}
