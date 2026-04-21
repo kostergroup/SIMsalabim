@@ -1,7 +1,7 @@
 ** SimSS Simulation Setup:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 5.30
+** version: 5.32
 
 **General***************************************************************************
 T = 295                           * K, absolute temperature
@@ -51,7 +51,7 @@ maxAcc = 0.95                     * <2, max. acceleration parameter
 ignoreNegDens = 1                 * whether(1) or not(<>1) to ignore negative densities
 convVar = 1                       * integer 1-4, selects which variable to monitor for convergence
                                   * 1: densities, 2: current, 3: densities OR current, 4: densities AND current
-failureMode = 2                   * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
+failureMode = 1                   * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
 grad = 4                          * determines shape of exp. grid, increase grad for smaller h[1]
 
 **Voltage range of simulation*******************************************************

@@ -38,7 +38,7 @@ Nijenborgh 3, 9747 AG Groningen, the Netherlands
 {$ENDIF}
 
 {$MODE DELPHI} {force DELPHI mode}
-
+{$modeSwitch exceptions+} {we need this in Read_tVG to use RAISE}
 
 {$UNITPATH ../Units/} {first tell compiler where our own units are located}
 
@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '5.30';  
+    version = '5.32';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -113,8 +113,9 @@ BEGIN
 		BEGIN {OK, we might have something!}
 			{Copy2SpaceDel, strutils: Deletes and returns all characters in a string till the first space character (not included).}
 			parstr:=Copy2SpaceDel(varline); {contains the first parameter}
-			{StrToFloat, sysutils: Convert a string to a floating-point value.}
-			astate.tijd:=StrToFloat(parstr); {first part contains the time}
+			{ConvertStrToFloat, InputOutputUtils: Convert a string to a floating-point value.}
+			IF NOT ConvertStrToFloat(parstr, astate.tijd) THEN {first part contains the time}
+				RAISE Exception.Create(''); {Raise empty exception, message is set in the EXCEPT block}
 		
 			{check the new time (astate.tijd) and compute the 1/timestep (=dti)}
 			IF (astate.tijd > old_tijd) THEN {simply progress in time}
@@ -131,7 +132,8 @@ BEGIN
 			ELSE WITH astate DO 
 			BEGIN
 				SimOC:=FALSE;
-				Vext:=StrToFloat(parstr);
+				IF NOT ConvertStrToFloat(parstr, Vext) THEN
+					RAISE Exception.Create(''); {Raise empty exception, message is set in the EXCEPT block}
 				{Note: ZimT takes the voltage in the tVGFile (in parstr) to be the external voltage, Vext}
 				{if simtype=1, then Vint=Vext.}
 				{if simytype=2,3, then we're simulating Voc, so Vint&Vext will need to be solved, thus the exact value doesn't matter}
@@ -144,7 +146,8 @@ BEGIN
 			END;
 			parstr:=Copy2SpaceDel(varline); {contains the third parameter}
 
-			astate.G_frac:=StrToFloat(Copy2SpaceDel(parstr));
+			IF NOT ConvertStrToFloat(parstr, astate.G_frac) THEN
+				RAISE Exception.Create(''); {Raise empty exception, message is set in the EXCEPT block}
 			foundtVG:=TRUE;
 		
 			{now determine which kind of simulation we have to do:}

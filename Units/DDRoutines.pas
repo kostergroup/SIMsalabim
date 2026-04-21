@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.30'; {version of this unit}
+CONST DDRoutinesVersion = '5.32'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -651,39 +651,39 @@ BEGIN
 	
 	WITH layerPar DO BEGIN
 {checks on general parameters:}
-		IF L <=0 THEN Stop_Prog(dumStr+'Thickness L should be positive.', EC_InvalidInput);
-		IF (N_D < 0) OR (N_A < 0) THEN Stop_Prog(dumStr+'Doping densities cannot be negative.', EC_InvalidInput);
-		IF E_c >= E_v THEN Stop_Prog(dumStr+'E_c should be smaller than E_v.', EC_InvalidInput);
-		IF (E_c<0) OR (E_v<0) THEN Stop_Prog(dumStr+'E_c and E_v should be positive.', EC_InvalidInput);
+		IF L <=0 THEN Stop_Prog_Finalize_Log(log, dumStr+'Thickness L should be positive.', EC_InvalidInput);
+		IF (N_D < 0) OR (N_A < 0) THEN Stop_Prog_Finalize_Log(log, dumStr+'Doping densities cannot be negative.', EC_InvalidInput);
+		IF E_c >= E_v THEN Stop_Prog_Finalize_Log(log, dumStr+'E_c should be smaller than E_v.', EC_InvalidInput);
+		IF (E_c<0) OR (E_v<0) THEN Stop_Prog_Finalize_Log(log, dumStr+'E_c and E_v should be positive.', EC_InvalidInput);
 		
 {checks on mobilities:}
-		IF (mu_n<=0) OR (mu_p<=0) THEN Stop_Prog(dumStr+'Mobilities mu_n and mu_p must be positive.', EC_InvalidInput); 
-		IF NOT (mobnDep IN [0, 1]) THEN Stop_Prog(dumStr+'Invalid mob_dep_n selected.', EC_InvalidInput);
-		IF NOT (mobpDep IN [0, 1]) THEN Stop_Prog(dumStr+'Invalid mob_dep_p selected.', EC_InvalidInput);
+		IF (mu_n<=0) OR (mu_p<=0) THEN Stop_Prog_Finalize_Log(log, dumStr+'Mobilities mu_n and mu_p must be positive.', EC_InvalidInput); 
+		IF NOT (mobnDep IN [0, 1]) THEN Stop_Prog_Finalize_Log(log, dumStr+'Invalid mob_dep_n selected.', EC_InvalidInput);
+		IF NOT (mobpDep IN [0, 1]) THEN Stop_Prog_Finalize_Log(log, dumStr+'Invalid mob_dep_p selected.', EC_InvalidInput);
 
 {checks on interface parameters:}
-		IF (nu_int_n <= 0) OR (nu_int_p <= 0) THEN Stop_Prog(dumStr+'Interface transfer velocity nu_int_n/p must be positive.', EC_InvalidInput);
+		IF (nu_int_n <= 0) OR (nu_int_p <= 0) THEN Stop_Prog_Finalize_Log(log, dumStr+'Interface transfer velocity nu_int_n/p must be positive.', EC_InvalidInput);
 		
 {checks on ions:}
-		IF (N_anion <0) OR (N_cation<0) THEN Stop_Prog(dumStr+'Ionic concentrations cannot be negative.', EC_InvalidInput);
-		IF (mu_anion<0) OR (mu_cation<0) THEN Stop_Prog(dumStr+'Ion mobilities cannot be negative.', EC_InvalidInput);
-		IF ((mu_anion*N_anion>0) OR (mu_cation*N_cation>0)) AND NOT ionsMayEnter THEN Stop_Prog('If a layer contains mobile ions, then ionsMayEnter (of that layer) must be 1.', EC_InvalidInput);
+		IF (N_anion <0) OR (N_cation<0) THEN Stop_Prog_Finalize_Log(log, dumStr+'Ionic concentrations cannot be negative.', EC_InvalidInput);
+		IF (mu_anion<0) OR (mu_cation<0) THEN Stop_Prog_Finalize_Log(log, dumStr+'Ion mobilities cannot be negative.', EC_InvalidInput);
+		IF ((mu_anion*N_anion>0) OR (mu_cation*N_cation>0)) AND NOT ionsMayEnter THEN Stop_Prog_Finalize_Log(log, 'If a layer contains mobile ions, then ionsMayEnter (of that layer) must be 1.', EC_InvalidInput);
 		
 {checks on generation and recombination parameters}
-		IF G_ehp < 0 THEN Stop_Prog('G_ehp cannot be negative.', EC_InvalidInput);
-		IF (P0>=1) OR (P0<0) THEN Stop_Prog(dumStr+'Invalid value of P0, should be: 0<=P0<1', EC_InvalidInput);
-		IF (P0<>0) AND (fieldDepG = FALSE) THEN Stop_Prog(dumStr+'P0 should be zero if not using field dependent generation', EC_InvalidInput);
-		IF NOT (thermLengDist IN [1,2,3,4,5]) THEN Stop_Prog(dumStr+'Invalid thermLengDist selected.', EC_InvalidInput);
-		IF (k_f<=0) AND fieldDepG THEN Stop_Prog(dumStr+'k_f must be positive.', EC_InvalidInput);
+		IF G_ehp < 0 THEN Stop_Prog_Finalize_Log(log, 'G_ehp cannot be negative.', EC_InvalidInput);
+		IF (P0>=1) OR (P0<0) THEN Stop_Prog_Finalize_Log(log, dumStr+'Invalid value of P0, should be: 0<=P0<1', EC_InvalidInput);
+		IF (P0<>0) AND (fieldDepG = FALSE) THEN Stop_Prog_Finalize_Log(log, dumStr+'P0 should be zero if not using field dependent generation', EC_InvalidInput);
+		IF NOT (thermLengDist IN [1,2,3,4,5]) THEN Stop_Prog_Finalize_Log(log, dumStr+'Invalid thermLengDist selected.', EC_InvalidInput);
+		IF (k_f<=0) AND fieldDepG THEN Stop_Prog_Finalize_Log(log, dumStr+'k_f must be positive.', EC_InvalidInput);
 		
 {checks on bulk traps}
 		{check whether there are a possible number of traps (negative not allowed)}
-		IF N_t_bulk < 0 THEN Stop_Prog(dumStr+'Negative bulk trap density not allowed.', EC_InvalidInput);
-		IF (N_t_bulk > 0) AND (bulkTrapFile = 'none') AND ((E_t_bulk > E_v) OR (E_t_bulk < E_c)) THEN Stop_Prog(dumStr+'E_t_bulk must fall within E_c and E_v.', EC_InvalidInput);
+		IF N_t_bulk < 0 THEN Stop_Prog_Finalize_Log(log, dumStr+'Negative bulk trap density not allowed.', EC_InvalidInput);
+		IF (N_t_bulk > 0) AND (bulkTrapFile = 'none') AND ((E_t_bulk > E_v) OR (E_t_bulk < E_c)) THEN Stop_Prog_Finalize_Log(log, dumStr+'E_t_bulk must fall within E_c and E_v.', EC_InvalidInput);
 		{Only Cn OR Cp = 0 are allowed, if both are zero, no charge can reach the traps, this makes no sense.}
-		IF (N_t_bulk>0) AND (C_n_bulk = 0) AND (C_p_bulk = 0) THEN Stop_Prog(dumStr+'C_n_bulk and C_p_bulk cannot BOTH be zero, change parameters please.', EC_InvalidInput);	
+		IF (N_t_bulk>0) AND (C_n_bulk = 0) AND (C_p_bulk = 0) THEN Stop_Prog_Finalize_Log(log, dumStr+'C_n_bulk and C_p_bulk cannot BOTH be zero, change parameters please.', EC_InvalidInput);	
 		{trap types: -1, 0 or 1. Sets in pascal are an ordinal type with a range between 0 and 255, hence the ABS:}
-		IF NOT (ABS(bulkTrapType) IN [0, 1]) THEN Stop_Prog(dumStr+'Invalid bulk trap type.', EC_InvalidInput);        
+		IF NOT (ABS(bulkTrapType) IN [0, 1]) THEN Stop_Prog_Finalize_Log(log, dumStr+'Invalid bulk trap type.', EC_InvalidInput);        
 		{more checks on the energies of the traps are performed in proc Init_Trap_Distribution}
 
 	END {with statement}

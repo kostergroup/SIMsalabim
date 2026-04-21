@@ -205,7 +205,23 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
-- I. Kafedjiska , V.M. Le Corre, H. Köbler, I. Levine , R. Schlatmann, and I. Lauermann, Investigation of interfacial charge-carrier dynamics, degradation, and recombination mechanisms in single-junction perovskite solar cells with NiOx and SAM hole-transporting layers via steady-state drift-diffusion model simulations, Sustain. Energy Fuels (accepted).
+- Y. Tang, S. Wang, B. Shi, Z. Zhang, H. Liu, Y. Li, Y. Zhang, S.K. So, H. Yan, X. Lu, G. Cai, and S. Zhang, Acceptor Heterojunction Engineering toward Enhanced Spontaneously Formed Photo-Charges for High-Performance Organic Solar Cells, ACS Energy Lett. (2026).
+
+- I. Kafedjiska , V.M. Le Corre, H. Köbler, I. Levine , R. Schlatmann, and I. Lauermann, Investigation of interfacial charge-carrier dynamics, degradation, and recombination mechanisms in single-junction perovskite solar cells with NiOx and SAM hole-transporting layers via steady-state drift-diffusion model simulations, Sustain. Energy Fuels 10, 1174 (2026).
+
+- S. Heester, L. Gil-Escrig, M. Sessolo, H.J. Bolink, and L.J.A. Koster, Identifying recombination mechanisms in bifacial perovskite solar cells: Consequences for high efficiency tandems, Solar RRL (accepted).
+
+- S. Heester, F.D. Elhorst, P. Martin Fernandez, V.M. Le Corre, M. Koopmans, and L.J.A. Koster, pySIMsalabim: a Python package to extend drift-diffusion modelling with SIMsalabim, Comput. Phys. Commun. 323, 110096 (2026).
+
+- F.D Elhorst, J.E. Sebastián Alonso, H.J. Bolink, and L.J.A. Koster, Determining the Ion Mobility in Perovskite Solar Cells from Impedance Spectroscopy, ACS Energy Lett. 10, 4574 (2025).
+
+- S. Mohammadi, L.J.A. Koster, and S. Akbari Nia, Enhanced Stability and Efficiency in Ge–Pb-Based Perovskite Solar Cells through PCCMAI-Induced Ge Defect Passivation, Energy Environ. Mater. 8, e70052 (2025).
+
+- J. Nespoli, M. van der Meer, S. Heester, J. Koning, B. Boshuisen, L.J.A. Koster, and T. Savenije, Quantitative Analysis of the Doping and Defect Density in Mixed Sn-Pb Perovskites mediated by SnF2, Chem. Mater. 37, 7611 (2025).
+
+- S. Heester,  F. Ventosinos, L. Gil-Escrig, M. Sessolo, H.J. Bolink, and L.J.A. Koster, Drift-diffusion modelling of perovskite solar cells: A systematic approach, APL Energy 3, 036106 (2025).
+
+- L. Gil-Escrig, J. Nespoli, F.D. Elhorst, F. Ventosinos, C. Roldán-Carmona, L.J.A. Koster, T. Savenije, M. Sessolo, and H.J. Bolink, Tuning Substrate Temperature for Enhanced vacuum-deposited Wide-Bandgap Perovskite Solar Cells: Insights from Morphology, Charge Transport, and Drift-Diffusion Simulations, EES Solar 1, 391 (2025).
 
 - J. Chakar, U. Erdil, A. Burgaud, M. Remec, A. Abate, C. Ulbrich, R. Schlatmann, Y. Bonnassieux, M. Khenkin, and J.-B. Puel, Bridging Accelerated Indoor Aging and Outdoor Stability of Perovskite Solar Cells Using a Bayesian Modeling Framework, Solar RRL e202500716 (2025).
 

@@ -1,3 +1,15 @@
+Version 5.32, 21 April 2026, SH
+Small bugfix for ZimT when reading the tVG file on Windows. When reading the values from the file using the Read_tVG procedure, only the decimal separator defined by the operating system could be used. The Read_tVG procedure now uses the InputOutputUtils/ConvertStrToFloat function (As introduced in v4.57 for several other procedures) to take into account either a comma or stop as decimal separator.
+Please note, in order to use the necessary RAISE statement, we use $modeSwitch exceptions+ in the ZimT main code.
+
+
+
+Version 5.31, 8 April 2026, LJAK
+
+In version 5.17, we introduced a new function (DDRoutines/Stop_Prog_Finalize_Log) such that when we check the validity of the input parameters, the log file will show any error messages and corresponding exit code. However, we only used this function in the routine that check the main parameter file, not the layer files. As a result, any mistakes in the layer files would stop the program with a warning message on screen, but not in the log file. In this version, I have corrected this by also using Stop_Prog_Finalize_Log in routine Check_Parameters_Layer.
+
+
+
 Version 5.30, 26 March 2026, LJAK
 
 I have implemented the possibility of having ions that do not move. For example, if there are cations that are mobile but the corresponding vacancy is not, then this would mean that mu_cation > 0 and mu_anion = 0. Those anions (the vacancies) will then remain uniformly distributed. This type of behaviour was possible in an older version, but was removed in the move to version 5 (or possibly before v5, not sure). 
@@ -111,11 +123,11 @@ We have done a little work on the transfer matrix routines:
 
 
 Version 5.17, 17 Jan 2025, VLC, LJAK, SH
-We have introduced a new function (DDRoutines/Stop_Prog_Finalize_Log) such that when we check the validity of the input parameters (Check_Paramters), the log file will show any error messages and corresponding excit code. As a result, we now first read the parameters, then create the log file (as we need its name!), and the proceed to check the validty of the input parameters. 
+We have introduced a new function (DDRoutines/Stop_Prog_Finalize_Log) such that when we check the validity of the input parameters (Check_Parameters), the log file will show any error messages and corresponding exit code. As a result, we now first read the parameters, then create the log file (as we need its name!), and the proceed to check the validity of the input parameters. 
 
 
 Version 5.16, 18 Dec 2024, SH
-Fixed a small bug: When checking the minimum spacing between consecutive wavelenghts in either spectrum or nk-files, the number of wavelenght/values to be checked was not correct. Instead of the number of wavelengths in the files, the number of wavelengths as specified by the user was taken, resulting in incorrect functioning of the check. Also removed an extra entry of 900nm in several nk-files.
+Fixed a small bug: When checking the minimum spacing between consecutive wavelengths in either spectrum or nk-files, the number of wavelength/values to be checked was not correct. Instead of the number of wavelengths in the files, the number of wavelengths as specified by the user was taken, resulting in incorrect functioning of the check. Also removed an extra entry of 900nm in several nk-files.
 
 
 Version 5.15, 16 Dec 2024, SH, LJAK

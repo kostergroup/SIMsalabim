@@ -1,7 +1,7 @@
 ** ZimT Simulation Setup:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an ''. Use '' if you want your comment to be left-justified.
-** version: 5.30
+** version: 5.32
 
 **General***************************************************************************
 T = 295                           * K, absolute temperature
@@ -48,7 +48,7 @@ couplePC = 4                      * >= 0, coupling between Poisson equation and 
 minAcc = 0.01                     * >0, min. acceleration parameter
 maxAcc = 0.04                     * <2, max. acceleration parameter
 ignoreNegDens = 1                 * whether(1) or not(<>1) to ignore negative densities
-convVar = 3                       * integer 1-4, selects which variable to monitor for convergence
+convVar = 1                       * integer 1-4, selects which variable to monitor for convergence
                                   * 1: densities, 2: current, 3: densities OR current, 4: densities AND current
 failureMode = 1                   * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
 grad = 2                          * determines shape of exp. grid, increase grad for smaller h[1]
