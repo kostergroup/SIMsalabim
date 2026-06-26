@@ -36,7 +36,7 @@ INTERFACE
 USES TypesAndConstants; {provides a couple of types}
 
 CONST
-    DDTypesAndConstantsVersion = '5.32'; {version of this unit}
+    DDTypesAndConstantsVersion = '5.36'; {version of this unit}
     defaultParameterFile = 'simulation_setup.txt'; {name of file with parameters}
     q = 1.6022e-19;  	{C} {elementary charge}
     k = 1.3807e-23;     {J/K} {Boltzmann's constant}
@@ -61,6 +61,7 @@ CONST
     MinCountJSmall = 3; {IN: determine_convergence, used if we're simulating really small currents.}
     TolRomb = 0.01; {IN Calc_Dissociation, sets relative tolerance of Romberg integration}
     MaxRombIt = 15; {IN Calc_Dissociation, max. # of iterations in Romberg integration}
+	MaxItVintBrent = 100; {IN ZimT/Find_Vint_Brent, maximum number of iterations}
     LowerLimBraun = 0.01; {IN Calc_Dissociation, lower limit of integration in Braun model, should be non-zero}
     UpperLimBraun = 20; {IN Calc_Dissociation, upper limit of integration in Braun model }
     tolCurrAbs = q; {IN Determine_Convergence_Current, A/m2, absolute tolerance of current, should be positive yet small}
@@ -98,7 +99,7 @@ TYPE
     TState = RECORD {stores all variables that either define a state or change in time}
 		    G_frac, tijd : myReal; {set by input}
 		    dti, Vint, Vext, Jint, Jext, errJ : myReal; {derivative variables or result of simulation}
-		    SimType, convIndex : INTEGER; 
+		    SimType, Track, convIndex : INTEGER; 
 		    V, Vgn, Vgp, n, p, nion, pion, Gm, 
 		    Jn, Jp, Jnion, Jpion, JD, mun, mup,
 		    gen, Lang, SRH, diss_prob, 
@@ -165,11 +166,11 @@ TYPE
 				failureMode, outputRatio, Vdist, Vscan : INTEGER; 
 			    {derived booleans:}
 				fixIons, ignoreNegDens, autoTidy, StoreVarFile, limitDigits, 
-				preCond, untilVoc, useExpData, autoStop, pauseAtEnd : BOOLEAN;
+				preCond, untilVoc, useExpData, pauseAtEnd : BOOLEAN;
 			    {filenames and other strings:}
 				nkSubstrate, nkTCO, nkBE, spectrum, 
 				genProfile, logFile, tVGFile, 
-				varFile, tJFile, expJV, JVFile, scParsFile	: ANSISTRING;
+				varFile, tJFile, expJV, JVFile, scParsFile, specialOutput : ANSISTRING;
 			    {Misc: }
 				fitMode : TFitMode;				
 			END;																				

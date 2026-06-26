@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.32'; {version of this unit}
+CONST DDRoutinesVersion = '5.36'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -73,6 +73,9 @@ PROCEDURE Prepare_Log_File(VAR log : TEXT; MsgStr : ANSISTRING; CONSTREF par : T
 
 PROCEDURE Finalize_Log_File(VAR log : TEXT; MsgStr : ANSISTRING);
 {writes final comments, date, time, run time and closes log file.}
+
+PROCEDURE Stop_Prog_Finalize_Log(VAR log : TEXT; msg : STRING; exitCode : INTEGER; wait_for_user : BOOLEAN = FALSE);
+{Prints a message (msg) on screen and in the log file, and then stops the program}
 
 PROCEDURE Read_Parameters(parameterFile : STRING; VAR msg : ANSISTRING; VAR par : TInputParameters; VAR stv : TStaticVars; ProgName : TProgram);
 {Reads-in all the parameters. Some bits are specific to either ZimT or SimSS}
@@ -113,7 +116,7 @@ PROCEDURE Main_Solver(VAR curr, new : TState; VAR it : INTEGER; VAR conv : BOOLE
 {Iteratively solves the Poisson and continuity equations, including traps and ions}
 {can be used in steady-state and transient cases}
 
-PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN; CONSTREF stv : TStaticVars); 
+PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
 {create a new tJV_file with appropriate heading
 after running this, the TEXT file 'uitv' is still open and ready for writing}
 
@@ -300,7 +303,7 @@ BEGIN
     IF Length(MsgStr) > 0 THEN
     BEGIN
 		WRITELN(log, 'Reading in of parameters:');
-		WRITE(log, MsgStr) {MsgStr contains any messages from Read_Parameter. No need for writeln as it either empty, or end with LineEnding}
+		WRITE(log, MsgStr) {MsgStr contains any messages from Read_Parameters. No need for writeln as it either empty, or end with LineEnding}
     END;
     FLUSH(log);
 END;
@@ -611,8 +614,6 @@ BEGIN
 		END;		
 		IF ZimT THEN
 		BEGIN
-			Get_Integer(inv, msg, 'autoStop', dumint);
-			autoStop:= dumint=1; {stop ZimT if change of system stops chaning, yes(1) or no (<>1).	}
 			Get_String(inv, msg, 'tVGFile', tVGFile); {name of file that specifies time t, voltage V and gen. rate G}
 			Get_String(inv, msg, 'tJFile', tJFile); {name of file with (t, J, V, G)}
 		END;
@@ -624,7 +625,14 @@ BEGIN
 		IF SimSS THEN StoreVarFile:=outputRatio>0;
 		IF ZimT THEN StoreVarFile:=lowercase(Trim(varFile))<>'none'; {only store var_file if varFile isn't 'none'}    
 		IF SimSS THEN Get_String(inv, msg, 'scParsFile', scParsFile); {name of file with solar cell parameters}
-		Get_String(inv, msg, 'logFile', logFile); { name of log file}
+		IF ZimT THEN
+		BEGIN
+			Get_String(inv, msg, 'specialOutput', specialOutput); {string used to specify if 'special' output is required}
+			specialOutput:=lowercase(Trim(specialOutput))
+		END
+		ELSE
+			specialOutput:='none'; {not specialOutput (yet) for SimSS}
+		Get_String(inv, msg, 'logFile', logFile) { name of log file}
     END; {WITH par statement}
 
     CLOSE(inv);
@@ -782,6 +790,7 @@ BEGIN
 		END;		
 		IF SimSS AND (outputRatio < 0) THEN Stop_Prog_Finalize_Log(log, 'outputRatio should be 0 (no output) or positive.', EC_InvalidInput); {if zero, then simply no var file output}
 		IF ZimT AND (outputRatio <= 0) THEN Stop_Prog_Finalize_Log(log, 'outputRatio should be positive.', EC_InvalidInput); {In ZimT it cannot be zero as we NEED to write output as it also limits the output to screen.}
+		IF NOT ((specialOutput='none') OR (specialOutput='spv')) THEN Stop_Prog_Finalize_Log(log,'specialOutput can only be ''none'' or ''spv''.', EC_InvalidInput) {}
     END;
     
 {now check the individual layers:}
@@ -1962,7 +1971,7 @@ BEGIN
 					Rn.bulk[i]:=Rn.bulk[i] + dum1;
 					dum2:=stv.Ntb[j].Nt[e] * (denom*par.lyr[j].C_n_bulk*par.lyr[j].C_p_bulk*p[i] - numer*par.lyr[j].C_n_bulk) / SQR(denom);
 					Rn.bulk_cont_m[i]:=Rn.bulk_cont_m[i] + dum2;
-					Rn.bulk_cont_rhs[i]:=Rn.bulk_cont_rhs[j] + dum1 - n[i]*dum2
+					Rn.bulk_cont_rhs[i]:=Rn.bulk_cont_rhs[i] + dum1 - n[i]*dum2
 				END
 				ELSE BEGIN {transient}
 					{We solve the integral of the ODE we solved for calculating the trap occupance.}
@@ -2092,7 +2101,7 @@ BEGIN
 					Rp.bulk[i]:=Rp.bulk[i] + dum1;
 					dum2:=stv.Ntb[j].Nt[e] * (denom*par.lyr[j].C_n_bulk*par.lyr[j].C_p_bulk*n[i] - numer*par.lyr[j].C_p_bulk) / SQR(denom);
 					Rp.bulk_cont_m[i]:=Rp.bulk_cont_m[i] + dum2;
-					Rp.bulk_cont_rhs[i]:=Rp.bulk_cont_rhs[j] + dum1 - p[i]*dum2
+					Rp.bulk_cont_rhs[i]:=Rp.bulk_cont_rhs[i] + dum1 - p[i]*dum2
 				END
 				ELSE BEGIN {transient}
 					{We solve the integral of the ODE we solved for calculating the trap occupance.}
@@ -2804,7 +2813,7 @@ BEGIN
 	StatusStr:=StatusStr + ConvMsg
 END;
 
-PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN; CONSTREF stv : TStaticVars); 
+PROCEDURE Prepare_tJV_File(VAR uitv : TEXT; filename : STRING; transient : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters); 
 {create a new tJV_file with appropriate heading
 after running this, the TEXT file 'uitv' is still open and ready for writing}
 VAR j : INTEGER;
@@ -2826,8 +2835,7 @@ BEGIN
 		FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JbulkElecL',IntToStr(j),' ');
 		FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JbulkHolesL',IntToStr(j),' ');
 		FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 'JintElecL',IntToStr(j),'L',IntToStr(j+1),' ');		
-		FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 'JintHolesL',IntToStr(j),'L',IntToStr(j+1),' ')		
-	
+		FOR j:=1 TO stv.NLayers-1 DO WRITE(uitv, 'JintHolesL',IntToStr(j),'L',IntToStr(j+1),' ')
 	END
 	ELSE BEGIN {so steady-state}
 		FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'JbulkL',IntToStr(j),' ');
@@ -2835,7 +2843,13 @@ BEGIN
 	END;
 	
 	WRITE(uitv,'JminLeft JminRight JShunt'); 
-	IF transient THEN WRITELN(uitv,' Jnion Jpion JD') ELSE WRITELN(uitv)
+	IF transient THEN WRITE(uitv,' Jnion Jpion JD ');
+	
+	{now we allow for special output:}
+	IF par.specialOutput='spv' THEN
+		FOR j:=1 TO stv.NLayers DO WRITE(uitv, 'VL',IntToStr(j),' '); {this is the voltage drop across layer j}
+		
+	WRITELN(uitv)
 END;
 
 PROCEDURE Write_To_tJV_File(VAR uitv : TEXT; CONSTREF CurrState, PrevState : Tstate; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters; transient : BOOLEAN);
@@ -2895,8 +2909,13 @@ BEGIN
 		WRITE(uitv,JminLeft:nd,' ',JminRight:nd,' ',Jext-Jint:nd);
 
         IF transient 
-			THEN WRITELN(uitv,' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd) 
-			ELSE WRITELN(uitv);
+			THEN WRITE(uitv,' ',Ave(Jnion):nd,' ',Ave(Jpion):nd,' ',Ave(JD):nd); 
+		
+		{this is where we define specialsed output. spv: surface photovoltage. We list the voltage drop over each layer}
+		IF par.specialOutput='spv' THEN 
+			FOR j:=1 TO stv.Nlayers DO WRITE(uitv,' ',V[stv.i1[j]]-V[stv.i0[j]]:nd); {voltage drop across a layer. Better way: intropolate between i1[j] and i0[j+1] as the interface sits BETWEEN the grid points}
+		 
+		WRITELN(uitv);
     END; {with astate}
     FLUSH(uitv)
 END;

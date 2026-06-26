@@ -1,7 +1,7 @@
 ** SimSS Simulation Setup:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 5.32
+** version: 5.36
 
 **General***************************************************************************
 T = 295                           * K, absolute temperature
@@ -10,12 +10,11 @@ T = 295                           * K, absolute temperature
 l1 = L1_parameters.txt            * parameter file for layer 1, mandatory
 l2 = L2_parameters.txt            * parameter file for layer 2
 l3 = L3_parameters.txt            * parameter file for layer 3
-l4 = L2_parameters.txt            * parameter file for layer 4
 
 **Contacts**************************************************************************
 leftElec = -1                     * left electrode is the cathode (-1) or the anode (1)
-W_L = 4.05                        * eV, work function left electrode, or 'sfb'
-W_R = 5.2                         * eV, work function right electrode, or 'sfb'
+W_L = 4.05                        * eV, work function left electrode (= cathode), or 'sfb'
+W_R = 5.2                         * eV, work function right electrode (= cathode), or 'sfb'
 S_n_L = -1E-7                     * m/s, surface recombination of electrons at the left electrode
 S_p_L = -1E-7                     * m/s, surface recombination of holes at the left electrode
 S_n_R = -1E-7                     * m/s, surface recombination of electrons at the right electrode
@@ -37,8 +36,8 @@ lambda_min = 3.5E-7               * m, lower bound wavelength
 lambda_max = 8E-7                 * m, upper bound wavelength
 
 **Numerical Parameters**************************************************************
-NP = 300                          * integer, number of grid points, must be at least 5 per layer.
-tolPois = 1E-6                    * V, abs. tolerance of iterative Poisson solver
+NP = 250                          * integer, number of grid points, must be at least 5 per layer.
+tolPois = 1E-5                    * V, abs. tolerance of iterative Poisson solver
 maxDelV = 10                      * maximum change (in Vt) of the potential per loop
 maxItPois = 2000                  * max. number it. Poisson loop
 maxItSS = 2000                    * max. number it. main loop
@@ -51,7 +50,7 @@ maxAcc = 0.95                     * <2, max. acceleration parameter
 ignoreNegDens = 1                 * whether(1) or not(<>1) to ignore negative densities
 convVar = 1                       * integer 1-4, selects which variable to monitor for convergence
                                   * 1: densities, 2: current, 3: densities OR current, 4: densities AND current
-failureMode = 1                   * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
+failureMode = 2                   * how treat failed (t,V,G) points: 0: stop, 1: ignore, 2: skip
 grad = 4                          * determines shape of exp. grid, increase grad for smaller h[1]
 
 **Voltage range of simulation*******************************************************
@@ -60,8 +59,8 @@ preCond = 0                       * pre-conditioning, yes(1)/no(0)
 Vpre = 0                          * V, pre-conditioned voltage
 fixIons = 0                       * fix ions at first applied voltage? yes(1) or no (0).
 Vscan = 1                         * integer, 1 for forward sweep direction, -1 for reverse sweep
-Vmin = -0.05                      * V
-Vmax = 1.25                       * V
+Vmin = -0.04                      * V
+Vmax = 1.24                       * V
 Vstep = 0.02                      * V
 Vacc = 0                          * V, point of accumulation of row of V's, note: Vacc should be
                                   * slightly larger than Vmax or slightly lower than Vmin
@@ -80,5 +79,5 @@ JVFile = JV.dat                   * name of the file with simulated JV character
 varFile = Var.dat                 * name of the file with (x,V,n,p,Jn,etc) or none for no file.
 limitDigits = 1                   * if 1, then number of digits in output is limited
 outputRatio = 1                   * Output to varFile every outputRatio voltages
-scParsFile = scPars.dat           * name of file with solar cell parameters
+scParsFile = scPars.txt           * name of file with solar cell parameters
 logFile = log.txt                 * name of log file

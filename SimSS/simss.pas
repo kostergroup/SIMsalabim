@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.SimSS;  
-    version = '5.32';   {version, 1.00 = 10-03-2004}
+    version = '5.36';   {version, 1.00 = 10-03-2004}
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
 {$IF FPC_FULLVERSION < 30200} {30200 is 3.2.0}
@@ -608,7 +608,7 @@ BEGIN {main program}
 
     Init_Generation_Profile(stv, log, par); {init. the stv.orgGm array. This is the SHAPE of the profile}
 	Init_States(prev, curr, new, JVSim[VCount].Vint, stv, par); {inits new (time, Va, G_ehp, V, n, p, etc) and sets curr:=new and prev:=curr}
-    Prepare_tJV_File(uitv, par.JVFile, FALSE, stv);   {create the JV-file}
+    Prepare_tJV_File(uitv, par.JVFile, FALSE, stv, par);   {create the JV-file}
     IF par.StoreVarFile THEN Prepare_Var_File(stv, par, FALSE); {Create a new var_file with appropriate heading if required}
 
     CountAcceptedSolutions:=0; {counts how many voltages converged or were accepted without really converging}
@@ -656,12 +656,12 @@ BEGIN {main program}
 			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
 			CASE par.failureMode OF
-				0 : Stop_Prog('Convergence failed at voltage = ' + FloatToStrF(new.Vint, ffGeneral,5,0)+ '. Maybe try smaller voltage steps?', EC_ConverenceFailedHalt);
+				0 : Stop_Prog('Convergence failed at voltage = ' + FloatToStrF(new.Vint, ffGeneral,5,0)+ '. Maybe try smaller voltage steps?', EC_ConvergenceFailedHalt);
 				1 : acceptNewSolution:=TRUE;
 				2 : acceptNewSolution:=(new.dti=0) {is true if steady-state, false otherwise}
 			END;
 			{if we get here, then conv=false, but we did not halt the program, so set the ExitCode:}
-			ExitCode:=EC_ConverenceFailedNotHalt
+			ExitCode:=EC_ConvergenceFailedNotHalt
 		END;
 		
 		IF acceptNewSolution {OK, new solution is good (even if conv_main might be FALSE)}

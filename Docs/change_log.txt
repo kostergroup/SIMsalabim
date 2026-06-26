@@ -1,3 +1,66 @@
+Version 5.36, 26 June 2026, SH, VLC, LJAK
+
+
+We have improved the Track functionality that was introduced in v 5.34. The track column now has three possible values, besides 0:
+1: sets the current state to be the reference state. 
+2: compares current state with the reference. If they are equal, the counter is increased.
+3: same as 2, but it also sets the current state to be the new reference. 
+
+Before we can have track=2 or 3, there needs to be (at least) a single instance where it's 1 as that sets the original reference (a check is perfomred in Read_tVG). Depending on failureMode, the program will quit (or not increase the counter) if no convergence is reached. 
+
+Small stuff:
+-fixed a small bug (introduced in 5.34), ZimT line 156 was missing the RAISE statement. So, in read_tVG, we didn't raise an exception if there was a mistake in column Track.
+
+
+
+
+
+Version 5.35, 3 June 2026 VLC, LJAK
+
+Two things:
+1) removed a small bug in procedure Calc_Recombination_n/p. 
+
+changed lines 1966 and 2096 (in v 5.34, lines have shifted in 5.35):
+    Rn.bulk_cont_rhs[i]:=Rn.bulk_cont_rhs[j] + dum1 - n[i]*dum2
+and 
+	Rp.bulk_cont_rhs[i]:=Rp.bulk_cont_rhs[j] + dum1 - p[i]*dum2
+
+to have [i]. Does not appear to have much (or any) of an effect, but it was wrong.
+
+2) Added an option in the simulation setup (for ZimT only, for now!) to allow for specialised output (specialOutput in block user-interface). Default is none, which means that there is no special output in any way. For some experiments, it can be really helpful to compute a couple of things directly in SIMsalabim, rather than calculate them from the VarFile, for example. The first such case that we have added is surface photovoltage experiments. Setting specialOutput = spv then results in additional columns in the tjFile that list the voltage drop (VL[j]) over each layer ([j]). Note that this is approximate (we expect it to be more than sufficiently accurate though!) in that we do not interpolate the potential over the grid points, whereas the interfaces are always between grid points stv.il[j] and stv.i0[j+1].
+
+
+Version 5.34, 29 May 2026, SH, LJAK
+
+Two small things:
+1) there was a spelling mistake in the constants that define exit codes 94 and 95 (EC_Converence instead of EC_Convergence).
+2) Small bug fix in the transfermatrix unit. The calculation of the reflectance for the substrate layer would fail (due to division by zero) if the complex refractive index was n = 1 and k = 0 (e.g. as in nk_Air.txt). This issue is caused by how certain arithmetic functions for complex numbers are implemented in the UComplex unit. Now, when the complex refractive index is 1 + 0*i, the reflectance is explicitly set to 0, as expected.
+
+
+Version 5.33, 28 May 2026, VLC, LJAK
+
+We have introduced a new feature to ZimT, that replaces the auto-stop function of ZimT. In the tVGFile, we have added a new column ('Track') that can either be 0 or 1. If 0, then nothing happens. If Track = 1 and no previous time point has been tracked, the current state (all internal variables such as n, p, Vint, Jint, ...) is stored as a reference state (ref : TState). If Track = 1 and a previous state has already been tracked, the current state is compared to this reference. If the change is sufficiently small, the counter CountStatic is incremented by 1. Once CountStatic reaches a predefined threshold (MinCountStatic), the simulation is terminated early. If the change is not sufficiently small, the current state becomes the new reference state and CountStatic is reset to 0. This process continues until either the simulation reaches the end of the specified time points or the system is deemed to have stabilised.
+
+The criterion for determining whether two states are sufficiently similar follows the same logic as the convergence criterion used in the main iteration loop (see the manual). If convVar = 1, the relative change in the carrier densities must be smaller than tolDens. If convVar = 2, the absolute error in the current must be smaller than the minimum of tolCurr and errJ. If convVar = 3, either of these conditions must be satisfied. If convVar = 4, both conditions must be satisfied.
+
+If the system is deemed to have stabilised, the simulation is terminated with an exit code of 2, which is different from the exit code of 0 that indicates a successful completion of the simulation. This allows users to easily identify simulations that were stopped early due to reaching equilibrium.
+
+It is worth noting that the tracked time points do not have to be consecutive. For example, when simulating a light pulse with a given frequency, one can track only the time points immediately before the next pulse starts. This makes it possible to check whether the system has reached equilibrium before the next pulse begins, without tracking all intermediate time steps.
+
+
+Implementation and small stuff:
+-Replaced Stop_Prog with Stop_Prog_Finalize_Log in Read_tVG (and some other occurrences in ZimT). This means that any error messages generated while reading the tVGFile will be stored in the log file.
+-New 'ref' TState used for the auto stopping option. We now have 4 TStates: (i) 'curr' (ii) 'prev' (iii) 'new' and (iv) 'ref'.
+-TState now also includes a 'Track' boolean.
+-Introduced a new exit code in the TypesAndConstants unit, EC_AutoStop = 2, which indicates that ZimT terminated early.
+-Introduced function States_are_Equal: this compares two states. If the states are close enough (based on convVar and the tolerances in the input file), then this will return true. 
+-made PROCEDURE Stop_Prog_Finalize_Log (in DDRoutines) visible from the outside of this unit so we can use it in ZimT as well.
+-streamlined the output at the end of ZimT such that we write the same information to screen and the log file.
+-new maximum number of iterations in ZimT's Find_Vint_Brent: We simply use a constant number set in DDTypesAndConstants, MaxItVintBrent.
+-removed parameter autoStop from ZimT's simulation setup file as this is no longer needed.
+
+
+
 Version 5.32, 21 April 2026, SH
 Small bugfix for ZimT when reading the tVG file on Windows. When reading the values from the file using the Read_tVG procedure, only the decimal separator defined by the operating system could be used. The Read_tVG procedure now uses the InputOutputUtils/ConvertStrToFloat function (As introduced in v4.57 for several other procedures) to take into account either a comma or stop as decimal separator.
 Please note, in order to use the necessary RAISE statement, we use $modeSwitch exceptions+ in the ZimT main code.

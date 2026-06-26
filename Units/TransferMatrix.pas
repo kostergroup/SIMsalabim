@@ -42,7 +42,7 @@ USES
 	SysUtils,
     Ucomplex;
 
-CONST   TransferMatrixVersion = '5.32'; {version of this unit}
+CONST   TransferMatrixVersion = '5.36'; {version of this unit}
 
 
 TYPE 
@@ -434,7 +434,13 @@ BEGIN
         Read_nk_Material_From_File(j, NoOfLambdas, Layers[j], lambdas, Thicknesses[j], nTotal); {Sets complex index of refraction(n+ik) for all lambdas in Lambdas Array}
 
     FOR k:=0 TO NoOfLambdas-1 DO {Calculate Reflection/Transmission Coefficient for every lambda}
-        RGlass[k] := cmod(((1-nSubstrate[0,k])/(1+nSubstrate[0,k]))**2);
+    BEGIN
+        IF (nSubstrate[0,k] = 1 + 0*i) THEN {Make an excpetion when n = 1 and k = 0}
+            {The calculation of the reflection will fail due to how z**2 is implemented in the UComplex unit, where z is a complex number}
+            RGlass[k] := 0 {To circumvent this, manually set RGlass to 0, as it should be given RGlass = cmod(((1-(1+0*i)))/(1+(1+0*i)))**2) = 0} 
+        ELSE
+            RGlass[k] := cmod(((1-nSubstrate[0,k])/(1+nSubstrate[0,k]))**2)
+    END;
 
     TCumSum := Cumulative_Sum(stv.NLayers +1, Thicknesses); {Create Array with cumulative sum of Thicknesses}
 

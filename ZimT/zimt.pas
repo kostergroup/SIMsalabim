@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '5.32';  
+    version = '5.36';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}
@@ -76,10 +76,11 @@ VAR parameterFile : ShortString;
 
 	MainIt, CountAcceptedSolutions, CounttVGPoints, CountStatic : INTEGER;
 
-	prev, curr, new : TState; {store the previous point in time, the current one and the new}
+	prev, curr, new, ref : TState; {store the previous point in time, the current one and the new}
 	{prev: solved, stored, done, 2 time steps ago
 	curr: solved, stored, done, 1 time step ago
-	new: to be solved, latest time that was read}
+	new: to be solved, latest time that was read
+	ref: only used for tracking, not for solving, but we need it to be global as we need to update it in the main loop and use it in the solver}
 
 	stv : TStaticVars; {all variables that are calculated at the start of the simulation and then remain constant}
 
@@ -91,15 +92,16 @@ VAR parameterFile : ShortString;
    
     dumstr : STRING;
 
-    conv, foundtVG, keepGoing, staticSystem, acceptNewSolution : BOOLEAN;
+    conv, foundtVG, keepGoing, staticSystem, acceptNewSolution, foundFirstRef : BOOLEAN;
   
     MsgStr : ANSISTRING = ''; {Ansistrings have no length limit, init string to ''}
 
 	StatusStr : ANSISTRING; 
 
-PROCEDURE Read_tVG(VAR astate : TState; old_tijd : myReal; VAR inv : TEXT; VAR foundtVG : BOOLEAN);
+
+PROCEDURE Read_tVG(VAR astate : TState; old_tijd : myReal; VAR inv, log : TEXT; VAR foundtVG, foundFirstRef : BOOLEAN);
 {try to read a line of tijd, Vext, G_frac}
-VAR varline, orgline, parstr : STRING;
+VAR varline, orgline, parstr, msg : STRING;
 	SimOC : BOOLEAN;
 BEGIN
 	foundtVG:=FALSE;
@@ -123,7 +125,7 @@ BEGIN
 			ELSE BEGIN {not going forward in time}
 				IF astate.tijd=0 THEN 
 					astate.dti:=0 {we're either staying in steady-state or going back to it. timestep = infinity -> dti=0}
-				ELSE Stop_Prog('Time steps must either be positive, or you should go back to t=0 (steady-state).', EC_InvalidInput) {going back in time (but not to steady-state) or simply keeping the same time is not allowed!}
+				ELSE Stop_Prog_Finalize_Log(log, 'Time steps must either be positive, or you should go back to t=0 (steady-state).', EC_InvalidInput) {going back in time (but not to steady-state) or simply keeping the same time is not allowed!}
 			END;
 			
 			parstr:=Copy2SpaceDel(varline); {contains the second parameter}
@@ -141,13 +143,26 @@ BEGIN
 				{therefore, for all simtypes, we simply set Vext=Vint for new:} 		
 				Vint:=Vext; 
 				{check if V is not too large or small:}
-				IF Vext*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog('V is too small.', EC_InvalidInput);
-				IF Vext*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog('V is too large.', EC_InvalidInput);
+				IF Vext*stv.Vti < -1.95 * LN(Max_Value_myReal) THEN Stop_Prog_Finalize_Log(log, 'V is too small.', EC_InvalidInput);
+				IF Vext*stv.Vti > 1.95 * LN(Max_Value_myReal) THEN Stop_Prog_Finalize_Log(log, 'V is too large.', EC_InvalidInput);
 			END;
-			parstr:=Copy2SpaceDel(varline); {contains the third parameter}
 
+			parstr:=Copy2SpaceDel(varline); {contains the third parameter}
 			IF NOT ConvertStrToFloat(parstr, astate.G_frac) THEN
 				RAISE Exception.Create(''); {Raise empty exception, message is set in the EXCEPT block}
+
+			parstr:=Copy2SpaceDel(varline); {contains the fourth parameter track}
+			IF NOT ((parstr = '0') OR (parstr = '1') OR (parstr = '2') OR (parstr = '3')) THEN {we only accept 0-3}
+				RAISE Exception.Create(''); {Raise empty exception, message is set in the EXCEPT block}
+			astate.Track:=StrToInt(parstr);
+
+			IF NOT foundFirstRef AND (astate.Track=1) THEN
+				foundFirstRef:=TRUE; {set to true if astate.Track=1 for the first time}
+			{we need to check if the first non-zero Track is equal to 1:}
+			IF NOT foundFirstRef AND (astate.Track IN [2,3]) THEN
+				Stop_Prog_Finalize_Log(log, 'Error in tVGFile: before setting Track=2 or 3, you need to have at least one Track=1', EC_InvalidInput);
+			
+			{once we're here, foundtVG is true!}
 			foundtVG:=TRUE;
 		
 			{now determine which kind of simulation we have to do:}
@@ -157,35 +172,36 @@ BEGIN
 			IF (NOT SimOC) AND (par.R_series>0) THEN astate.SimType:=4; {steady-state or transient, not open-circuit, R_series important}
 		END;
 	EXCEPT {reading didn't work, raise exception}
-		WRITELN('Error while reading from file ',par.tVGFile);
-		WRITELN('Offending line: ');
+		msg:='Error while reading from file ' + par.tVGFile + LineEnding;
+		msg:=msg + 'Offending line: ' + LineEnding;
+		msg:=msg + orgline + LineEnding;
 		WRITELN(orgline);
-		Stop_Prog('See Reference Manual for details.', EC_InvalidInput);
+		Stop_Prog_Finalize_Log(log, msg + 'See Reference Manual for details.', EC_InvalidInput);
 	END 
 END;
 
-PROCEDURE Open_and_Read_tVG_file(VAR inv : TEXT; VAR new : TState; CONSTREF par : TInputParameters); 
+PROCEDURE Open_and_Read_tVG_file(VAR inv, log : TEXT; VAR new : TState; CONSTREF par : TInputParameters); 
 {open tVG file, read header and first time/voltage/G_ehp|G_frac}
 VAR foundHeader : BOOLEAN;
 BEGIN
 	{open input file with times, voltage and generation rate}
 	IF NOT FileExists(par.tVGFile) {the file with input par. is not found}
-        THEN Stop_Prog('Could not find file '+par.tVGFile, EC_FileNotFound);
+        THEN Stop_Prog_Finalize_Log(log, 'Could not find file '+par.tVGFile, EC_FileNotFound);
 	ASSIGN(inv, par.tVGFile);
 	RESET(inv);
 
-	WRITELN('Reading t, Vext, G_frac from file ',par.tVGFile);
+	WRITELN('Reading t, Vext, G_frac Track from file ',par.tVGFile);
 	{now try to read from input file until we find 't Vext G_frac'}
 	REPEAT
 		READLN(inv, dumstr);
-		foundHeader:=LeftStr(DelWhite(LowerCase(dumstr)),11) ='tvextg_frac'; {cut relevant part of string}
+		foundHeader:=LeftStr(DelWhite(LowerCase(dumstr)),16) ='tvextg_fractrack'; {cut relevant part of string}
 		{DelWhite removes all white spaces (incl. tabs, etc.) from a string, see myUtils}
 	UNTIL foundHeader OR EOF(inv);
 		
-	IF NOT foundHeader THEN Stop_Prog('Could not find correct header ''t Vext G_frac'' in ' + par.tVGFile + '.', EC_InvalidInput);
+	IF NOT foundHeader THEN Stop_Prog_Finalize_Log(log, 'Could not find correct header ''t Vext G_frac Track'' in ' + par.tVGFile + '.', EC_InvalidInput);
 
-	Read_tVG(new, 0, inv, foundtVG); {try to read a line of t, Va, G_ehp}
-	IF NOT(foundtVG) OR (new.tijd<>0) THEN Stop_Prog('tVGFile did not specify steady-state (t=0)', EC_InvalidInput)
+	Read_tVG(new, 0, inv, log, foundtVG, foundFirstRef); {try to read a line of t, Va, G_ehp}
+	IF NOT(foundtVG) OR (new.tijd<>0) THEN Stop_Prog_Finalize_Log(log, 'tVGFile did not specify steady-state (t=0)', EC_InvalidInput)
 END;
 
 FUNCTION Residual_Current_Voltage(Vint : myReal; VAR curr, new : TState; VAR conv : BOOLEAN; CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters) : myReal;
@@ -257,15 +273,14 @@ PROCEDURE Find_Vint_Brent(a, b, fa, fb: myReal; VAR curr, new: TState; VAR conv:
                          CONSTREF stv: TStaticVars; CONSTREF par: TInputParameters);
 {Uses Brent's algorithm to find the value of Vint that makes Residual_Current_Voltage = 0}
 VAR
-    c, d, e, p, q, r, s, tol, m: myReal;
-    fc: myReal;
-    ItVint, MaxItVint: INTEGER;
-    converged: BOOLEAN;
-    EPS: myReal; {machine floating-point precision, now a variable based on myReal type}
+    c, d, e, p, q, r, s, tol, m : myReal;
+    fc : myReal;
+    ItVint : INTEGER;
+    converged : BOOLEAN;
+    EPS : myReal; {machine floating-point precision, now a variable based on myReal type}
 BEGIN
 	{Set the maximum number of iterations based on what would be needed for bisection}
 	IF (b - a) <= 0 THEN Stop_Prog('Invalid range for Brent''s method', EC_NumericalFailure);
-	MaxItVint:=ROUND(LN((b-a)/par.tolVint)/LN(2)); {max. number of required bisection steps}
 
     {Set EPS based on the size of myReal type}
     CASE SizeOf(myReal) OF
@@ -373,14 +388,61 @@ BEGIN
             {Calculate function value at new position}
             fb := Residual_Current_Voltage(b, curr, new, conv, stv, par);
         END;
-    UNTIL converged OR (ItVint >= MaxItVint);
+    UNTIL converged OR (ItVint >= MaxItVintBrent);
     
     {Set the result}
     new.Vint := b;
     
     {If we exited due to maximum iterations, show warning}
-    IF ItVint >= MaxItVint THEN
+    IF ItVint >= MaxItVintBrent THEN
         WRITELN('Warning: Brent''s method reached maximum iterations without converging.');
+END;
+
+FUNCTION States_Are_Equal(CONSTREF A, B : TState; CONSTREF par : TInputParameters) : BOOLEAN;
+{Checks if two states are equal, based on their Vint, G_frac and Jint. This is used for checking if the system is static (not changing anymore). We use the same criteria as for accepting a solution, i.e. the difference in Vint and Jint should be smaller than 1, and G_frac should be exactly the same.}
+VAR
+	VSame : BOOLEAN;
+	
+	FUNCTION Rel_Diff_Vec(CONSTREF v1, v2 : vector) : myReal;
+	VAR norm : myReal;
+	{calc the difference between 2 vectors, normalized to their norm. If the norm is zero, then function result is zero}
+	BEGIN
+		norm:=0.5*(Norm_Eucl(v1, 0, par.NP+1) + Norm_Eucl(v2, 0, par.NP+1));
+		IF norm=0 THEN
+			Rel_Diff_Vec:=0
+		ELSE
+			Rel_Diff_Vec:=Norm_Eucl(Difference(v1, v2, 0, par.NP+1), 0, par.NP+1)/norm;
+	END;
+	
+BEGIN
+
+	{first thing to check: G_frac. No need to check Vext as we will check the potentials any way}
+	IF A.G_frac <> B.G_frac THEN {if the experimental conditions are different, then the states are not the same}
+		States_Are_Equal:=FALSE
+	ELSE {light intensity is identical, but Vext and the internal variables might be different.}
+	BEGIN
+		{First: compare the internal potentials, so if Vext is different, this will show up here}
+		VSame:=Norm_Eucl(Difference(A.V, B.V, 0, par.NP+1), 0, par.NP+1) < par.tolPois; {note: we always compare potentials in Volt, so it's absolute!}
+
+		IF VSame THEN {only if potentials are the same, is there a point in doing any of the rest!}
+		BEGIN
+
+			{now we need to compare the rest of the internal variables, but this depends on par.convVar}	
+			CASE par.convVar OF
+			{note: fpc by default does shortcut evaluation of boolean expressions. So if the first condition (cond_1) in a list of
+			cond_1 AND cond_2 AND ... is false, then the rest will not be evaluated. This saves time!}	
+				1 : States_Are_Equal:=(Rel_Diff_Vec(A.n, B.n)<par.tolDens) AND (Rel_Diff_Vec(A.p, B.p)<par.tolDens)
+										AND (Rel_Diff_Vec(A.nion, B.nion)<par.tolDens) AND (Rel_Diff_Vec(A.pion, B.pion)<par.tolDens);
+				2 : States_Are_Equal:=ABS(A.Jint-B.Jint) <= MAX(par.tolCurr, MIN(A.errJ,B.errJ));
+				3 : States_Are_Equal:=(ABS(A.Jint-B.Jint) <= MAX(par.tolCurr, MIN(A.errJ,B.errJ)))
+										OR ((Rel_Diff_Vec(A.n, B.n)<par.tolDens) AND (Rel_Diff_Vec(A.p, B.p)<par.tolDens)
+										AND (Rel_Diff_Vec(A.nion, B.nion)<par.tolDens) AND (Rel_Diff_Vec(A.pion, B.pion)<par.tolDens));
+				4 : States_Are_Equal:=(ABS(A.Jint-B.Jint) <= MAX(par.tolCurr, MIN(A.errJ,B.errJ)))
+										AND (Rel_Diff_Vec(A.n, B.n)<par.tolDens) AND (Rel_Diff_Vec(A.p, B.p)<par.tolDens)
+										AND (Rel_Diff_Vec(A.nion, B.nion)<par.tolDens) AND (Rel_Diff_Vec(A.pion, B.pion)<par.tolDens)						
+			END {of case}
+		END
+	END
 END;
 
 BEGIN {main program}
@@ -402,7 +464,7 @@ BEGIN {main program}
     Define_Layers(stv, par); {define layers: Note, stv are not CONSTREF as we need to change them}
 	Init_Trapping(log, stv, par); {Inits all variables needed for trapping and SRH recombination}
 
-	Open_and_Read_tVG_file(inv, new, par); {open tVG file, read header and first time/voltage/G_ehp}
+	Open_and_Read_tVG_file(inv, log, new, par); {open tVG file, read header and first time/voltage/G_ehp}
 
 	WITH new DO Init_Pot_Dens_Ions_Traps(V, Vgn, Vgp, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Vint, stv, par); {init. (generalised) potentials and densities}
 
@@ -410,8 +472,9 @@ BEGIN {main program}
 	{just to make sure these are initialised!}
 	curr:=new;
 	prev:=curr;
+	ref:=curr; {ref is used as a reference for tracking, but we need to initialise it as well}
 
-	Prepare_tJV_File(uitv, par.tJFile, TRUE, stv);   {create the tJV-file}
+	Prepare_tJV_File(uitv, par.tJFile, TRUE, stv, par);   {create the tJV-file}
 	IF par.StoreVarFile THEN Prepare_Var_File(stv, par, TRUE); {create a new var_file with appropriate heading}
 
 	WRITELN('The calculation has started, please wait.');
@@ -424,6 +487,7 @@ BEGIN {main program}
 	countStatic:=0;
 	conv:=FALSE;
 	keepGoing:=foundtVG; {=true at this point!}
+	foundFirstRef:=FALSE; {indicates whether we've found the first ref state in the tVGFile, so a 'Track=1'}
 
 	WHILE keepGoing DO
 	BEGIN {main loop over times and t,V,G from input file:}
@@ -452,12 +516,15 @@ BEGIN {main program}
 			FLUSH(log);
 			{now assess whether we accept the new solution, or skip it, or quit:}
 			CASE par.failureMode OF
-				0 : Stop_Prog('Convergence failed at time = ' + FloatToStrF(new.tijd, ffGeneral,10,0)+ '. Maybe try smaller time steps.', EC_ConverenceFailedHalt);
+				0 : Stop_Prog_Finalize_Log (log, 'Convergence failed at time = ' + FloatToStrF(new.tijd, ffGeneral,10,0)+ '. Maybe try smaller time steps.', EC_ConvergenceFailedHalt);
 				1 : acceptNewSolution:=TRUE;
-				2 : acceptNewSolution:=(new.dti=0) {is true if steady-state, false otherwise}
+				2 : IF curr.Track <> 1 THEN {'normal case'}
+						acceptNewSolution:=(new.dti=0) {is true if steady-state, false otherwise}
+					ELSE {current state is the reference state (Track=1), so we're extra careful:}
+						Stop_Prog_Finalize_Log (log, 'Convergence failed and Track=1 at time = ' + FloatToStrF(new.tijd, ffGeneral,10,0)+ '.', EC_ConvergenceFailedHalt);						
 			END;
 			{if we get here, then conv=false, but we did not halt the program, so set the ExitCode:}
-			ExitCode:=EC_ConverenceFailedNotHalt
+			ExitCode:=EC_ConvergenceFailedNotHalt
 		END;
 
 		IF acceptNewSolution {OK, new solution is good (even if conv might be FALSE)}
@@ -481,38 +548,53 @@ BEGIN {main program}
 	
 		INC(CounttVGPoints);
 		
-		{is the state (Vext, G_frac, ...) still changing significantly?}
-		{count the number of points in time where the system hardly changes:}
-		IF acceptNewSolution AND (curr.dti*ABS(prev.Vint-curr.Vint)<1) AND (prev.G_frac=curr.G_frac) AND (curr.dti*ABS(prev.Jint-curr.Jint)<1)
-			THEN INC(CountStatic)
-			ELSE CountStatic:=0; {reset counter}
-
-		staticSystem:=(CountStatic >= MinCountStatic) AND (par.Autostop);
+		{Now we have to assess if we have to do automatic stopping, based on curr.Track:}
 		
+		CASE curr.Track OF {if 0, we don't do anything}
+			1 : IF Conv THEN 
+					ref:=Copy_State(curr, par); {if we're tracking, we need to update the ref state as well}	
+			2 : IF Conv OR (par.failureMode = 1) THEN 
+					IF States_Are_Equal(ref, curr, par) 
+						THEN INC(CountStatic)
+						ELSE CountStatic:=0; {reset counter}
+			3 :	IF Conv OR (par.failureMode = 1) THEN 
+				BEGIN
+					IF States_Are_Equal(ref, curr, par) 
+						THEN INC(CountStatic)
+						ELSE CountStatic:=0; {reset counter}				
+					
+					ref:=Copy_State(curr, par) {the current state becomes the new reference}
+				END
+		END;
+
+		staticSystem:=(CountStatic >= MinCountStatic);
+
 		{now see if there's more in the tVGFile:}
-		Read_tVG(new, curr.tijd, inv, foundtVG); {try to read a line of t, Va, G_ehp}
-		IF staticSystem AND par.autoStop AND foundtVG THEN {we're going to stop prematurely}
-		BEGIN
-			WRITELN(log, 'Stopping ZimT as the system does not change anymore.');
-			TextColor(LightRed); {switch to different colour}
-			WRITELN('Stopping ZimT as the system does not change anymore.');
-			TextColor(LightGray); {switch back to normal}
-		END; 
-		keepGoing:=foundtVG AND NOT staticSystem;
+		Read_tVG(new, curr.tijd, inv, log, foundtVG, foundFirstRef); {try to read a line of t, Va, G_ehp}
+
+		keepGoing:=foundtVG AND NOT staticSystem
     END; {main loop}
+
+	MsgStr:=''; {reset this string and fill it with stuff we want to show on screen and in the log file}
+
+	IF staticSystem AND foundtVG THEN
+	BEGIN
+		ExitCode:=EC_AutoStop; {this sets the exitcode to the correct one (EC_AutoStop) without halting the code (like Stop_Prog would do)}
+		MsgStr:=MsgStr + 'Stopped ZimT as the simulation has stabilised.' + LineEnding
+	END;
 
 	TextColor(LightGray); {whatever happened, switch back to normal colour}
     CLOSE(uitv);
 
-	WRITELN(CounttVGPoints,' (t,V,G)-points');
+	MsgStr:=MsgStr + IntToStr(CounttVGPoints) + ' (t,V,G)-points' + LineEnding;
 	IF CountAcceptedSolutions < CounttVGPoints THEN
-		WRITELN(CounttVGPoints-CountAcceptedSolutions,' did not converge.');
+		MsgStr:=MsgStr + IntToStr(CounttVGPoints-CountAcceptedSolutions) + ' did not converge.' + LineEnding;
 
-    WRITE('Output written in file(s) ', par.tJFile);
-	IF par.StoreVarFile THEN WRITE(' and ',par.varFile);
-	WRITELN('.');
+	MsgStr:=MsgStr + 'Output written in file(s) ' + par.tJFile;
+	IF par.StoreVarFile THEN MsgStr:=MsgStr + ' and ' + par.varFile;
+	MsgStr:=MsgStr + '.' + LineEnding;
 
-	MsgStr:=IntToStr(CounttVGPoints-CountAcceptedSolutions) + ' did not converge.' + LineEnding;
+	WRITELN(MsgStr); {write messages on screen}
 	Finalize_Log_File(log, MsgStr); {writes final comments, date, time, run time and closes log file.}
 
     WRITELN('Finished, press enter to exit');

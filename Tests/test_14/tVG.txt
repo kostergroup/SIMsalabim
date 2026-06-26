@@ -1,2 +1,2 @@
-t Vext G_frac
-0 0 1
+t Vext G_frac Track
+0 0 1 0

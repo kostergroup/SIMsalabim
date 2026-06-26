@@ -1,7 +1,7 @@
 ** ZimT Simulation Setup:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an '*'. Use '**' if you want your comment to be left-justified.
-** version: 5.32
+** version: 5.36
 
 **General***************************************************************************
 T = 300                           * K, absolute temperature
@@ -56,10 +56,10 @@ tolVint = 1E-10                   * V, tolerance internal voltage (Vint)
 timeout = -1                      * s, max run time, use negative value for unlimited run time.
 pauseAtEnd = 0                    * pause at the end of the simulation yes(1) or no (0)
 autoTidy = 1                      * if 1, then the program will always tidy up this file
-autoStop = 0                      * stop ZimT if change of system stops changing, yes(1) or no (<>1).
 tVGFile = tVG.txt                 * name of file that specifies time t, voltage V and gen. rate G
 tJFile = tj.dat                   * name of file with (t, V, G, J, range)
 varFile = none                    * name of the file with (x,V,n,p,Jn,etc) or none for no file.
 limitDigits = 1                   * if 1, then number of digits in output is limited
 outputRatio = 1                   * Output J to screen and variables to varFile every outputRatio timesteps
+specialOutput = none              * 'none' or 'spv' for specialised output
 logFile = log.txt                 * name of log file

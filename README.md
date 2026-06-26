@@ -205,11 +205,13 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
+- S. Heester,  L. Gil-Escrig, F. Ventosinos, M. Sessolo, H.J. Bolink, and L.J.A. Koster, The Red, White & Blue: Identifying recombination loss mechanisms in perovskite solar cells, PRX Energy (accepted).
+
 - Y. Tang, S. Wang, B. Shi, Z. Zhang, H. Liu, Y. Li, Y. Zhang, S.K. So, H. Yan, X. Lu, G. Cai, and S. Zhang, Acceptor Heterojunction Engineering toward Enhanced Spontaneously Formed Photo-Charges for High-Performance Organic Solar Cells, ACS Energy Lett. (2026).
 
 - I. Kafedjiska , V.M. Le Corre, H. Köbler, I. Levine , R. Schlatmann, and I. Lauermann, Investigation of interfacial charge-carrier dynamics, degradation, and recombination mechanisms in single-junction perovskite solar cells with NiOx and SAM hole-transporting layers via steady-state drift-diffusion model simulations, Sustain. Energy Fuels 10, 1174 (2026).
 
-- S. Heester, L. Gil-Escrig, M. Sessolo, H.J. Bolink, and L.J.A. Koster, Identifying recombination mechanisms in bifacial perovskite solar cells: Consequences for high efficiency tandems, Solar RRL (accepted).
+- S. Heester, L. Gil-Escrig, M. Sessolo, H.J. Bolink, and L.J.A. Koster, Identifying recombination mechanisms in bifacial perovskite solar cells: Consequences for high efficiency tandems, Solar RRL 10:e7033 (2026).
 
 - S. Heester, F.D. Elhorst, P. Martin Fernandez, V.M. Le Corre, M. Koopmans, and L.J.A. Koster, pySIMsalabim: a Python package to extend drift-diffusion modelling with SIMsalabim, Comput. Phys. Commun. 323, 110096 (2026).
 

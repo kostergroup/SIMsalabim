@@ -1,7 +1,7 @@
 ** SIMsalabim Layer parameters:
 ** Don't change the order of the parameters, comments can be added anywhere,
 ** but only after an ''. Use '' if you want your comment to be left-justified.
-** version: 5.36
+** version: 5.32
 
 **General***************************************************************************
 L = 500E-9                    * m, device length/thickness
@@ -34,7 +34,7 @@ C_p_int = 2E-14               * m^3/s, capture coefficient for holes (put to 0 t
 N_anion = 1E21                * m^-3, concentration of negative ions
 N_cation = 1E21               * m^-3, concentration of positive ions
 mu_anion = 5E-12              * m^2/Vs, mobility of negative ions (take 0 if they don't move)
-mu_cation = 5E-12             * m^2/Vs, mobility of positive ions (take 0 if they don't move)
+mu_cation = 0                 * m^2/Vs, mobility of positive ions (take 0 if they don't move)
 ionsMayEnter = 1              * may ions enter from other layers? yes(1) or no(<>1)
 
 **Generation and recombination******************************************************

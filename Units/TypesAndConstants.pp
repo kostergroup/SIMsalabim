@@ -39,13 +39,14 @@ const
     Max_NP	 = 1000;     {max number of grid points except contacts}
 
 	{exit codes:}
+	EC_AutoStop = 2;
 	EC_Warning = 3;
 	EC_DevParCorrupt = 90; 
 	EC_InvalidInput = 91;
 	EC_InvalidCLInput = 92;
 	EC_NumericalFailure = 93;
-	EC_ConverenceFailedHalt = 94;
-	EC_ConverenceFailedNotHalt = 95;
+	EC_ConvergenceFailedHalt = 94;
+	EC_ConvergenceFailedNotHalt = 95;
 	EC_FileNotFound = 96;
 	EC_TimeOut = 97;
 	EC_ProgrammingError = 99;
