@@ -1,3 +1,11 @@
+Version 5.37, 21 Oct 2026, LJAK
+
+Fixed a bug that affected SimSS version 5.26-5.36 (so not ZimT): Due to a revision of the iteration scheme in the Poisson solver, the parameter fixIons (SimSS only) no longer had any effect. If 1 (or true) this parameter should ensure that the ion distribution is only solved at the first applied bias voltage (so that could be a pre-conditioning or simply the first voltage), while keeping this ion distribution at all other voltages. The idea being that this is a relatively easy and fast way to study max. hysteresis. 
+
+Implementation: I added a value parameter to Solve_Poisson's header (UpdateIons) which is simply taken from new (TState has a field UpdateIons which is set in SimSS main code). Inside the Poisson loop, the ion densities are now only updated if UpdateIons and neg/posMobileIons are both true.
+
+
+
 Version 5.36, 26 June 2026, SH, VLC, LJAK
 
 

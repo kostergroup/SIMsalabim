@@ -205,7 +205,9 @@ If you would like to would like to contribute to the SIMsalabim project or have 
 
 List of publications (not complete):
 
-- S. Heester,  L. Gil-Escrig, F. Ventosinos, M. Sessolo, H.J. Bolink, and L.J.A. Koster, The Red, White & Blue: Identifying recombination loss mechanisms in perovskite solar cells, PRX Energy (accepted).
+- S.M. Hasnain, M.A. Mir, A. Iqbal, and I. Qasim, One-dimensional drift-diffusion assessment of interfacial defect reduction and PEA2SnI4 transport in a FA(Sn0.75Ge0.25)I3 perovskite solar cell with ZnMgO/CuSCN selective contacts, Next Mater. 13, 103475 (2026).
+
+- S. Heester,  L. Gil-Escrig, F. Ventosinos, M. Sessolo, H.J. Bolink, and L.J.A. Koster, The Red, White & Blue: Identifying recombination loss mechanisms in perovskite solar cells, PRX Energy 5, 033006 (2026).
 
 - Y. Tang, S. Wang, B. Shi, Z. Zhang, H. Liu, Y. Li, Y. Zhang, S.K. So, H. Yan, X. Lu, G. Cai, and S. Zhang, Acceptor Heterojunction Engineering toward Enhanced Spontaneously Formed Photo-Charges for High-Performance Organic Solar Cells, ACS Energy Lett. (2026).
 

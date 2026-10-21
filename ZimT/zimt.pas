@@ -59,7 +59,7 @@ USES {our own, generic ones:}
 
 CONST
     ProgName = TProgram.ZimT;  
-    version = '5.36';  
+    version = '5.37';  
 
 
 {first: check if the compiler is new enough, otherwise we can't check the version of the code}

@@ -44,7 +44,7 @@ USES sysutils,
      StrUtils,
      DDTypesAndConstants;
 
-CONST DDRoutinesVersion = '5.36'; {version of this unit}
+CONST DDRoutinesVersion = '5.37'; {version of this unit}
 
 {now check to see if the versions of the units match that of this code:}
 {$IF (TransferMatrixVersion <> DDRoutinesVersion) OR (DDTypesAndConstantsVersion <> DDRoutinesVersion)} 
@@ -1712,7 +1712,7 @@ BEGIN
 END;
 
 PROCEDURE Solve_Poisson(VAR V, n, p, nion, pion	: vector; VAR f_tb, f_ti, f_ti_numer, f_ti_inv_denom : TTrapArray; VAR Ntb_charge, Nti_charge : vector; CONSTREF Old_f_tb, Old_f_ti : TTrapArray;
-						VAR conv : BOOLEAN; VAR PoissMsg : STRING; dti : myReal;
+						VAR conv : BOOLEAN; VAR PoissMsg : STRING; dti : myReal; UpdateIons : BOOLEAN;
 						CONSTREF stv : TStaticVars; CONSTREF par : TInputParameters);
 {Solves the Poisson equation, can be used in steady-state and transient simulations}
 {Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
@@ -1764,9 +1764,9 @@ BEGIN
 			fac3:=1/fac2;
 			n[i]:=n[i]*fac2; {now update the densities: we have to do this}
 			p[i]:=p[i]*fac3; {in order to conserve Gummel iteration}
-			{and also apply this to the ions, but only if they are mobile:}
-			IF par.lyr[stv.lid[i]].negMobileIons THEN nion[i]:=nion[i]*fac2; 
-			IF par.lyr[stv.lid[i]].posMobileIons THEN pion[i]:=pion[i]*fac3
+			{and also apply this to the ions, but only if they are mobile AND we are meant to update them (UpdateIons):}
+			IF UpdateIons AND par.lyr[stv.lid[i]].negMobileIons THEN nion[i]:=nion[i]*fac2; 
+			IF UpdateIons AND par.lyr[stv.lid[i]].posMobileIons THEN pion[i]:=pion[i]*fac3
 		END; {for loop}
 
         it:=it+1;
@@ -2604,7 +2604,7 @@ BEGIN
 
 				{now IF there are moving ions:}
 				IF new.UpdateIons THEN BEGIN
-					IF par.lyr[stv.lid[i]].negMobileIons THEN	new.nion[i]:=MAX(0, curr.nion[i] + rV*(curr.nion[i]-prev.nion[i])); {these need to be non-negative}
+					IF par.lyr[stv.lid[i]].negMobileIons THEN new.nion[i]:=MAX(0, curr.nion[i] + rV*(curr.nion[i]-prev.nion[i])); {these need to be non-negative}
 					IF par.lyr[stv.lid[i]].posMobileIons THEN new.pion[i]:=MAX(0, curr.pion[i] + rV*(curr.pion[i]-prev.pion[i]))
 				END; {ions}
 			
@@ -2713,7 +2713,7 @@ BEGIN
 	WITH new DO
 	BEGIN
 		{note: Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
-		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, PoissMsg, dti, stv, par); 
+		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, PoissMsg, dti, UpdateIons, stv, par); 
 		Update_Gen_Pot(V, Vgn, Vgp, stv, par) {update generalised potentials}
 	END;
 
@@ -2772,7 +2772,7 @@ BEGIN
 		END;
 
 		{note: Solve_Poisson also modifies the charges (n,p,ions,traps) by estimating the effects of the newly calc'd potential}
-		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, PoissMsg, dti, stv, par); 
+		Solve_Poisson(V, n, p, nion, pion, f_tb, f_ti, f_ti_numer, f_ti_inv_denom, Ntb_charge, Nti_charge, curr.f_tb, curr.f_ti, check_Poisson, PoissMsg, dti, UpdateIons, stv, par); 
 		Update_Gen_Pot(V, Vgn, Vgp, stv, par); {update generalised potentials}
 
 		{now check for convergence:}
